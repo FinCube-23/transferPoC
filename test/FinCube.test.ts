@@ -2,9 +2,54 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 import { network } from "hardhat"
+import { encodeFunctionData, getAddress } from "viem"
 
-import { encodeAbiParameters, encodeFunctionData, getAddress } from "viem"
-import { AnyARecord } from "node:dns"
+/*
+ * ===============================================================================
+ * IMPORTANT: Understanding UUPS Proxy Pattern for Contract Upgrades
+ * ===============================================================================
+ *
+ * This test suite includes upgrade tests that use the UUPS (Universal Upgradeable
+ * Proxy Standard) pattern. Understanding why proxies are required is crucial:
+ *
+ * 🔑 KEY CONCEPTS:
+ *
+ * 1. SEPARATION OF CONCERNS:
+ *    - Proxy Contract: Holds state/storage and forwards calls
+ *    - Implementation Contract: Contains logic/functions but no persistent state
+ *
+ * 2. WHY DIRECT IMPLEMENTATION UPGRADES FAIL:
+ *    - OpenZeppelin's UUPSUpgradeable includes _checkProxy() that verifies calls
+ *      come through a proxy contract, not directly to implementation
+ *    - Direct calls to upgradeToAndCall() on implementations → UUPSUnauthorizedCallContext()
+ *    - This prevents accidental direct upgrades that would lose state
+ *
+ * 3. UPGRADE FLOW:
+ *    ┌─────────────────┐    ┌─────────────────┐
+ *    │   Proxy         │───▶│ Implementation  │
+ *    │ (holds state)   │    │ (contains logic)│
+ *    └─────────────────┘    └─────────────────┘
+ *           │
+ *           ▼ (upgrade)
+ *    ┌─────────────────┐    ┌─────────────────┐
+ *    │   Proxy         │───▶│ New Impl V2     │
+ *    │ (state preserved)│    │ (new logic)     │
+ *    └─────────────────┘    └─────────────────┘
+ *
+ * 4. STATE PRESERVATION:
+ *    - All storage variables remain in proxy contract
+ *    - User interactions always go through proxy address
+ *    - Only implementation pointer changes during upgrades
+ *
+ * 5. TESTING PATTERN:
+ *    - Deploy implementation contracts (logic only)
+ *    - Deploy proxy contracts with initialization data
+ *    - Use proxy addresses for all interactions
+ *    - Verify implementation pointer changes after upgrade
+ *    - Confirm state/storage is preserved
+ *
+ * ===============================================================================
+ */
 
 describe("FinCube", async function () {
     const { viem } = await network.connect()
@@ -52,8 +97,8 @@ describe("FinCube", async function () {
         await finCube.write.initialize([finCubeDAO.address, mockERC20.address])
 
         // Verify initialization
-        const daoAddress = await finCube.read.dao() as string
-        const tokenAddress = await finCube.read.approvedERC20() as string
+        const daoAddress = (await finCube.read.dao()) as string
+        const tokenAddress = (await finCube.read.approvedERC20()) as string
 
         assert.equal(getAddress(daoAddress), getAddress(finCubeDAO.address))
         assert.equal(getAddress(tokenAddress), getAddress(mockERC20.address))
@@ -254,7 +299,7 @@ describe("FinCube", async function () {
         await finCubeDAO.write.executeProposal([1n])
 
         // Verify the stablecoin address was changed
-        const currentToken = await finCube.read.approvedERC20() as string
+        const currentToken = (await finCube.read.approvedERC20()) as string
         assert.equal(getAddress(currentToken), getAddress(newToken.address))
 
         // Verify event was emitted
@@ -372,7 +417,7 @@ describe("FinCube", async function () {
         await finCubeDAO.write.executeProposal([2n])
 
         // 7. Verify the stablecoin address was changed
-        const finalTokenAddress = await finCube.read.approvedERC20() as string
+        const finalTokenAddress = (await finCube.read.approvedERC20()) as string
         assert.equal(
             getAddress(finalTokenAddress),
             getAddress(newToken.address)
@@ -415,7 +460,7 @@ describe("FinCube", async function () {
         assert.equal(member2FinalBalance, mintAmount - 50n * 10n ** 18n)
     })
 
-    it("Should verify FInCube contract is upgradeable (UUPS)", async function () {
+    it("Should verify FinCube contract is upgradeable (UUPS)", async function () {
         const [owner] = await viem.getWalletClients()
 
         // Deploy contracts
@@ -451,7 +496,7 @@ describe("FinCube", async function () {
         }
 
         // Verify DAO address is set correctly
-        const daoAddress = await finCube.read.dao() as string
+        const daoAddress = (await finCube.read.dao()) as string
         assert.equal(getAddress(daoAddress), getAddress(finCubeDAO.address))
     })
 
@@ -481,14 +526,14 @@ describe("FinCube", async function () {
         }
 
         // Owner should be able to upgrade (we'll just verify the call doesn't revert with auth error)
-        const owner_address = await finCubeDAO.read.owner() as string
+        const owner_address = (await finCubeDAO.read.owner()) as string
         assert.equal(
             getAddress(owner_address),
             getAddress(owner.account.address)
         )
     })
 
-    it("Should test reentrancy protection in FInCube safeTransfer", async function () {
+    it("Should test reentrancy protection in FinCube safeTransfer", async function () {
         const [owner, member1, member2] = await viem.getWalletClients()
 
         // Deploy malicious contract that attempts reentrancy
@@ -773,6 +818,335 @@ describe("FinCube", async function () {
                     error.message.includes(
                         "Initializable: contract is already initialized"
                     )
+            )
+        }
+    })
+
+    it("Should successfully upgrade FinCube contract through DAO proposal and verify upgrade", async function () {
+        const [owner, member1] = await viem.getWalletClients()
+
+        /*
+         * IMPORTANT: UUPS upgrades require PROXY contracts, not direct implementation contracts.
+         *
+         * Why we need proxies for UUPS upgrades:
+         * 1. UUPS (Universal Upgradeable Proxy Standard) separates contract logic from storage
+         * 2. The proxy contract holds the state/storage while implementation contracts contain logic
+         * 3. OpenZeppelin's UUPSUpgradeable has a _checkProxy() function that ensures upgrades
+         *    can ONLY be called through a proxy contract, never directly on implementations
+         * 4. Direct calls to upgradeToAndCall() on implementation contracts will revert with
+         *    UUPSUnauthorizedCallContext() error
+         * 5. The proxy forwards calls to the current implementation and can be upgraded to
+         *    point to new implementation contracts while preserving storage
+         */
+
+        // Deploy implementation contracts (these contain the logic but no state)
+        const finCubeDAOImpl = await viem.deployContract("FinCubeDAO")
+        const finCubeImpl = await viem.deployContract("FinCube")
+        const mockERC20 = await viem.deployContract("MockERC20", [
+            "Test Token",
+            "TEST",
+            18n,
+        ])
+
+        // Create initialization data for DAO proxy
+        const daoInitData = encodeFunctionData({
+            abi: [
+                {
+                    name: "initialize",
+                    type: "function",
+                    inputs: [
+                        { name: "_daoURI", type: "string" },
+                        { name: "_ownerURI", type: "string" },
+                    ],
+                },
+            ],
+            functionName: "initialize",
+            args: ["Test DAO URI", "Owner URI"],
+        })
+
+        // Deploy DAO proxy that points to DAO implementation
+        const finCubeDAOProxy = await viem.deployContract("TestERC1967Proxy", [
+            finCubeDAOImpl.address,
+            daoInitData,
+        ])
+
+        // Create initialization data for FinCube proxy
+        const finCubeInitData = encodeFunctionData({
+            abi: [
+                {
+                    name: "initialize",
+                    type: "function",
+                    inputs: [
+                        { name: "_dao", type: "address" },
+                        { name: "_token", type: "address" },
+                    ],
+                },
+            ],
+            functionName: "initialize",
+            args: [finCubeDAOProxy.address, mockERC20.address],
+        })
+
+        // Deploy FinCube proxy that points to FinCube implementation
+        const finCubeProxy = await viem.deployContract("TestERC1967Proxy", [
+            finCubeImpl.address,
+            finCubeInitData,
+        ])
+
+        // Get contract instances that point to proxy addresses (these hold the state)
+        const finCubeDAO = await viem.getContractAt(
+            "FinCubeDAO",
+            finCubeDAOProxy.address
+        )
+        const finCube = await viem.getContractAt(
+            "FinCube",
+            finCubeProxy.address
+        )
+
+        // Set up DAO parameters
+        await finCubeDAO.write.setVotingDelay([1n])
+        await finCubeDAO.write.setVotingPeriod([3n])
+
+        // Register and approve member1
+        await finCubeDAO.write.registerMember(
+            [member1.account.address, "Member 1 URI"],
+            { account: member1.account }
+        )
+
+        await finCubeDAO.write.newMemberApprovalProposal([
+            member1.account.address,
+            "Approve Member 1",
+        ])
+        await new Promise((resolve) => setTimeout(resolve, 2000))
+        await finCubeDAO.write.castVote([0n, true])
+        await new Promise((resolve) => setTimeout(resolve, 4000))
+        await finCubeDAO.write.executeProposal([0n])
+
+        // Store original state to verify preservation after upgrade
+        const originalDAO = (await finCube.read.dao()) as string
+        const originalToken = (await finCube.read.approvedERC20()) as string
+
+        // Deploy new implementation (V2) - this is just the logic, no state
+        const finCubeV2 = await viem.deployContract("FinCube")
+
+        // Get implementation address before upgrade from the proxy's storage
+        const implementationSlot =
+            "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc"
+        const originalImplementation = await publicClient.getStorageAt({
+            address: finCube.address, // This is the proxy address holding the state
+            slot: implementationSlot,
+        })
+
+        // Create upgrade proposal through DAO (targeting the PROXY contract)
+        const upgradeCalldata = encodeFunctionData({
+            abi: [
+                {
+                    name: "upgradeToAndCall",
+                    type: "function",
+                    inputs: [
+                        { name: "newImplementation", type: "address" },
+                        { name: "data", type: "bytes" },
+                    ],
+                },
+            ],
+            functionName: "upgradeToAndCall",
+            args: [finCubeV2.address, "0x"], // Point to new implementation
+        })
+
+        await finCubeDAO.write.propose([
+            [finCube.address], // Target the PROXY address, not implementation
+            [0n],
+            [upgradeCalldata],
+            "Upgrade FinCube to V2",
+        ])
+
+        // Vote on upgrade proposal
+        await new Promise((resolve) => setTimeout(resolve, 2000))
+        await finCubeDAO.write.castVote([1n, true]) // owner votes
+        await finCubeDAO.write.castVote([1n, true], {
+            account: member1.account,
+        }) // member1 votes
+        await new Promise((resolve) => setTimeout(resolve, 4000))
+
+        // Execute the upgrade proposal - this calls upgradeToAndCall on the proxy
+        await finCubeDAO.write.executeProposal([1n])
+
+        // Verify upgrade succeeded by checking implementation address changed
+        const newImplementation = await publicClient.getStorageAt({
+            address: finCube.address, // Check proxy's implementation storage
+            slot: implementationSlot,
+        })
+
+        // Implementation should have changed
+        assert.notEqual(originalImplementation, newImplementation)
+
+        // The new implementation should point to finCubeV2 address (padded to 32 bytes)
+        const expectedImplementation =
+            "0x" + "0".repeat(24) + finCubeV2.address.slice(2).toLowerCase()
+        assert.equal(newImplementation?.toLowerCase(), expectedImplementation)
+
+        // Verify state/storage was preserved after upgrade (this is the key benefit of proxies)
+        const daoAfterUpgrade = (await finCube.read.dao()) as string
+        const tokenAfterUpgrade = (await finCube.read.approvedERC20()) as string
+
+        assert.equal(getAddress(daoAfterUpgrade), getAddress(originalDAO))
+        assert.equal(getAddress(tokenAfterUpgrade), getAddress(originalToken))
+
+        // Verify contract functionality still works after upgrade
+        // Test that we can still call functions on the upgraded contract
+        const daoStillAccessible = await finCube.read.dao()
+        const tokenStillAccessible = await finCube.read.approvedERC20()
+
+        assert.ok(daoStillAccessible)
+        assert.ok(tokenStillAccessible)
+
+        // Test that upgrade authorization still works (only DAO can upgrade)
+        const finCubeV3 = await viem.deployContract("FinCube")
+        try {
+            await finCube.write.upgradeToAndCall([finCubeV3.address, "0x"], {
+                account: owner.account,
+            })
+            assert.fail(
+                "Should have failed - only DAO can upgrade after upgrade"
+            )
+        } catch (error: any) {
+            assert.ok(
+                error.message.includes("Only DAO") ||
+                    error.message.includes("UUPSUnauthorizedCallContext()")
+            )
+        }
+    })
+
+    it("Should successfully upgrade FinCubeDAO contract and verify upgrade", async function () {
+        const [owner, nonOwner] = await viem.getWalletClients()
+
+        /*
+         * IMPORTANT: UUPS upgrades require PROXY contracts for the same reasons as above.
+         *
+         * For FinCubeDAO upgrades:
+         * 1. DAO implementation contract contains the logic (governance functions)
+         * 2. DAO proxy contract holds the state (members, proposals, voting data)
+         * 3. When upgrading, we deploy new DAO implementation and point proxy to it
+         * 4. All storage (member list, proposals, voting history) is preserved in proxy
+         * 5. Only the owner can authorize DAO upgrades (via _authorizeUpgrade function)
+         */
+
+        // Deploy DAO implementation contract (logic only, no state)
+        const finCubeDAOImpl = await viem.deployContract("FinCubeDAO")
+
+        // Create initialization data for DAO proxy
+        const daoInitData = encodeFunctionData({
+            abi: [
+                {
+                    name: "initialize",
+                    type: "function",
+                    inputs: [
+                        { name: "_daoURI", type: "string" },
+                        { name: "_ownerURI", type: "string" },
+                    ],
+                },
+            ],
+            functionName: "initialize",
+            args: ["Test DAO URI", "Owner URI"],
+        })
+
+        // Deploy DAO proxy that points to DAO implementation and initializes
+        const finCubeDAOProxy = await viem.deployContract("TestERC1967Proxy", [
+            finCubeDAOImpl.address,
+            daoInitData,
+        ])
+
+        // Get contract instance that points to proxy address (this holds the state)
+        const finCubeDAO = await viem.getContractAt(
+            "FinCubeDAO",
+            finCubeDAOProxy.address
+        )
+
+        // Store original state to verify it's preserved after upgrade
+        const originalOwner = (await finCubeDAO.read.owner()) as string
+
+        // Set some state to verify preservation across upgrade
+        await finCubeDAO.write.setVotingDelay([5n])
+        await finCubeDAO.write.setVotingPeriod([10n])
+
+        const stateBeforeUpgrade = {
+            owner: (await finCubeDAO.read.owner()) as string,
+            votingDelay: (await finCubeDAO.read.votingDelay()) as bigint,
+            votingPeriod: (await finCubeDAO.read.votingPeriod()) as bigint,
+        }
+
+        // Deploy new DAO implementation (V2) - this is just the logic, no state
+        const finCubeDAOV2 = await viem.deployContract("FinCubeDAO")
+
+        // Get implementation address before upgrade from the proxy's storage
+        const implementationSlot =
+            "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc"
+        const originalImplementation = await publicClient.getStorageAt({
+            address: finCubeDAO.address, // This is the proxy address holding the state
+            slot: implementationSlot,
+        })
+
+        // Owner performs the upgrade directly (since DAO allows owner to upgrade)
+        await finCubeDAO.write.upgradeToAndCall([finCubeDAOV2.address, "0x"], {
+            account: owner.account,
+        })
+
+        // Verify upgrade succeeded by checking implementation address changed
+        const newImplementation = await publicClient.getStorageAt({
+            address: finCubeDAO.address, // Check proxy's implementation storage
+            slot: implementationSlot,
+        })
+
+        // Implementation should have changed
+        assert.notEqual(originalImplementation, newImplementation)
+
+        // The new implementation should point to finCubeDAOV2 address (padded to 32 bytes)
+        const expectedImplementation =
+            "0x" + "0".repeat(24) + finCubeDAOV2.address.slice(2).toLowerCase()
+        assert.equal(newImplementation?.toLowerCase(), expectedImplementation)
+
+        // Verify state/storage was preserved after upgrade (key benefit of proxy pattern)
+        const stateAfterUpgrade = {
+            owner: (await finCubeDAO.read.owner()) as string,
+            votingDelay: (await finCubeDAO.read.votingDelay()) as bigint,
+            votingPeriod: (await finCubeDAO.read.votingPeriod()) as bigint,
+        }
+
+        assert.equal(
+            getAddress(stateAfterUpgrade.owner),
+            getAddress(stateBeforeUpgrade.owner)
+        )
+        assert.equal(
+            stateAfterUpgrade.votingDelay,
+            stateBeforeUpgrade.votingDelay
+        )
+        assert.equal(
+            stateAfterUpgrade.votingPeriod,
+            stateBeforeUpgrade.votingPeriod
+        )
+
+        // Verify contract functionality still works after upgrade
+        // Test that we can still call owner-only functions
+        await finCubeDAO.write.setVotingDelay([7n], { account: owner.account })
+        const newVotingDelay = (await finCubeDAO.read.votingDelay()) as bigint
+        assert.equal(newVotingDelay, 7n)
+
+        // Test that access control still works (only owner can upgrade)
+        const finCubeDAOV3 = await viem.deployContract("FinCubeDAO")
+        try {
+            await finCubeDAO.write.upgradeToAndCall(
+                [finCubeDAOV3.address, "0x"],
+                {
+                    account: nonOwner.account,
+                }
+            )
+            assert.fail(
+                "Should have failed - only owner can upgrade after upgrade"
+            )
+        } catch (error: any) {
+            assert.ok(
+                error.message.includes("OwnableUnauthorizedAccount") ||
+                    error.message.includes("caller is not the owner") ||
+                    error.message.includes("UUPSUnauthorizedCallContext()")
             )
         }
     })
