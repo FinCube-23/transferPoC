@@ -4,6 +4,7 @@ import { describe, it } from "node:test"
 import { network } from "hardhat"
 
 import { encodeAbiParameters, encodeFunctionData, getAddress } from "viem"
+import { AnyARecord } from "node:dns"
 
 describe("FinCube", async function () {
     const { viem } = await network.connect()
@@ -51,8 +52,8 @@ describe("FinCube", async function () {
         await finCube.write.initialize([finCubeDAO.address, mockERC20.address])
 
         // Verify initialization
-        const daoAddress = await finCube.read.dao()
-        const tokenAddress = await finCube.read.approvedERC20()
+        const daoAddress = await finCube.read.dao() as string
+        const tokenAddress = await finCube.read.approvedERC20() as string
 
         assert.equal(getAddress(daoAddress), getAddress(finCubeDAO.address))
         assert.equal(getAddress(tokenAddress), getAddress(mockERC20.address))
@@ -218,11 +219,6 @@ describe("FinCube", async function () {
         await finCubeDAO.write.executeProposal([0n])
 
         // Create proposal to change stablecoin address
-        const setApprovedERC20Calldata = encodeAbiParameters(
-            [{ name: "newToken", type: "address" }],
-            [newToken.address]
-        )
-
         const functionSelector = encodeFunctionData({
             abi: [
                 {
@@ -258,7 +254,7 @@ describe("FinCube", async function () {
         await finCubeDAO.write.executeProposal([1n])
 
         // Verify the stablecoin address was changed
-        const currentToken = await finCube.read.approvedERC20()
+        const currentToken = await finCube.read.approvedERC20() as string
         assert.equal(getAddress(currentToken), getAddress(newToken.address))
 
         // Verify event was emitted
@@ -273,7 +269,7 @@ describe("FinCube", async function () {
 
         assert.ok(events.length > 0)
         assert.equal(
-            events[events.length - 1].args.newToken,
+            (events[events.length - 1].args as { newToken: string }).newToken,
             getAddress(newToken.address)
         )
     })
@@ -376,7 +372,7 @@ describe("FinCube", async function () {
         await finCubeDAO.write.executeProposal([2n])
 
         // 7. Verify the stablecoin address was changed
-        const finalTokenAddress = await finCube.read.approvedERC20()
+        const finalTokenAddress = await finCube.read.approvedERC20() as string
         assert.equal(
             getAddress(finalTokenAddress),
             getAddress(newToken.address)
@@ -447,7 +443,7 @@ describe("FinCube", async function () {
                 account: owner.account,
             })
             assert.fail("Should have failed - only DAO can upgrade")
-        } catch (error) {
+        } catch (error: any) {
             assert.ok(
                 error.message.includes("Only DAO") ||
                     error.message.includes("UUPSUnauthorizedCallContext()")
@@ -455,7 +451,7 @@ describe("FinCube", async function () {
         }
 
         // Verify DAO address is set correctly
-        const daoAddress = await finCube.read.dao()
+        const daoAddress = await finCube.read.dao() as string
         assert.equal(getAddress(daoAddress), getAddress(finCubeDAO.address))
     })
 
@@ -476,7 +472,7 @@ describe("FinCube", async function () {
                 { account: nonOwner.account }
             )
             assert.fail("Should have failed - only owner can upgrade")
-        } catch (error) {
+        } catch (error: any) {
             assert.ok(
                 error.message.includes("OwnableUnauthorizedAccount") ||
                     error.message.includes("caller is not the owner") ||
@@ -485,7 +481,7 @@ describe("FinCube", async function () {
         }
 
         // Owner should be able to upgrade (we'll just verify the call doesn't revert with auth error)
-        const owner_address = await finCubeDAO.read.owner()
+        const owner_address = await finCubeDAO.read.owner() as string
         assert.equal(
             getAddress(owner_address),
             getAddress(owner.account.address)
@@ -645,7 +641,7 @@ describe("FinCube", async function () {
         try {
             await finCubeDAO.write.executeProposal([1n])
             assert.fail("Should have failed - proposal already executed")
-        } catch (error) {
+        } catch (error: any) {
             assert.ok(error.message.includes("Proposal already executed"))
         }
     })
@@ -673,7 +669,7 @@ describe("FinCube", async function () {
                 account: nonOwner.account,
             })
             assert.fail("Should have failed - only DAO can set approved ERC20")
-        } catch (error) {
+        } catch (error: any) {
             assert.ok(error.message.includes("Only DAO"))
         }
 
@@ -683,7 +679,7 @@ describe("FinCube", async function () {
                 account: nonOwner.account,
             })
             assert.fail("Should have failed - only DAO can set DAO")
-        } catch (error) {
+        } catch (error: any) {
             assert.ok(error.message.includes("Only DAO"))
         }
 
@@ -694,7 +690,7 @@ describe("FinCube", async function () {
                 account: nonOwner.account,
             })
             assert.fail("Should have failed - only owner can set voting delay")
-        } catch (error) {
+        } catch (error: any) {
             assert.ok(
                 error.message.includes("OwnableUnauthorizedAccount") ||
                     error.message.includes("caller is not the owner")
@@ -706,7 +702,7 @@ describe("FinCube", async function () {
                 account: nonOwner.account,
             })
             assert.fail("Should have failed - only owner can set voting period")
-        } catch (error) {
+        } catch (error: any) {
             assert.ok(
                 error.message.includes("OwnableUnauthorizedAccount") ||
                     error.message.includes("caller is not the owner")
@@ -730,7 +726,7 @@ describe("FinCube", async function () {
             assert.fail(
                 "Should have failed - only members can create proposals"
             )
-        } catch (error) {
+        } catch (error: any) {
             assert.ok(
                 error.message.includes("Not a member") ||
                     error.message.includes("Member not approved")
@@ -756,7 +752,7 @@ describe("FinCube", async function () {
         try {
             await finCubeDAO.write.initialize(["Test DAO URI 2", "Owner URI 2"])
             assert.fail("Should have failed - already initialized")
-        } catch (error) {
+        } catch (error: any) {
             assert.ok(
                 error.message.includes("InvalidInitialization") ||
                     error.message.includes(
@@ -771,7 +767,7 @@ describe("FinCube", async function () {
                 mockERC20.address,
             ])
             assert.fail("Should have failed - already initialized")
-        } catch (error) {
+        } catch (error: any) {
             assert.ok(
                 error.message.includes("InvalidInitialization") ||
                     error.message.includes(
