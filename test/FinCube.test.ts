@@ -536,11 +536,10 @@ describe("FinCube", async function () {
     it("Should test reentrancy protection in FinCube safeTransfer", async function () {
         const [owner, member1, member2] = await viem.getWalletClients()
 
-        // Deploy malicious contract that attempts reentrancy
-        const maliciousContract = await viem.deployContract("MockERC20", [
+        // Deploy malicious ERC20 (use the malicious implementation)
+        const maliciousERC20 = await viem.deployContract("MaliciousERC20", [
             "Malicious Token",
             "MAL",
-            18n,
         ])
 
         // Deploy normal contracts
@@ -551,14 +550,14 @@ describe("FinCube", async function () {
         await finCubeDAO.write.initialize(["Test DAO URI", "Owner URI"])
         await finCube.write.initialize([
             finCubeDAO.address,
-            maliciousContract.address,
+            maliciousERC20.address,
         ])
 
         // Set up DAO parameters
         await finCubeDAO.write.setVotingDelay([1n])
         await finCubeDAO.write.setVotingPeriod([3n])
 
-        // Register and approve members
+        // Register and approve members (same as your flow)
         await finCubeDAO.write.registerMember(
             [member1.account.address, "Member 1 URI"],
             { account: member1.account }
@@ -573,9 +572,9 @@ describe("FinCube", async function () {
             member1.account.address,
             "Approve Member 1",
         ])
-        await new Promise((resolve) => setTimeout(resolve, 2000))
+        await new Promise((r) => setTimeout(r, 2000))
         await finCubeDAO.write.castVote([0n, true])
-        await new Promise((resolve) => setTimeout(resolve, 4000))
+        await new Promise((r) => setTimeout(r, 4000))
         await finCubeDAO.write.executeProposal([0n])
 
         // Approve member2
@@ -583,34 +582,62 @@ describe("FinCube", async function () {
             member2.account.address,
             "Approve Member 2",
         ])
-        await new Promise((resolve) => setTimeout(resolve, 2000))
+        await new Promise((r) => setTimeout(r, 2000))
         await finCubeDAO.write.castVote([1n, true])
-        await new Promise((resolve) => setTimeout(resolve, 4000))
+        await new Promise((r) => setTimeout(r, 4000))
         await finCubeDAO.write.executeProposal([1n])
 
         // Mint tokens and approve
         const mintAmount = 1000n * 10n ** 18n
-        await maliciousContract.write.mint([
-            member1.account.address,
-            mintAmount,
-        ])
-        await maliciousContract.write.approve([finCube.address, mintAmount], {
+        await maliciousERC20.write.mint([member1.account.address, mintAmount])
+        await maliciousERC20.write.approve([finCube.address, mintAmount], {
             account: member1.account,
         })
 
-        // Normal transfer should work (reentrancy guard allows first call)
+        // Configure attacker to target FinCube and attempt reentrancy
+        await maliciousERC20.write.setTargetContract([finCube.address])
+        await maliciousERC20.write.enableAttack([
+            member1.account.address,
+            member2.account.address,
+            50n * 10n ** 18n,
+        ])
+
+        // Attempt transfer: malicious token will try to call back into safeTransfer
+        try {
+            await finCube.write.safeTransfer(
+                [
+                    member1.account.address,
+                    member2.account.address,
+                    100n * 10n ** 18n,
+                    "Reentrancy test memo",
+                ],
+                { account: member1.account }
+            )
+            assert.fail("Expected revert due to reentrancy guard")
+        } catch (error: any) {
+            // Most common OpenZeppelin revert
+            const msg = error && error.message ? error.message : ""
+            assert.ok(
+                msg.includes("ReentrancyGuard: reentrant call") ||
+                    msg.includes("ReentrancyGuard") ||
+                    msg.includes("reentrant call"),
+                `Unexpected error message: ${msg}`
+            )
+        }
+
+        // Disable attack and ensure normal transfer works
+        await maliciousERC20.write.disableAttack()
         await finCube.write.safeTransfer(
             [
                 member1.account.address,
                 member2.account.address,
                 100n * 10n ** 18n,
-                "Reentrancy test memo",
+                "Normal transfer memo",
             ],
             { account: member1.account }
         )
 
-        // Verify transfer worked
-        const member2Balance = await maliciousContract.read.balanceOf([
+        const member2Balance = await maliciousERC20.read.balanceOf([
             member2.account.address,
         ])
         assert.equal(member2Balance, 100n * 10n ** 18n)
@@ -628,30 +655,77 @@ describe("FinCube", async function () {
         ])
         const finCube = await viem.deployContract("FinCube")
 
+        // Deploy malicious target contract
+        const maliciousTarget = await viem.deployContract("MaliciousTarget")
+
         // Initialize contracts
         await finCubeDAO.write.initialize(["Test DAO URI", "Owner URI"])
         await finCube.write.initialize([finCubeDAO.address, mockERC20.address])
 
         // Set up DAO parameters
         await finCubeDAO.write.setVotingDelay([1n])
-        await finCubeDAO.write.setVotingPeriod([3n])
+        await finCubeDAO.write.setVotingPeriod([10n])
 
-        // Register and approve member
+        // Register and approve members (same as your flow)
         await finCubeDAO.write.registerMember(
             [member1.account.address, "Member 1 URI"],
             { account: member1.account }
         )
 
+        // Approve member1
         await finCubeDAO.write.newMemberApprovalProposal([
             member1.account.address,
             "Approve Member 1",
         ])
-        await new Promise((resolve) => setTimeout(resolve, 2000))
+        await new Promise((r) => setTimeout(r, 4000))
         await finCubeDAO.write.castVote([0n, true])
-        await new Promise((resolve) => setTimeout(resolve, 4000))
+        await new Promise((r) => setTimeout(r, 12000))
         await finCubeDAO.write.executeProposal([0n])
 
-        // Create a general proposal
+        // Malicious target knows DAO
+        await maliciousTarget.write.setDAOContract([finCubeDAO.address])
+
+        // Create malicious proposal that calls maliciousTarget.maliciousFunction
+        const maliciousCalldata = encodeFunctionData({
+            abi: [{ name: "maliciousFunction", type: "function", inputs: [] }],
+            functionName: "maliciousFunction",
+            args: [],
+        })
+        await finCubeDAO.write.propose([
+            [maliciousTarget.address],
+            [0n],
+            [maliciousCalldata],
+            "Malicious proposal",
+        ])
+
+        // enable the attack for that proposal id (1)
+        await maliciousTarget.write.enableAttack([1n])
+
+        // vote and wait
+        await new Promise((r) => setTimeout(r, 4000))
+        await finCubeDAO.write.castVote([1n, true])
+        await finCubeDAO.write.castVote([1n, true], {
+            account: member1.account,
+        })
+        await new Promise((r) => setTimeout(r, 8000))
+
+        // Execution should revert due to reentrancy guard in executeProposal
+        try {
+            await finCubeDAO.write.executeProposal([1n])
+            assert.fail("Expected revert due to reentrancy")
+        } catch (error: any) {
+            const msg = error && error.message ? error.message : ""
+            assert.ok(
+                msg.includes("ReentrancyGuard: reentrant call") ||
+                    msg.includes("ReentrancyGuard") ||
+                    msg.includes("reentrant call"),
+                `Unexpected error message: ${msg}`
+            )
+        }
+
+        // disable attack and make a normal proposal that should succeed
+        await maliciousTarget.write.disableAttack()
+
         const setTokenCalldata = encodeFunctionData({
             abi: [
                 {
@@ -663,32 +737,22 @@ describe("FinCube", async function () {
             functionName: "setApprovedERC20",
             args: [mockERC20.address],
         })
-
         await finCubeDAO.write.propose([
             [finCube.address],
             [0n],
             [setTokenCalldata],
-            "Change approved ERC20 token",
+            "Normal proposal",
         ])
-
-        // Vote on proposal
-        await new Promise((resolve) => setTimeout(resolve, 2000))
-        await finCubeDAO.write.castVote([1n, true])
-        await finCubeDAO.write.castVote([1n, true], {
+        await new Promise((r) => setTimeout(r, 4000))
+        await finCubeDAO.write.castVote([2n, true])
+        await finCubeDAO.write.castVote([2n, true], {
             account: member1.account,
         })
-        await new Promise((resolve) => setTimeout(resolve, 4000))
+        await new Promise((r) => setTimeout(r, 8000))
+        await finCubeDAO.write.executeProposal([2n])
 
-        // Execute proposal (should work due to reentrancy guard)
-        await finCubeDAO.write.executeProposal([1n])
-
-        // Try to execute the same proposal again (should fail - already executed)
-        try {
-            await finCubeDAO.write.executeProposal([1n])
-            assert.fail("Should have failed - proposal already executed")
-        } catch (error: any) {
-            assert.ok(error.message.includes("Proposal already executed"))
-        }
+        const currentToken = await finCube.read.approvedERC20()
+        assert.equal(getAddress(currentToken), getAddress(mockERC20.address))
     })
 
     it("Should verify contracts implement proper access controls", async function () {
