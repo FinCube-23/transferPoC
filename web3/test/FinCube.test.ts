@@ -1,6 +1,6 @@
 // We don't have Ethereum specific assertions in Hardhat 3 yet
 import assert from "node:assert/strict"
-import { describe, it, beforeEach } from "node:test"
+import { describe, it } from "node:test"
 import { network } from "hardhat"
 import { encodeFunctionData, getAddress } from "viem"
 
@@ -208,6 +208,8 @@ describe("FinCube", async function () {
         })
 
         // Perform safe transfer from member1 to member2
+        const nullifier =
+            "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
         await viem.assertions.emitWithArgs(
             finCube.write.safeTransfer(
                 [
@@ -215,6 +217,7 @@ describe("FinCube", async function () {
                     getAddress(member2.account.address),
                     transferAmount,
                     "Test transfer memo",
+                    nullifier,
                 ],
                 { account: member1.account }
             ),
@@ -225,6 +228,7 @@ describe("FinCube", async function () {
                 getAddress(member2.account.address),
                 transferAmount,
                 "Test transfer memo",
+                nullifier,
             ]
         )
 
@@ -456,6 +460,8 @@ describe("FinCube", async function () {
             account: member2.account,
         })
 
+        const nullifier2 =
+            "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"
         await viem.assertions.emitWithArgs(
             finCube.write.safeTransfer(
                 [
@@ -463,6 +469,7 @@ describe("FinCube", async function () {
                     member1.account.address,
                     50n * 10n ** 18n,
                     "Final test transfer",
+                    nullifier2,
                 ],
                 { account: member2.account }
             ),
@@ -473,6 +480,7 @@ describe("FinCube", async function () {
                 getAddress(member1.account.address),
                 50n * 10n ** 18n,
                 "Final test transfer",
+                nullifier2,
             ]
         )
 
@@ -636,12 +644,15 @@ describe("FinCube", async function () {
 
         // Attempt transfer: malicious token will try to call back into safeTransfer
         try {
+            const nullifier3 =
+                "0x1111111111111111111111111111111111111111111111111111111111111111"
             await finCube.write.safeTransfer(
                 [
                     member1.account.address,
                     member2.account.address,
                     100n * 10n ** 18n,
                     "Reentrancy test memo",
+                    nullifier3,
                 ],
                 { account: member1.account }
             )
@@ -659,12 +670,15 @@ describe("FinCube", async function () {
 
         // Disable attack and ensure normal transfer works
         await maliciousERC20.write.disableAttack()
+        const nullifier4 =
+            "0x2222222222222222222222222222222222222222222222222222222222222222"
         await finCube.write.safeTransfer(
             [
                 member1.account.address,
                 member2.account.address,
                 100n * 10n ** 18n,
                 "Normal transfer memo",
+                nullifier4,
             ],
             { account: member1.account }
         )
