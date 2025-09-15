@@ -1,6 +1,6 @@
 // We don't have Ethereum specific assertions in Hardhat 3 yet
 import assert from "node:assert/strict"
-import { describe, it } from "node:test"
+import { describe, it, beforeEach } from "node:test"
 import { network } from "hardhat"
 import { encodeFunctionData, getAddress } from "viem"
 
@@ -54,6 +54,7 @@ import { encodeFunctionData, getAddress } from "viem"
 describe("FinCube", async function () {
     const { viem } = await network.connect()
     const publicClient = await viem.getPublicClient()
+    const rpc: any = publicClient
 
     it("Should deploy FinCubeDAO contract", async function () {
         const finCubeDAO = await viem.deployContract("FinCubeDAO")
@@ -100,8 +101,14 @@ describe("FinCube", async function () {
         const daoAddress = (await finCube.read.dao()) as string
         const tokenAddress = (await finCube.read.approvedERC20()) as string
 
-        assert.equal(getAddress(daoAddress), getAddress(finCubeDAO.address))
-        assert.equal(getAddress(tokenAddress), getAddress(mockERC20.address))
+        assert.equal(
+            getAddress(daoAddress as string),
+            getAddress(finCubeDAO.address)
+        )
+        assert.equal(
+            getAddress(tokenAddress as string),
+            getAddress(mockERC20.address)
+        )
     })
 
     it("Should mint ERC20 tokens and test stablecoin transfer flow", async function () {
@@ -136,8 +143,8 @@ describe("FinCube", async function () {
         )
 
         // Set voting delay and period
-        await finCubeDAO.write.setVotingDelay([1n]) // 1 second delay
-        await finCubeDAO.write.setVotingPeriod([3n]) // 3 seconds period
+        await finCubeDAO.write.setVotingDelay([1n], { account: owner.account })
+        await finCubeDAO.write.setVotingPeriod([3n], { account: owner.account })
 
         // Create proposal to approve member1
         await finCubeDAO.write.newMemberApprovalProposal([
@@ -146,13 +153,21 @@ describe("FinCube", async function () {
         ])
 
         // Wait for voting delay
-        await new Promise((resolve) => setTimeout(resolve, 2000))
+        await (publicClient as any).request({
+            method: "evm_increaseTime",
+            params: [1],
+        })
+        await (publicClient as any).request({ method: "evm_mine" })
 
         // Cast vote (owner votes yes)
         await finCubeDAO.write.castVote([0n, true])
 
         // Wait for voting period to end
-        await new Promise((resolve) => setTimeout(resolve, 4000))
+        await (publicClient as any).request({
+            method: "evm_increaseTime",
+            params: [3],
+        })
+        await (publicClient as any).request({ method: "evm_mine" })
 
         // Execute proposal to approve member1
         await finCubeDAO.write.executeProposal([0n])
@@ -164,13 +179,15 @@ describe("FinCube", async function () {
         ])
 
         // Wait for voting delay
-        await new Promise((resolve) => setTimeout(resolve, 2000))
+        await rpc.request({ method: "evm_increaseTime", params: [1] })
+        await rpc.request({ method: "evm_mine" })
 
         // Cast vote (owner votes yes)
         await finCubeDAO.write.castVote([1n, true])
 
         // Wait and execute proposal to approve member2
-        await new Promise((resolve) => setTimeout(resolve, 4000))
+        await rpc.request({ method: "evm_increaseTime", params: [3] })
+        await rpc.request({ method: "evm_mine" })
         await finCubeDAO.write.executeProposal([1n])
 
         // Verify members are approved
@@ -258,9 +275,11 @@ describe("FinCube", async function () {
             member1.account.address,
             "Approve Member 1",
         ])
-        await new Promise((resolve) => setTimeout(resolve, 2000))
+        await rpc.request({ method: "evm_increaseTime", params: [1] })
+        await rpc.request({ method: "evm_mine" })
         await finCubeDAO.write.castVote([0n, true])
-        await new Promise((resolve) => setTimeout(resolve, 4000))
+        await rpc.request({ method: "evm_increaseTime", params: [3] })
+        await rpc.request({ method: "evm_mine" })
         await finCubeDAO.write.executeProposal([0n])
 
         // Create proposal to change stablecoin address
@@ -284,7 +303,8 @@ describe("FinCube", async function () {
         ])
 
         // Wait for voting delay
-        await new Promise((resolve) => setTimeout(resolve, 2000))
+        await rpc.request({ method: "evm_increaseTime", params: [1] })
+        await rpc.request({ method: "evm_mine" })
 
         // Cast votes (owner and member1 vote yes)
         await finCubeDAO.write.castVote([1n, true]) // owner votes
@@ -293,7 +313,8 @@ describe("FinCube", async function () {
         }) // member1 votes
 
         // Wait for voting period
-        await new Promise((resolve) => setTimeout(resolve, 4000))
+        await rpc.request({ method: "evm_increaseTime", params: [3] })
+        await rpc.request({ method: "evm_mine" })
 
         // Execute the proposal
         await finCubeDAO.write.executeProposal([1n])
@@ -313,8 +334,9 @@ describe("FinCube", async function () {
         })
 
         assert.ok(events.length > 0)
+        const lastEvent = events[events.length - 1]
         assert.equal(
-            (events[events.length - 1].args as { newToken: string }).newToken,
+            (lastEvent.args as any)?.newToken,
             getAddress(newToken.address)
         )
     })
@@ -367,9 +389,11 @@ describe("FinCube", async function () {
             member1.account.address,
             "Approve Member 1",
         ])
-        await new Promise((resolve) => setTimeout(resolve, 2000))
+        await rpc.request({ method: "evm_increaseTime", params: [1] })
+        await rpc.request({ method: "evm_mine" })
         await finCubeDAO.write.castVote([0n, true])
-        await new Promise((resolve) => setTimeout(resolve, 4000))
+        await rpc.request({ method: "evm_increaseTime", params: [3] })
+        await rpc.request({ method: "evm_mine" })
         await finCubeDAO.write.executeProposal([0n])
 
         // Approve member2
@@ -377,12 +401,14 @@ describe("FinCube", async function () {
             member2.account.address,
             "Approve Member 2",
         ])
-        await new Promise((resolve) => setTimeout(resolve, 2000))
+        await rpc.request({ method: "evm_increaseTime", params: [1] })
+        await rpc.request({ method: "evm_mine" })
         await finCubeDAO.write.castVote([1n, true])
         await finCubeDAO.write.castVote([1n, true], {
             account: member1.account,
         })
-        await new Promise((resolve) => setTimeout(resolve, 4000))
+        await rpc.request({ method: "evm_increaseTime", params: [3] })
+        await rpc.request({ method: "evm_mine" })
         await finCubeDAO.write.executeProposal([1n])
 
         // 4. Create stablecoin proposal (target -> contract address)
@@ -406,20 +432,22 @@ describe("FinCube", async function () {
         ])
 
         // 5. Cast votes
-        await new Promise((resolve) => setTimeout(resolve, 2000))
+        await rpc.request({ method: "evm_increaseTime", params: [1] })
+        await rpc.request({ method: "evm_mine" })
         await finCubeDAO.write.castVote([2n, true]) // owner
         await finCubeDAO.write.castVote([2n, true], {
             account: member1.account,
         }) // member1
 
         // 6. Execute the proposal
-        await new Promise((resolve) => setTimeout(resolve, 4000))
+        await rpc.request({ method: "evm_increaseTime", params: [3] })
+        await rpc.request({ method: "evm_mine" })
         await finCubeDAO.write.executeProposal([2n])
 
         // 7. Verify the stablecoin address was changed
         const finalTokenAddress = (await finCube.read.approvedERC20()) as string
         assert.equal(
-            getAddress(finalTokenAddress),
+            getAddress(finalTokenAddress as string),
             getAddress(newToken.address)
         )
 
@@ -528,7 +556,7 @@ describe("FinCube", async function () {
         // Owner should be able to upgrade (we'll just verify the call doesn't revert with auth error)
         const owner_address = (await finCubeDAO.read.owner()) as string
         assert.equal(
-            getAddress(owner_address),
+            getAddress(owner_address as string),
             getAddress(owner.account.address)
         )
     })
@@ -572,9 +600,11 @@ describe("FinCube", async function () {
             member1.account.address,
             "Approve Member 1",
         ])
-        await new Promise((r) => setTimeout(r, 2000))
+        await rpc.request({ method: "evm_increaseTime", params: [1] })
+        await rpc.request({ method: "evm_mine" })
         await finCubeDAO.write.castVote([0n, true])
-        await new Promise((r) => setTimeout(r, 4000))
+        await rpc.request({ method: "evm_increaseTime", params: [3] })
+        await rpc.request({ method: "evm_mine" })
         await finCubeDAO.write.executeProposal([0n])
 
         // Approve member2
@@ -582,9 +612,11 @@ describe("FinCube", async function () {
             member2.account.address,
             "Approve Member 2",
         ])
-        await new Promise((r) => setTimeout(r, 2000))
+        await rpc.request({ method: "evm_increaseTime", params: [1] })
+        await rpc.request({ method: "evm_mine" })
         await finCubeDAO.write.castVote([1n, true])
-        await new Promise((r) => setTimeout(r, 4000))
+        await rpc.request({ method: "evm_increaseTime", params: [3] })
+        await rpc.request({ method: "evm_mine" })
         await finCubeDAO.write.executeProposal([1n])
 
         // Mint tokens and approve
@@ -1212,6 +1244,341 @@ describe("FinCube", async function () {
                     error.message.includes("caller is not the owner") ||
                     error.message.includes("UUPSUnauthorizedCallContext()")
             )
+        }
+    })
+    it("Should reject execution without majority votes", async function () {
+        const [owner, member1] = await viem.getWalletClients()
+
+        // Deploy contracts
+        const finCubeDAO = await viem.deployContract("FinCubeDAO")
+        const mockERC20 = await viem.deployContract("MockERC20", [
+            "Test Token",
+            "TEST",
+            18n,
+        ])
+        const finCube = await viem.deployContract("FinCube")
+
+        // Initialize contracts
+        await finCubeDAO.write.initialize(["Test DAO URI", "Owner URI"])
+        await finCube.write.initialize([finCubeDAO.address, mockERC20.address])
+
+        // Set up DAO parameters
+        await finCubeDAO.write.setVotingDelay([1n])
+        await finCubeDAO.write.setVotingPeriod([120n])
+
+        // Register new member
+        await finCubeDAO.write.registerMember(
+            [member1.account.address, "Member 1 URI"],
+            { account: member1.account }
+        )
+
+        // Create approval proposal
+        await finCubeDAO.write.newMemberApprovalProposal([
+            member1.account.address,
+            "Test proposal",
+        ])
+
+        // Wait for voting delay
+        await rpc.request({ method: "evm_increaseTime", params: [1] })
+        await rpc.request({ method: "evm_mine" })
+
+        // NO VOTES CAST - zero yes votes
+        // Wait for full voting period (120s)
+        await rpc.request({ method: "evm_increaseTime", params: [120] })
+        await rpc.request({ method: "evm_mine" })
+
+        // Should fail - 0 yes votes, needs at least 1 vote
+        try {
+            await finCubeDAO.write.executeProposal([0n])
+            assert.fail("Should have failed - no majority vote")
+        } catch (error: any) {
+            assert.ok(
+                error.message.includes("Proposal doesn't have majority vote")
+            )
+        }
+    })
+
+    it("Should initialize with owner as first member", async function () {
+        const [owner] = await viem.getWalletClients()
+
+        // Deploy and initialize DAO
+        const finCubeDAO = await viem.deployContract("FinCubeDAO")
+        await finCubeDAO.write.initialize(["Test DAO URI", "Owner URI"])
+
+        // Owner should be first approved member after initialize
+        const isOwnerApproved = await finCubeDAO.read.checkIsMemberApproved([
+            owner.account.address,
+        ])
+        assert.equal(isOwnerApproved, true)
+    })
+
+    it("Should allow anyone to register new member", async function () {
+        const [owner, newMember] = await viem.getWalletClients()
+
+        // Deploy DAO
+        const finCubeDAO = await viem.deployContract("FinCubeDAO")
+        await finCubeDAO.write.initialize(["Test DAO URI", "Owner URI"])
+        // Set voting params required by proposal creation
+        await finCubeDAO.write.setVotingDelay([1n])
+        await finCubeDAO.write.setVotingPeriod([3n])
+
+        // Register new member (anyone can call)
+        const tx = await finCubeDAO.write.registerMember(
+            [newMember.account.address, "member://uri"],
+            { account: newMember.account }
+        )
+
+        // Verify member was registered: second registration should revert
+        try {
+            await finCubeDAO.write.registerMember(
+                [newMember.account.address, "member://uri"],
+                { account: newMember.account }
+            )
+            assert.fail("Should have failed - already a member")
+        } catch (error: any) {
+            assert.ok(error.message.includes("Already a member"))
+        }
+    })
+
+    it("Should only allow members to create approval proposals", async function () {
+        const [owner, newMember, nonMember] = await viem.getWalletClients()
+
+        // Deploy DAO
+        const finCubeDAO = await viem.deployContract("FinCubeDAO")
+        await finCubeDAO.write.initialize(["Test DAO URI", "Owner URI"])
+
+        // Register member first (pending status)
+        await finCubeDAO.write.registerMember(
+            [newMember.account.address, "member://uri"],
+            { account: newMember.account }
+        )
+
+        // Non-members should not be able to create proposals
+        await assert.rejects(
+            async () => {
+                await finCubeDAO.write.newMemberApprovalProposal(
+                    [nonMember.account.address, "Test proposal"],
+                    { account: nonMember.account }
+                )
+            },
+            (error: any) =>
+                error.message.includes("Not a member") ||
+                error.message.includes("Member not approved")
+        )
+
+        // Approved members can create proposals
+        await finCubeDAO.write.setVotingDelay([1n], { account: owner.account })
+        await finCubeDAO.write.setVotingPeriod([5n], { account: owner.account })
+
+        await finCubeDAO.write.newMemberApprovalProposal(
+            [newMember.account.address, "Test proposal"],
+            { account: owner.account }
+        )
+    })
+
+    it("Should enforce voting delay before execution", async function () {
+        const [owner, newMember] = await viem.getWalletClients()
+
+        // Deploy DAO
+        const finCubeDAO = await viem.deployContract("FinCubeDAO")
+        await finCubeDAO.write.initialize(["Test DAO URI", "Owner URI"])
+
+        // Set up DAO parameters
+        await finCubeDAO.write.setVotingDelay([1n])
+        await finCubeDAO.write.setVotingPeriod([3n])
+
+        // Register and create proposal
+        await finCubeDAO.write.registerMember(
+            [newMember.account.address, "member://uri"],
+            { account: newMember.account }
+        )
+        await finCubeDAO.write.newMemberApprovalProposal([
+            newMember.account.address,
+            "Test proposal",
+        ])
+
+        // Wait for voting delay
+        await rpc.request({ method: "evm_increaseTime", params: [1] })
+        await rpc.request({ method: "evm_mine" })
+
+        // Vote yes
+        await finCubeDAO.write.castVote([0n, true])
+
+        // Should fail before voting period ends
+        try {
+            await finCubeDAO.write.executeProposal([0n])
+            assert.fail("Should have failed - voting still going on")
+        } catch (error: any) {
+            assert.ok(error.message.includes("Voting still going on"))
+        }
+
+        // Wait for voting period to end
+        await rpc.request({ method: "evm_increaseTime", params: [3] })
+        await rpc.request({ method: "evm_mine" })
+
+        // Now should succeed
+        await finCubeDAO.write.executeProposal([0n])
+
+        // Verify member is approved
+        const isApproved = await finCubeDAO.read.checkIsMemberApproved([
+            newMember.account.address,
+        ])
+        assert.equal(isApproved, true)
+    })
+
+    it("Should complete full member approval flow", async function () {
+        const [owner, newMember] = await viem.getWalletClients()
+
+        // Deploy DAO
+        const finCubeDAO = await viem.deployContract("FinCubeDAO")
+        await finCubeDAO.write.initialize(["Test DAO URI", "Owner URI"])
+
+        // Set up DAO parameters
+        await finCubeDAO.write.setVotingDelay([1n])
+        await finCubeDAO.write.setVotingPeriod([3n])
+
+        // 1. Register new member (anyone can call)
+        await finCubeDAO.write.registerMember(
+            [newMember.account.address, "member://uri"],
+            { account: newMember.account }
+        )
+
+        // 2. Create approval proposal (only members can call)
+        await finCubeDAO.write.newMemberApprovalProposal([
+            newMember.account.address,
+            "Approve new member",
+        ])
+
+        // 3. Wait for voting delay and vote
+        await rpc.request({ method: "evm_increaseTime", params: [1] })
+        await rpc.request({ method: "evm_mine" })
+        await finCubeDAO.write.castVote([0n, true])
+
+        // 4. Wait for voting period to end
+        await rpc.request({ method: "evm_increaseTime", params: [3] })
+        await rpc.request({ method: "evm_mine" })
+
+        // 5. Execute proposal
+        await finCubeDAO.write.executeProposal([0n])
+
+        // Verify new member is approved
+        const isApproved = await finCubeDAO.read.checkIsMemberApproved([
+            newMember.account.address,
+        ])
+        assert.equal(isApproved, true)
+    })
+
+    it("Should not allow voting after voting period ends", async function () {
+        const [owner, newMember] = await viem.getWalletClients()
+
+        // Deploy DAO
+        const finCubeDAO = await viem.deployContract("FinCubeDAO")
+        await finCubeDAO.write.initialize(["Test DAO URI", "Owner URI"])
+
+        // Set up DAO parameters
+        await finCubeDAO.write.setVotingDelay([1n])
+        await finCubeDAO.write.setVotingPeriod([3n])
+
+        // Register and create proposal
+        await finCubeDAO.write.registerMember(
+            [newMember.account.address, "member://uri"],
+            { account: newMember.account }
+        )
+        await finCubeDAO.write.newMemberApprovalProposal([
+            newMember.account.address,
+            "Test proposal",
+        ])
+
+        // Wait for voting delay
+        await rpc.request({ method: "evm_increaseTime", params: [1] })
+        await rpc.request({ method: "evm_mine" })
+
+        // Wait for voting period to end
+        await rpc.request({ method: "evm_increaseTime", params: [3] })
+        await rpc.request({ method: "evm_mine" })
+
+        // Voting attempt after voting period should fail
+        try {
+            await finCubeDAO.write.castVote([0n, true])
+            assert.fail("Should have failed - voting period ended")
+        } catch (error: any) {
+            assert.ok(
+                error.message.includes("Voting is not allowed at this time")
+            )
+        }
+    })
+
+    it("Should not allow executing proposal before voting period ends", async function () {
+        const [owner, newMember] = await viem.getWalletClients()
+
+        // Deploy DAO
+        const finCubeDAO = await viem.deployContract("FinCubeDAO")
+        await finCubeDAO.write.initialize(["Test DAO URI", "Owner URI"])
+
+        // Set up DAO parameters
+        await finCubeDAO.write.setVotingDelay([1n])
+        await finCubeDAO.write.setVotingPeriod([3n])
+
+        // Register and create proposal
+        await finCubeDAO.write.registerMember(
+            [newMember.account.address, "member://uri"],
+            { account: newMember.account }
+        )
+        await finCubeDAO.write.newMemberApprovalProposal([
+            newMember.account.address,
+            "Test proposal",
+        ])
+
+        // Wait for voting delay
+        await rpc.request({ method: "evm_increaseTime", params: [1] })
+        await rpc.request({ method: "evm_mine" })
+
+        // Vote
+        await finCubeDAO.write.castVote([0n, true])
+
+        // Try executing too early (before voting period ends)
+        try {
+            await finCubeDAO.write.executeProposal([0n])
+            assert.fail("Should have failed - voting still going on")
+        } catch (error: any) {
+            assert.ok(error.message.includes("Voting still going on"))
+        }
+    })
+
+    it("Should not allow voting twice on the same proposal", async function () {
+        const [owner, newMember] = await viem.getWalletClients()
+
+        // Deploy DAO
+        const finCubeDAO = await viem.deployContract("FinCubeDAO")
+        await finCubeDAO.write.initialize(["Test DAO URI", "Owner URI"])
+
+        // Set up DAO parameters
+        await finCubeDAO.write.setVotingDelay([1n])
+        await finCubeDAO.write.setVotingPeriod([3n])
+
+        // Register and create proposal
+        await finCubeDAO.write.registerMember(
+            [newMember.account.address, "member://uri"],
+            { account: newMember.account }
+        )
+        await finCubeDAO.write.newMemberApprovalProposal([
+            newMember.account.address,
+            "Test proposal",
+        ])
+
+        // Wait for voting delay
+        await rpc.request({ method: "evm_increaseTime", params: [1] })
+        await rpc.request({ method: "evm_mine" })
+
+        // Vote once
+        await finCubeDAO.write.castVote([0n, true])
+
+        // Try to vote again - should fail
+        try {
+            await finCubeDAO.write.castVote([0n, false])
+            assert.fail("Should have failed - already voted")
+        } catch (error: any) {
+            assert.ok(error.message.includes("Already voted for this proposal"))
         }
     })
 })
