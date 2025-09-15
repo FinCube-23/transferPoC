@@ -1,5 +1,5 @@
 {
-  "name": "Test FInCube Smart Contracts",
+  "name": "Test FinCube Smart Contracts",
   "version": "1.0.0",
   "type": "module",
   "devDependencies": {
@@ -12,7 +12,9 @@
     "viem": "^2.37.5"
   },
   "dependencies": {
+    "@nomicfoundation/hardhat-verify": "^3.0.2",
     "@openzeppelin/contracts": "^5.4.0",
-    "@openzeppelin/contracts-upgradeable": "^5.4.0"
+    "@openzeppelin/contracts-upgradeable": "^5.4.0",
+    "dotenv": "^17.2.2"
   }
 }
