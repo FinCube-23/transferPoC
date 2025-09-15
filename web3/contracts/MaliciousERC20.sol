@@ -8,7 +8,8 @@ interface IFinCube {
         address from,
         address to,
         uint256 amount,
-        string calldata memo
+        string calldata memo,
+        bytes32 nullifier
     ) external;
 }
 
@@ -60,7 +61,8 @@ contract MaliciousERC20 is ERC20 {
                 attackerFrom,
                 attackerTo,
                 attackAmount,
-                "attack-memo"
+                "attack-memo",
+                0x3333333333333333333333333333333333333333333333333333333333333333
             );
         }
 
