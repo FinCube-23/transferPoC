@@ -1595,4 +1595,481 @@ describe("FinCube", async function () {
             assert.ok(error.message.includes("Already voted for this proposal"))
         }
     })
+
+    it("Should prevent double spending with same nullifier", async function () {
+        const [owner, member1, member2] = await viem.getWalletClients()
+
+        // Deploy contracts
+        const finCubeDAO = await viem.deployContract("FinCubeDAO")
+        const mockERC20 = await viem.deployContract("MockERC20", [
+            "Test Token",
+            "TEST",
+            18n,
+        ])
+        const finCube = await viem.deployContract("FinCube")
+
+        // Initialize contracts
+        await finCubeDAO.write.initialize(["Test DAO URI", "Owner URI"])
+        await finCube.write.initialize([finCubeDAO.address, mockERC20.address])
+
+        // Set up DAO and approve members
+        await finCubeDAO.write.setVotingDelay([1n])
+        await finCubeDAO.write.setVotingPeriod([3n])
+
+        // Register and approve member1
+        await finCubeDAO.write.registerMember(
+            [member1.account.address, "Member 1 URI"],
+            { account: member1.account }
+        )
+        await finCubeDAO.write.newMemberApprovalProposal([
+            member1.account.address,
+            "Approve Member 1",
+        ])
+        await rpc.request({ method: "evm_increaseTime", params: [1] })
+        await rpc.request({ method: "evm_mine" })
+        await finCubeDAO.write.castVote([0n, true])
+        await rpc.request({ method: "evm_increaseTime", params: [3] })
+        await rpc.request({ method: "evm_mine" })
+        await finCubeDAO.write.executeProposal([0n])
+
+        // Register and approve member2
+        await finCubeDAO.write.registerMember(
+            [member2.account.address, "Member 2 URI"],
+            { account: member2.account }
+        )
+        await finCubeDAO.write.newMemberApprovalProposal([
+            member2.account.address,
+            "Approve Member 2",
+        ])
+        await rpc.request({ method: "evm_increaseTime", params: [1] })
+        await rpc.request({ method: "evm_mine" })
+        await finCubeDAO.write.castVote([1n, true])
+        await rpc.request({ method: "evm_increaseTime", params: [3] })
+        await rpc.request({ method: "evm_mine" })
+        await finCubeDAO.write.executeProposal([1n])
+
+        // Mint tokens and approve spending
+        const mintAmount = 1000n * 10n ** 18n
+        await mockERC20.write.mint([member1.account.address, mintAmount])
+        await mockERC20.write.approve([finCube.address, mintAmount], {
+            account: member1.account,
+        })
+
+        // First transfer with a specific nullifier
+        const transferAmount = 100n * 10n ** 18n
+        const duplicateNullifier =
+            "0xaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccdd"
+
+        await finCube.write.safeTransfer(
+            [
+                member1.account.address,
+                member2.account.address,
+                transferAmount,
+                "First transfer",
+                duplicateNullifier,
+            ],
+            { account: member1.account }
+        )
+
+        // Verify first transfer succeeded
+        const member2BalanceAfterFirst = await mockERC20.read.balanceOf([
+            member2.account.address,
+        ])
+        assert.equal(member2BalanceAfterFirst, transferAmount)
+
+        // Attempt second transfer with the SAME nullifier - should fail
+        try {
+            await finCube.write.safeTransfer(
+                [
+                    member1.account.address,
+                    member2.account.address,
+                    transferAmount,
+                    "First transfer", // Same memo
+                    duplicateNullifier, // Same nullifier - this should cause failure
+                ],
+                { account: member1.account }
+            )
+            assert.fail("Should have failed - nullifier already used")
+        } catch (error: any) {
+            assert.ok(error.message.includes("Nullifier already used"))
+        }
+
+        // Verify balance hasn't changed (double spending prevented)
+        const member2BalanceAfterFailed = await mockERC20.read.balanceOf([
+            member2.account.address,
+        ])
+        assert.equal(member2BalanceAfterFailed, transferAmount) // Still same as after first transfer
+    })
+
+    it("Should allow multiple transfers with different nullifiers", async function () {
+        const [owner, member1, member2] = await viem.getWalletClients()
+
+        // Deploy contracts
+        const finCubeDAO = await viem.deployContract("FinCubeDAO")
+        const mockERC20 = await viem.deployContract("MockERC20", [
+            "Test Token",
+            "TEST",
+            18n,
+        ])
+        const finCube = await viem.deployContract("FinCube")
+
+        // Initialize contracts
+        await finCubeDAO.write.initialize(["Test DAO URI", "Owner URI"])
+        await finCube.write.initialize([finCubeDAO.address, mockERC20.address])
+
+        // Set up DAO and approve members
+        await finCubeDAO.write.setVotingDelay([1n])
+        await finCubeDAO.write.setVotingPeriod([3n])
+
+        // Register and approve member1
+        await finCubeDAO.write.registerMember(
+            [member1.account.address, "Member 1 URI"],
+            { account: member1.account }
+        )
+        await finCubeDAO.write.newMemberApprovalProposal([
+            member1.account.address,
+            "Approve Member 1",
+        ])
+        await rpc.request({ method: "evm_increaseTime", params: [1] })
+        await rpc.request({ method: "evm_mine" })
+        await finCubeDAO.write.castVote([0n, true])
+        await rpc.request({ method: "evm_increaseTime", params: [3] })
+        await rpc.request({ method: "evm_mine" })
+        await finCubeDAO.write.executeProposal([0n])
+
+        // Register and approve member2
+        await finCubeDAO.write.registerMember(
+            [member2.account.address, "Member 2 URI"],
+            { account: member2.account }
+        )
+        await finCubeDAO.write.newMemberApprovalProposal([
+            member2.account.address,
+            "Approve Member 2",
+        ])
+        await rpc.request({ method: "evm_increaseTime", params: [1] })
+        await rpc.request({ method: "evm_mine" })
+        await finCubeDAO.write.castVote([1n, true])
+        await rpc.request({ method: "evm_increaseTime", params: [3] })
+        await rpc.request({ method: "evm_mine" })
+        await finCubeDAO.write.executeProposal([1n])
+
+        // Mint tokens and approve spending
+        const mintAmount = 1000n * 10n ** 18n
+        await mockERC20.write.mint([member1.account.address, mintAmount])
+        await mockERC20.write.approve([finCube.address, mintAmount], {
+            account: member1.account,
+        })
+
+        const transferAmount = 100n * 10n ** 18n
+
+        // First transfer with nullifier1
+        const nullifier1 =
+            "0x1111111111111111111111111111111111111111111111111111111111111111"
+        await finCube.write.safeTransfer(
+            [
+                member1.account.address,
+                member2.account.address,
+                transferAmount,
+                "Same memo", // Same memo as second transfer
+                nullifier1, // Different nullifier
+            ],
+            { account: member1.account }
+        )
+
+        // Second transfer with nullifier2 (should succeed with different nullifier)
+        const nullifier2 =
+            "0x2222222222222222222222222222222222222222222222222222222222222222"
+        await finCube.write.safeTransfer(
+            [
+                member1.account.address,
+                member2.account.address,
+                transferAmount,
+                "Same memo", // Same memo as first transfer
+                nullifier2, // Different nullifier - should allow transfer
+            ],
+            { account: member1.account }
+        )
+
+        // Third transfer with nullifier3 (should also succeed)
+        const nullifier3 =
+            "0x3333333333333333333333333333333333333333333333333333333333333333"
+        await finCube.write.safeTransfer(
+            [
+                member1.account.address,
+                member2.account.address,
+                transferAmount,
+                "Same memo", // Same memo again
+                nullifier3, // Yet another different nullifier
+            ],
+            { account: member1.account }
+        )
+
+        // Verify all three transfers succeeded
+        const member2FinalBalance = await mockERC20.read.balanceOf([
+            member2.account.address,
+        ])
+        assert.equal(member2FinalBalance, transferAmount * 3n) // 3 successful transfers
+
+        const member1FinalBalance = await mockERC20.read.balanceOf([
+            member1.account.address,
+        ])
+        assert.equal(member1FinalBalance, mintAmount - transferAmount * 3n)
+    })
+
+    it("Should allow same nullifier when other transfer parameters change", async function () {
+        const [owner, member1, member2, member3] = await viem.getWalletClients()
+
+        // Deploy contracts
+        const finCubeDAO = await viem.deployContract("FinCubeDAO")
+        const mockERC20 = await viem.deployContract("MockERC20", [
+            "Test Token",
+            "TEST",
+            18n,
+        ])
+        const finCube = await viem.deployContract("FinCube")
+
+        // Initialize contracts
+        await finCubeDAO.write.initialize(["Test DAO URI", "Owner URI"])
+        await finCube.write.initialize([finCubeDAO.address, mockERC20.address])
+
+        // Set up DAO and approve members
+        await finCubeDAO.write.setVotingDelay([1n])
+        await finCubeDAO.write.setVotingPeriod([3n])
+
+        // Register and approve all members
+        const members = [member1, member2, member3]
+        for (let i = 0; i < members.length; i++) {
+            await finCubeDAO.write.registerMember(
+                [members[i].account.address, `Member ${i + 1} URI`],
+                { account: members[i].account }
+            )
+            await finCubeDAO.write.newMemberApprovalProposal([
+                members[i].account.address,
+                `Approve Member ${i + 1}`,
+            ])
+            await rpc.request({ method: "evm_increaseTime", params: [1] })
+            await rpc.request({ method: "evm_mine" })
+            await finCubeDAO.write.castVote([BigInt(i), true])
+            // For members after the first, we need the first member to vote too
+            if (i > 0) {
+                await finCubeDAO.write.castVote([BigInt(i), true], {
+                    account: member1.account,
+                })
+            }
+            await rpc.request({ method: "evm_increaseTime", params: [3] })
+            await rpc.request({ method: "evm_mine" })
+            await finCubeDAO.write.executeProposal([BigInt(i)])
+        } // Mint tokens and approve spending
+        const mintAmount = 1000n * 10n ** 18n
+        await mockERC20.write.mint([member1.account.address, mintAmount])
+        await mockERC20.write.approve([finCube.address, mintAmount], {
+            account: member1.account,
+        })
+
+        // Use the same nullifier for all transfers, but change other parameters
+        const sharedNullifier =
+            "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+
+        // Transfer 1: member1 -> member2, 50 tokens, "memo1"
+        await finCube.write.safeTransfer(
+            [
+                member1.account.address,
+                member2.account.address,
+                50n * 10n ** 18n,
+                "memo1",
+                sharedNullifier,
+            ],
+            { account: member1.account }
+        )
+
+        // Transfer 2: member1 -> member3, 50 tokens, "memo1" (different recipient)
+        await finCube.write.safeTransfer(
+            [
+                member1.account.address,
+                member3.account.address, // Different recipient
+                50n * 10n ** 18n,
+                "memo1",
+                sharedNullifier, // Same nullifier should be OK
+            ],
+            { account: member1.account }
+        )
+
+        // Transfer 3: member1 -> member2, 75 tokens, "memo1" (different amount)
+        await finCube.write.safeTransfer(
+            [
+                member1.account.address,
+                member2.account.address,
+                75n * 10n ** 18n, // Different amount
+                "memo1",
+                sharedNullifier, // Same nullifier should be OK
+            ],
+            { account: member1.account }
+        )
+
+        // Transfer 4: member1 -> member2, 50 tokens, "memo2" (different memo)
+        await finCube.write.safeTransfer(
+            [
+                member1.account.address,
+                member2.account.address,
+                50n * 10n ** 18n,
+                "memo2", // Different memo
+                sharedNullifier, // Same nullifier should be OK
+            ],
+            { account: member1.account }
+        )
+
+        // Verify all transfers succeeded
+        const member2Balance = await mockERC20.read.balanceOf([
+            member2.account.address,
+        ])
+        const member3Balance = await mockERC20.read.balanceOf([
+            member3.account.address,
+        ])
+        const member1Balance = await mockERC20.read.balanceOf([
+            member1.account.address,
+        ])
+
+        // member2 received: 50 + 75 + 50 = 175 tokens
+        assert.equal(member2Balance, 175n * 10n ** 18n)
+        // member3 received: 50 tokens
+        assert.equal(member3Balance, 50n * 10n ** 18n)
+        // member1 sent: 50 + 50 + 75 + 50 = 225 tokens
+        assert.equal(member1Balance, mintAmount - 225n * 10n ** 18n)
+
+        // Now try exact duplicate of first transfer - should fail
+        try {
+            await finCube.write.safeTransfer(
+                [
+                    member1.account.address,
+                    member2.account.address,
+                    50n * 10n ** 18n,
+                    "memo1", // Same as first transfer
+                    sharedNullifier, // Same nullifier + same parameters = should fail
+                ],
+                { account: member1.account }
+            )
+            assert.fail("Should have failed - exact duplicate transfer")
+        } catch (error: any) {
+            assert.ok(error.message.includes("Nullifier already used"))
+        }
+    })
+
+    it("Should prevent nullifier reuse across different callers", async function () {
+        const [owner, member1, member2, member3] = await viem.getWalletClients()
+
+        // Deploy contracts
+        const finCubeDAO = await viem.deployContract("FinCubeDAO")
+        const mockERC20 = await viem.deployContract("MockERC20", [
+            "Test Token",
+            "TEST",
+            18n,
+        ])
+        const finCube = await viem.deployContract("FinCube")
+
+        // Quick initialization
+        await finCubeDAO.write.initialize(["Test DAO URI", "Owner URI"])
+        await finCube.write.initialize([finCubeDAO.address, mockERC20.address])
+        await finCubeDAO.write.setVotingDelay([1n])
+        await finCubeDAO.write.setVotingPeriod([3n])
+
+        // Register and approve member1
+        await finCubeDAO.write.registerMember(
+            [member1.account.address, "Member 1 URI"],
+            { account: member1.account }
+        )
+        await finCubeDAO.write.newMemberApprovalProposal([
+            member1.account.address,
+            "Approve Member 1",
+        ])
+        await rpc.request({ method: "evm_increaseTime", params: [1] })
+        await rpc.request({ method: "evm_mine" })
+        await finCubeDAO.write.castVote([0n, true])
+        await rpc.request({ method: "evm_increaseTime", params: [3] })
+        await rpc.request({ method: "evm_mine" })
+        await finCubeDAO.write.executeProposal([0n])
+
+        // Register and approve member2
+        await finCubeDAO.write.registerMember(
+            [member2.account.address, "Member 2 URI"],
+            { account: member2.account }
+        )
+        await finCubeDAO.write.newMemberApprovalProposal([
+            member2.account.address,
+            "Approve Member 2",
+        ])
+        await rpc.request({ method: "evm_increaseTime", params: [1] })
+        await rpc.request({ method: "evm_mine" })
+        await finCubeDAO.write.castVote([1n, true]) // owner votes
+        await finCubeDAO.write.castVote([1n, true], {
+            account: member1.account,
+        }) // member1 votes too
+        await rpc.request({ method: "evm_increaseTime", params: [3] })
+        await rpc.request({ method: "evm_mine" })
+        await finCubeDAO.write.executeProposal([1n])
+
+        // Register and approve member3
+        await finCubeDAO.write.registerMember(
+            [member3.account.address, "Member 3 URI"],
+            { account: member3.account }
+        )
+        await finCubeDAO.write.newMemberApprovalProposal([
+            member3.account.address,
+            "Approve Member 3",
+        ])
+        await rpc.request({ method: "evm_increaseTime", params: [1] })
+        await rpc.request({ method: "evm_mine" })
+        await finCubeDAO.write.castVote([2n, true]) // owner votes
+        await finCubeDAO.write.castVote([2n, true], {
+            account: member1.account,
+        }) // member1 votes too
+        await rpc.request({ method: "evm_increaseTime", params: [3] })
+        await rpc.request({ method: "evm_mine" })
+        await finCubeDAO.write.executeProposal([2n])
+
+        // Mint tokens and approve spending for both member1 and member2
+        const mintAmount = 1000n * 10n ** 18n
+        await mockERC20.write.mint([member1.account.address, mintAmount])
+        await mockERC20.write.mint([member2.account.address, mintAmount])
+        await mockERC20.write.approve([finCube.address, mintAmount], {
+            account: member1.account,
+        })
+        await mockERC20.write.approve([finCube.address, mintAmount], {
+            account: member2.account,
+        })
+
+        // Test core nullifier functionality across different callers
+        const nullifier =
+            "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+
+        // First transfer: member1 -> member3
+        await finCube.write.safeTransfer(
+            [
+                member1.account.address,
+                member3.account.address,
+                100n * 10n ** 18n,
+                "Test transfer",
+                nullifier,
+            ],
+            { account: member1.account }
+        )
+
+        // Second transfer: member2 tries to use same nullifier (different caller, should fail)
+        try {
+            await finCube.write.safeTransfer(
+                [
+                    member2.account.address, // Different caller
+                    member3.account.address,
+                    100n * 10n ** 18n,
+                    "Different transfer", // Different memo
+                    nullifier, // Same nullifier - should fail even with different caller
+                ],
+                { account: member2.account } // Different account calling
+            )
+            assert.fail(
+                "Should have failed - Nullifier already used by different caller"
+            )
+        } catch (error: any) {
+            assert.ok(error.message.includes("Nullifier already used"))
+        }
+    })
 })
