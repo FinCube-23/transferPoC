@@ -1,0 +1,332 @@
+<div id="app" style="font-family: Arial, sans-serif; min-height: 100vh; width: 100vw; display: flex; flex-direction: column; justify-content: center; align-items: center; background: radial-gradient(1100px 700px at 15% 10%, rgba(59,130,246,0.14), transparent 45%), radial-gradient(1000px 700px at 85% 20%, rgba(99,102,241,0.12), transparent 48%), radial-gradient(900px 600px at 80% 85%, rgba(16,185,129,0.10), transparent 45%), radial-gradient(1200px 520px at 50% 105%, rgba(59,130,246,0.16), transparent 60%), linear-gradient(135deg, #eef2ff 0%, #f0f9ff 50%, #ecfeff 100%); background-image: radial-gradient(1100px 700px at 15% 10%, rgba(59,130,246,0.14), transparent 45%), radial-gradient(1000px 700px at 85% 20%, rgba(99,102,241,0.12), transparent 48%), radial-gradient(900px 600px at 80% 85%, rgba(16,185,129,0.10), transparent 45%), radial-gradient(1200px 520px at 50% 105%, rgba(59,130,246,0.16), transparent 60%), linear-gradient(135deg, #eef2ff 0%, #f0f9ff 50%, #ecfeff 100%), repeating-linear-gradient(45deg, rgba(255,255,255,0.15) 0, rgba(255,255,255,0.15) 2px, rgba(255,255,255,0.05) 2px, rgba(255,255,255,0.05) 16px); background-blend-mode: normal, normal, normal, normal, overlay; background-attachment: fixed; padding: 0; margin: 0; box-sizing: border-box; position: relative;">
+
+  <!-- Top Bar: Sign In left, controls right -->
+  <div style="position: absolute; top: 0; left: 0; right: 0; display: flex; align-items: center; justify-content: space-between; padding: 1rem 1.5rem; box-sizing: border-box;">
+    <div>
+      <button id="sign-in-top" style="display:none; padding: 0.7em 1.3em; background: #111827; color:#fff; border:none; border-radius: 0.9em; font-weight:700; letter-spacing:0.02em; box-shadow: 0 6px 18px rgba(0,0,0,0.18);">Sign In</button>
+      <button id="sign-out" style="display:none; padding: 0.6em 1.1em; background: #ef4444; color:#fff; border:none; border-radius: 0.9em; font-weight:700; letter-spacing:0.02em; box-shadow: 0 6px 18px rgba(239,68,68,0.18);">Sign Out</button>
+    </div>
+    <div style="display:inline-flex; gap: 0.75rem; align-items: center;">
+      <div id="wallet-status" 
+        style="display: inline-flex; align-items: center; background: #e0e7ff; color: #2563eb; padding: 0.5em 1em; border-radius: 1em; font-weight: 600; font-size: 0.95em; gap: 0.5em;">
+        <svg width='18' height='18' viewBox='0 0 24 24' fill='none'>
+          <circle cx='12' cy='12' r='10' fill='#3b82f6'/>
+          <path d='M12 8v4M12 16h.01' stroke='#fff' stroke-width='2' stroke-linecap='round'/>
+        </svg>
+        <span style='font-family: monospace;'>Connect your wallet please</span>
+      </div>
+      <button id="connect-wallet" 
+        style="display: inline-flex; align-items: center; justify-content: center; padding: 0.6em 1.4em; background: #3b82f6; color: #fff; border: none; border-radius: 1.5em; font-weight: 600; font-size: 1em; cursor: pointer; box-shadow: 0 4px 12px rgba(59,130,246,0.3); transition: background 0.3s;">
+        Connect Wallet
+      </button>
+    </div>
+  </div>
+
+  <!-- Auth Modal -->
+  <div id="auth-modal" style="display:none; position: fixed; inset: 0; background: rgba(15,23,42,0.45); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); align-items: center; justify-content: center; padding: 1rem; z-index: 50;">
+    <div style="width: 100%; max-width: 420px; background: #ffffff; border-radius: 0.9rem; box-shadow: 0 24px 60px rgba(2,6,23,0.35); overflow: hidden; position: relative;">
+      <button id="auth-close" aria-label="Close" style="position:absolute; top: 10px; right: 10px; background: transparent; border: none; cursor: pointer; padding: 6px; border-radius: 8px; color: #334155;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+          <path d="M6 6l12 12M18 6L6 18" stroke="#334155" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </button>
+
+      <div style="padding: 1.2rem 1.2rem 0.8rem; border-bottom: 1px solid #e5e7eb; display:flex; gap:0.4rem;">
+        <button id="tab-login" data-tab="login" style="flex:1; padding: 0.7rem; border: none; background: #e0e7ff; color:#1d4ed8; border-radius: 0.6rem; font-weight: 700; cursor: pointer;">Login</button>
+        <button id="tab-register" data-tab="register" style="flex:1; padding: 0.7rem; border: none; background: transparent; color:#334155; border-radius: 0.6rem; font-weight: 700; cursor: pointer;">Register</button>
+      </div>
+
+      <div style="padding: 1.2rem;">
+        <!-- Login Form -->
+        <form id="form-login" novalidate style="display:block; display:flex; flex-direction: column; gap: 0.9rem;">
+          <div style="display:flex; flex-direction: column; gap:0.35rem;">
+            <label for="login-email" style="font-weight:700; color:#0f172a; font-size:0.95rem;">Email</label>
+            <input id="login-email" type="email" placeholder="you@example.com" required 
+                   style="width:100%; padding:0.9rem 1rem; border:2px solid #e2e8f0; border-radius:0.7rem; font-size:1rem; background:#fff; outline:none; box-sizing:border-box;"/>
+            <small id="login-email-err" style="color:#ef4444; display:none;">Enter a valid email.</small>
+          </div>
+          <div style="display:flex; flex-direction: column; gap:0.35rem;">
+            <label for="login-password" style="font-weight:700; color:#0f172a; font-size:0.95rem;">Password</label>
+            <input id="login-password" type="password" placeholder="Your password" required minlength="6"
+                   style="width:100%; padding:0.9rem 1rem; border:2px solid #e2e8f0; border-radius:0.7rem; font-size:1rem; background:#fff; outline:none; box-sizing:border-box;"/>
+            <small id="login-password-err" style="color:#ef4444; display:none;">Password must be at least 6 characters.</small>
+          </div>
+          <button type="submit" style="margin-top:0.2rem; padding:0.9rem 1.1rem; background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color:#fff; border:none; border-radius:0.7rem; font-weight:800; cursor:pointer; box-shadow:0 10px 22px rgba(59,130,246,0.35);">Sign In</button>
+        </form>
+
+        <!-- Register Form -->
+        <form id="form-register" novalidate style="display:none; display:flex; flex-direction: column; gap: 0.9rem;">
+          <div style="display:flex; gap:0.6rem;">
+            <div style="flex:1; display:flex; flex-direction: column; gap:0.35rem;">
+              <label for="reg-first" style="font-weight:700; color:#0f172a; font-size:0.95rem;">First name</label>
+              <input id="reg-first" type="text" placeholder="John" required 
+                     style="width:100%; padding:0.9rem 1rem; border:2px solid #e2e8f0; border-radius:0.7rem; font-size:1rem; background:#fff; outline:none; box-sizing:border-box;"/>
+              <small id="reg-first-err" style="color:#ef4444; display:none;">First name is required.</small>
+            </div>
+            <div style="flex:1; display:flex; flex-direction: column; gap:0.35rem;">
+              <label for="reg-last" style="font-weight:700; color:#0f172a; font-size:0.95rem;">Last name</label>
+              <input id="reg-last" type="text" placeholder="Doe" required 
+                     style="width:100%; padding:0.9rem 1rem; border:2px solid #e2e8f0; border-radius:0.7rem; font-size:1rem; background:#fff; outline:none; box-sizing:border-box;"/>
+              <small id="reg-last-err" style="color:#ef4444; display:none;">Last name is required.</small>
+            </div>
+          </div>
+          <div style="display:flex; flex-direction: column; gap:0.35rem;">
+            <label for="reg-email" style="font-weight:700; color:#0f172a; font-size:0.95rem;">Email</label>
+            <input id="reg-email" type="email" placeholder="you@example.com" required 
+                   style="width:100%; padding:0.9rem 1rem; border:2px solid #e2e8f0; border-radius:0.7rem; font-size:1rem; background:#fff; outline:none; box-sizing:border-box;"/>
+            <small id="reg-email-err" style="color:#ef4444; display:none;">Enter a valid email.</small>
+          </div>
+          <div style="display:flex; flex-direction: column; gap:0.35rem;">
+            <label for="reg-phone" style="font-weight:700; color:#0f172a; font-size:0.95rem;">Contact number</label>
+            <input id="reg-phone" type="tel" placeholder="+15551234567" required 
+                   style="width:100%; padding:0.9rem 1rem; border:2px solid #e2e8f0; border-radius:0.7rem; font-size:1rem; background:#fff; outline:none; box-sizing:border-box;"/>
+            <small id="reg-phone-err" style="color:#ef4444; display:none;">Enter a valid phone (E.164, e.g., +15551234567).</small>
+          </div>
+          <div style="display:flex; flex-direction: column; gap:0.35rem;">
+            <label for="reg-password" style="font-weight:700; color:#0f172a; font-size:0.95rem;">Password</label>
+            <input id="reg-password" type="password" placeholder="Create a password" required minlength="6"
+                   style="width:100%; padding:0.9rem 1rem; border:2px solid #e2e8f0; border-radius:0.7rem; font-size:1rem; background:#fff; outline:none; box-sizing:border-box;"/>
+          </div>
+          <div style="display:flex; flex-direction: column; gap:0.35rem;">
+            <label for="reg-confirm" style="font-weight:700; color:#0f172a; font-size:0.95rem;">Confirm Password</label>
+            <input id="reg-confirm" type="password" placeholder="Repeat password" required minlength="6"
+                   style="width:100%; padding:0.9rem 1rem; border:2px solid #e2e8f0; border-radius:0.7rem; font-size:1rem; background:#fff; outline:none; box-sizing:border-box;"/>
+            <small id="reg-password-err" style="color:#ef4444; display:none;">Passwords must match and be at least 6 characters.</small>
+          </div>
+          <button type="submit" style="margin-top:0.2rem; padding:0.9rem 1.1rem; background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%); color:#fff; border:none; border-radius:0.7rem; font-weight:800; cursor:pointer; box-shadow:0 10px 22px rgba(34,197,94,0.35);">Create Account</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Loading Overlay for Sign In -->
+  <div id="auth-loading" style="display:none; position: fixed; inset: 0; align-items: flex-start; justify-content:center; padding-top: 100px; background: rgba(255,255,255,0.0); pointer-events:none;">
+    <div style="width: 48px; height: 48px; border: 5px solid rgba(59,130,246,0.25); border-top-color: #3b82f6; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+  </div>
+  <style>
+    @keyframes spin { to { transform: rotate(360deg); } }
+    
+    /* Input focus states */
+    input:focus {
+      border-color: #3b82f6 !important;
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1) !important;
+      background: rgba(255,255,255,0.95) !important;
+    }
+    
+    /* Button hover effect */
+    button[type="submit"]:hover > div {
+      opacity: 1 !important;
+    }
+    
+    button[type="submit"]:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 12px 28px rgba(59,130,246,0.5) !important;
+    }
+    
+    button[type="submit"]:active {
+      transform: translateY(0);
+    }
+  </style>
+
+  <style>
+    /* Auth Modal small enhancements */
+    #auth-modal button:focus, #auth-modal input:focus { outline: none; }
+    #auth-modal input:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.12); }
+    #auth-modal [data-active="true"] { background:#1d4ed8 !important; color:#fff !important; }
+    #auth-modal label { user-select: none; }
+  </style>
+
+  <!-- Centered Sign In CTA (initial state) -->
+  <div id="signin-center" style="display:none; margin-top: 6rem; display:flex; align-items:center; justify-content:center; width:100%;">
+    <button id="sign-in" style="padding: 0.9em 1.8em; background: #111827; color:#fff; border:none; border-radius: 1em; font-weight:800; letter-spacing:0.02em; box-shadow: 0 10px 28px rgba(0,0,0,0.18);">Sign In</button>
+  </div>
+
+  <!-- Token Balances (Auth Only) -->
+  <div id="auth-section" style="display:none; margin-top: 2rem; display: flex; flex-direction: column; align-items: center; width: 100%; max-width: 900px; gap: 1rem;">
+    <div style="display:inline-flex; align-items:center; gap:0.6rem; padding:0.6rem 1.1rem; border-radius:1rem; background: rgba(255,255,255,0.28); box-shadow: 0 6px 18px rgba(59,130,246,0.12);">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <defs>
+          <linearGradient id="wlgrad" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stop-color="#3b82f6"/>
+            <stop offset="100%" stop-color="#22c55e"/>
+          </linearGradient>
+        </defs>
+        <!-- Wallet body -->
+        <rect x="2" y="5" width="16" height="12" rx="2.5" fill="url(#wlgrad)" opacity="0.1"/>
+        <rect x="2" y="5" width="16" height="12" rx="2.5" stroke="url(#wlgrad)" stroke-width="1.8"/>
+        <!-- Wallet flap -->
+        <path d="M2 7.5h16" stroke="url(#wlgrad)" stroke-width="1.8" stroke-linecap="round"/>
+        <!-- Cards inside wallet -->
+        <rect x="4" y="9" width="8" height="5" rx="0.8" fill="url(#wlgrad)" opacity="0.3"/>
+        <rect x="5" y="10" width="6" height="3" rx="0.5" fill="url(#wlgrad)" opacity="0.5"/>
+        <!-- Wallet clasp -->
+        <rect x="18" y="8" width="4" height="6" rx="1" fill="url(#wlgrad)" opacity="0.2"/>
+        <rect x="18" y="8" width="4" height="6" rx="1" stroke="url(#wlgrad)" stroke-width="1.6"/>
+        <circle cx="20" cy="11" r="0.8" fill="#3b82f6"/>
+      </svg>
+      <span style="font-weight:900; font-size:1.35em; letter-spacing:0.03em; background: linear-gradient(90deg,#0f172a 0%, #3b82f6 50%, #22c55e 100%); -webkit-background-clip:text; background-clip:text; color: transparent;">Wallets</span>
+    </div>
+    <div style="display: flex; justify-content: center; gap: 1rem; flex-wrap: wrap; width: 100%;">
+    <!-- USDT -->
+    <div style="flex: 1 1 200px; max-width: 240px; background: #fff; border-radius: 1rem; text-align: center; padding: 1.1rem; box-shadow: 0 4px 14px rgba(0,0,0,0.06); transition: transform 0.2s;">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" style="margin-bottom: 0.5rem;" aria-label="USD">
+        <circle cx="12" cy="12" r="12" fill="#16a34a"/>
+        <path d="M13.75 7.75c0-.966-.784-1.75-1.75-1.75s-1.75.784-1.75 1.75c0 .966.784 1.75 1.75 1.75h1c1.243 0 2.25 1.007 2.25 2.25s-1.007 2.25-2.25 2.25h-2.5" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M12 5v14" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/>
+      </svg>
+      <div style="font-weight: 700; color: #111827; font-size: 1.05em;">USD Balance</div>
+      <div style="font-weight: 600; color: #16a34a; font-size: 1.2em;" id="usd-balance">0</div>
+    </div>
+    <!-- ETH -->
+    <div style="flex: 1 1 200px; max-width: 240px; background: #fff; border-radius: 1rem; text-align: center; padding: 1.1rem; box-shadow: 0 4px 14px rgba(0,0,0,0.06); transition: transform 0.2s;">
+      <img src="https://img.icons8.com/fluency/48/ethereum.png" alt="ETH" style="width: 28px; height: 28px; margin-bottom: 0.5rem;">
+      <div style="font-weight: 700; color: #111827; font-size: 1.05em;">ETH Balance</div>
+      <div style="font-weight: 600; color: #f97316; font-size: 1.2em;" id="eth-balance">0</div>
+    </div>
+    </div>
+  </div>
+
+  <!-- Token Transfer Form (Auth Only) -->
+  <form id="transfer-form" style="display:none; margin-top: 3rem; display: flex; flex-direction: column; gap: 1.4rem; width: 100%; max-width: 420px;">
+    <div style="position: relative;">
+      <input type="text" name="address" placeholder="Recipient Address" required
+             style="width: 100%; padding: 1rem 1.2rem; border: 2px solid #e2e8f0; border-radius: 0.75rem; font-size: 1rem; font-weight: 500; outline: none; background: rgba(255,255,255,0.9); transition: all 0.2s ease; box-sizing: border-box;"/>
+      <div style="position: absolute; top: 50%; right: 1rem; transform: translateY(-50%); pointer-events: none;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0Z" stroke="#94a3b8" stroke-width="1.5"/>
+          <circle cx="12" cy="10" r="3" stroke="#94a3b8" stroke-width="1.5"/>
+        </svg>
+      </div>
+    </div>
+    <div style="position: relative;">
+      <input type="text" name="amount" placeholder="Amount (ETH)" inputmode="decimal" required
+             style="width: 100%; padding: 1rem 1.2rem; border: 2px solid #e2e8f0; border-radius: 0.75rem; font-size: 1rem; font-weight: 500; outline: none; background: rgba(255,255,255,0.9); transition: all 0.2s ease; box-sizing: border-box;"/>
+      <div style="position: absolute; top: 50%; right: 1rem; transform: translateY(-50%); pointer-events: none;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-label="ETH">
+          <path d="M12 2l6 9-6 3-6-3 6-9z" fill="#94a3b8" opacity="0.95"/>
+          <path d="M12 14l6-3-6 11-6-11 6 3z" fill="#94a3b8" opacity="0.7"/>
+        </svg>
+      </div>
+    </div>
+    <button type="submit" 
+            style="width: 100%; padding: 1rem 1.5rem; background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: #fff; border: none; border-radius: 0.75rem; font-weight: 700; font-size: 1.1rem; cursor: pointer; box-shadow: 0 8px 20px rgba(59,130,246,0.4); transition: all 0.3s ease; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" style="position: relative; z-index: 1;">
+        <path d="M3 12h18m-9-9l9 9-9 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <span style="position: relative; z-index: 1;">Transfer</span>
+      <div style="position: absolute; inset: 0; background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%); opacity: 0; transition: opacity 0.3s ease;"></div>
+    </button>
+  </form>
+
+  <!-- Recent Transactions Dashboard -->
+  <div id="recent-transactions" style="width: 100%; padding: 1rem 1.5rem; box-sizing: border-box; margin-top: 2rem;">
+    <div style="max-width: 900px; width: 100%; margin: 0 auto; background: rgba(255,255,255,0.001); backdrop-filter: blur(6px) saturate(140%); -webkit-backdrop-filter: blur(6px) saturate(140%); border: 1px solid rgba(148,163,184,0.25); border-radius: 0.75rem; box-shadow: 0 8px 24px rgba(15,23,42,0.10); overflow: hidden;">
+      <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.9rem 1.2rem; background: transparent;">
+        <div style="display: inline-flex; align-items: center; gap: 0.6rem; font-weight: 800; color: #0f172a; letter-spacing: 0.02em;">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M12 6v6l4 2" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="10" stroke="#3b82f6" stroke-width="1.5" fill="none"/></svg>
+          <span>Recent Transactions</span>
+        </div>
+        <div style="font-size: 0.9rem; color: #475569; font-weight: 600;">Latest 10</div>
+      </div>
+      <div>
+        <div style="display:grid; grid-template-columns: 1fr 1fr 0.5fr 0.9fr; gap: 0.5rem; padding: 0.75rem 1.2rem; font-weight: 700; color: #0f172a; background: transparent; border-radius: 0.75rem 0.75rem 0 0;">
+          <div>Sender</div>
+          <div>Recipient</div>
+          <div style="text-align:right;">Amount</div>
+          <div style="text-align:right;">Date</div>
+        </div>
+        <div id="tx-rows" style="max-height: 220px; overflow-y: auto; background: transparent;">
+          <!-- Rows injected here -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+<script type="module" src="/src/main.ts"></script>
+<script>
+  // Auth modal behaviors
+  const authModal = document.getElementById('auth-modal');
+  const btnSignInTop = document.getElementById('sign-in-top');
+  const btnSignInCenter = document.getElementById('sign-in');
+  const btnClose = document.getElementById('auth-close');
+  const tabLogin = document.getElementById('tab-login');
+  const tabRegister = document.getElementById('tab-register');
+  const formLogin = document.getElementById('form-login');
+  const formRegister = document.getElementById('form-register');
+
+  function openAuthModal(defaultTab = 'login') {
+    if (!authModal) return;
+    authModal.style.display = 'flex';
+    switchTab(defaultTab);
+  }
+
+  function closeAuthModal() {
+    if (!authModal) return;
+    authModal.style.display = 'none';
+  }
+
+  function switchTab(tab) {
+    const isLogin = tab === 'login';
+    if (formLogin && formRegister && tabLogin && tabRegister) {
+      formLogin.style.display = isLogin ? 'flex' : 'none';
+      formRegister.style.display = isLogin ? 'none' : 'flex';
+      tabLogin.setAttribute('data-active', isLogin ? 'true' : 'false');
+      tabRegister.setAttribute('data-active', !isLogin ? 'true' : 'false');
+    }
+  }
+
+  btnSignInTop && btnSignInTop.addEventListener('click', () => openAuthModal('login'));
+  btnSignInCenter && btnSignInCenter.addEventListener('click', () => openAuthModal('login'));
+  btnClose && btnClose.addEventListener('click', closeAuthModal);
+  authModal && authModal.addEventListener('click', (e) => {
+    if (e.target === authModal) closeAuthModal();
+  });
+
+  tabLogin && tabLogin.addEventListener('click', () => switchTab('login'));
+  tabRegister && tabRegister.addEventListener('click', () => switchTab('register'));
+
+  // Minimal validation hints
+  function show(el) { if (el) el.style.display = 'block'; }
+  function hide(el) { if (el) el.style.display = 'none'; }
+
+  formLogin && formLogin.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const email = document.getElementById('login-email');
+    const pass = document.getElementById('login-password');
+    const emailErr = document.getElementById('login-email-err');
+    const passErr = document.getElementById('login-password-err');
+    let ok = true;
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value)) { show(emailErr); ok = false; } else { hide(emailErr); }
+    if (pass && pass.value.length < 6) { show(passErr); ok = false; } else { hide(passErr); }
+    if (ok) {
+      closeAuthModal();
+      // Integrate real auth here
+    }
+  });
+
+  formRegister && formRegister.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const first = document.getElementById('reg-first');
+    const last = document.getElementById('reg-last');
+    const phone = document.getElementById('reg-phone');
+    const email = document.getElementById('reg-email');
+    const pass = document.getElementById('reg-password');
+    const confirm = document.getElementById('reg-confirm');
+    const firstErr = document.getElementById('reg-first-err');
+    const lastErr = document.getElementById('reg-last-err');
+    const phoneErr = document.getElementById('reg-phone-err');
+    const emailErr = document.getElementById('reg-email-err');
+    const passErr = document.getElementById('reg-password-err');
+    let ok = true;
+    if (first && first.value.trim() === '') { show(firstErr); ok = false; } else { hide(firstErr); }
+    if (last && last.value.trim() === '') { show(lastErr); ok = false; } else { hide(lastErr); }
+    if (phone && !/^\+[1-9]\d{1,14}$/.test(phone.value)) { show(phoneErr); ok = false; } else { hide(phoneErr); }
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value)) { show(emailErr); ok = false; } else { hide(emailErr); }
+    if (pass && confirm && (pass.value.length < 6 || pass.value !== confirm.value)) { show(passErr); ok = false; } else { hide(passErr); }
+    if (ok) {
+      closeAuthModal();
+      // Integrate real registration here
+    }
+  });
+</script>
