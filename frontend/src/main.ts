@@ -14,6 +14,7 @@ const txRows = document.getElementById('tx-rows') as HTMLDivElement;
 const authSection = document.getElementById('auth-section') as HTMLDivElement;
 const signInBtn = document.getElementById('sign-in') as HTMLButtonElement;
 const signInTopBtn = document.getElementById('sign-in-top') as HTMLButtonElement;
+const authModalEl = document.getElementById('auth-modal') as HTMLDivElement | null;
 const signOutBtn = document.getElementById('sign-out') as HTMLButtonElement;
 const appRoot = document.getElementById('app') as HTMLDivElement;
 const authLoading = document.getElementById('auth-loading') as HTMLDivElement;
@@ -202,23 +203,22 @@ function applyAuthUI() {
   }
 }
 
-signInBtn.addEventListener('click', async () => {
-  // Show loading spinner briefly
-  if (authLoading) authLoading.style.display = 'flex';
-  await new Promise(r => setTimeout(r, 900));
-  if (authLoading) authLoading.style.display = 'none';
-  isSignedIn = true;
+// Expose a small API so inline modal script can update auth state after successful API auth
+// @ts-ignore
+(window as any).authSetSignedIn = (value: boolean) => {
+  isSignedIn = value;
   applyAuthUI();
+};
+
+// Make Sign In buttons open the modal instead of toggling app state immediately
+signInBtn.addEventListener('click', async () => {
+  if (authModalEl) authModalEl.style.display = 'flex';
 });
 
 // Top-left sign-in (in case you want to support it later)
 if (signInTopBtn) {
   signInTopBtn.addEventListener('click', async () => {
-    if (authLoading) authLoading.style.display = 'flex';
-    await new Promise(r => setTimeout(r, 900));
-    if (authLoading) authLoading.style.display = 'none';
-    isSignedIn = true;
-    applyAuthUI();
+    if (authModalEl) authModalEl.style.display = 'flex';
   });
 }
 
