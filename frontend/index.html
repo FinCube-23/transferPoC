@@ -78,9 +78,9 @@
           </div>
           <div style="display:flex; flex-direction: column; gap:0.35rem;">
             <label for="reg-phone" style="font-weight:700; color:#0f172a; font-size:0.95rem;">Contact number</label>
-            <input id="reg-phone" type="tel" placeholder="+15551234567" required 
+            <input id="reg-phone" type="tel" placeholder="+8801712345678" required 
                    style="width:100%; padding:0.9rem 1rem; border:2px solid #e2e8f0; border-radius:0.7rem; font-size:1rem; background:#fff; outline:none; box-sizing:border-box;"/>
-            <small id="reg-phone-err" style="color:#ef4444; display:none;">Enter a valid phone (E.164, e.g., +15551234567).</small>
+            <small id="reg-phone-err" style="color:#ef4444; display:none;">Enter a valid Bangladeshi number (e.g., +8801712345678).</small>
           </div>
           <div style="display:flex; flex-direction: column; gap:0.35rem;">
             <label for="reg-password" style="font-weight:700; color:#0f172a; font-size:0.95rem;">Password</label>
@@ -244,8 +244,32 @@
 
 </div>
 <script type="module" src="/src/main.ts"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script src="https://cdn.jsdelivr.net/npm/libphonenumber-js@1.10.53/bundle/libphonenumber-js.min.js"></script>
 <script>
   // Auth modal behaviors
+  const API_BASE = `${location.protocol}//${location.hostname}:3001`;
+  async function parseApiError(res) {
+    try {
+      const data = await res.json();
+      if (data?.message) return data.message;
+      if (data?.detail) return data.detail;
+      if (Array.isArray(data?.errors)) return data.errors.join('\n');
+      if (typeof data === 'string') return data;
+      return `Request failed with status ${res.status}`;
+    } catch (_) {
+      try { const text = await res.text(); return text || `Request failed with status ${res.status}`; } catch { return `Request failed with status ${res.status}`; }
+    }
+  }
+  function getCookie(name) {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop().split(';').shift();
+    return '';
+  }
+  function getCsrfToken() {
+    return getCookie('csrftoken') || getCookie('CSRF-TOKEN') || getCookie('XSRF-TOKEN') || '';
+  }
   const authModal = document.getElementById('auth-modal');
   const btnSignInTop = document.getElementById('sign-in-top');
   const btnSignInCenter = document.getElementById('sign-in');
@@ -300,8 +324,32 @@
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value)) { show(emailErr); ok = false; } else { hide(emailErr); }
     if (pass && pass.value.length < 6) { show(passErr); ok = false; } else { hide(passErr); }
     if (ok) {
-      closeAuthModal();
-      // Integrate real auth here
+      // Call backend login
+      const loginPayload = {
+        email: String(email.value || '').trim(),
+        password: String(pass.value || '')
+      };
+      fetch(`${API_BASE}/api/users/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'X-CSRFTOKEN': getCsrfToken()
+        },
+        credentials: 'include',
+        body: JSON.stringify(loginPayload)
+      }).then(async (res) => {
+        if (!res.ok) {
+          const msg = await parseApiError(res);
+          throw new Error(msg || 'Login failed');
+        }
+        return res.json().catch(() => ({}));
+      }).then(() => {
+        (window).authSetSignedIn && (window).authSetSignedIn(true);
+        closeAuthModal();
+      }).catch((err) => {
+        alert(err.message || 'Login failed');
+      });
     }
   });
 
@@ -321,12 +369,68 @@
     let ok = true;
     if (first && first.value.trim() === '') { show(firstErr); ok = false; } else { hide(firstErr); }
     if (last && last.value.trim() === '') { show(lastErr); ok = false; } else { hide(lastErr); }
-    if (phone && !/^\+[1-9]\d{1,14}$/.test(phone.value)) { show(phoneErr); ok = false; } else { hide(phoneErr); }
+    // Strict phone parsing via libphonenumber-js
+    let parsedE164 = '';
+    if (phone) {
+      try {
+        const pn = window.libphonenumber.parsePhoneNumber(phone.value, 'BD');
+        if (pn && pn.isValid()) {
+          parsedE164 = pn.number; // E.164 like +8801XXXXXXXXX
+          hide(phoneErr);
+        } else {
+          show(phoneErr); ok = false;
+        }
+      } catch (_) {
+        show(phoneErr); ok = false;
+      }
+    }
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value)) { show(emailErr); ok = false; } else { hide(emailErr); }
     if (pass && confirm && (pass.value.length < 6 || pass.value !== confirm.value)) { show(passErr); ok = false; } else { hide(passErr); }
     if (ok) {
-      closeAuthModal();
-      // Integrate real registration here
+      // Call backend registration
+      const phoneRaw = parsedE164 || String(phone.value || '').trim();
+      const registerPayload = {
+        email: String(email.value || '').trim(),
+        first_name: String(first.value || '').trim(),
+        last_name: String(last.value || '').trim(),
+        contact_number: phoneRaw,
+        password: String(pass.value || ''),
+        password_confirm: String(confirm.value || '')
+      };
+      fetch(`${API_BASE}/api/users/register`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'X-CSRFTOKEN': getCsrfToken()
+        },
+        credentials: 'include',
+        body: JSON.stringify(registerPayload)
+      }).then(async (res) => {
+        if (!res.ok) {
+          const msg = await parseApiError(res);
+          throw new Error(msg || 'Registration failed');
+        }
+        return res.json().catch(() => ({}));
+      }).then(() => {
+        if (window.Swal) {
+          window.Swal.fire({ icon: 'success', title: 'Registration successful', text: 'Please login to continue' }).then(() => {
+            const tabLogin = document.getElementById('tab-login');
+            tabLogin && tabLogin.click();
+          });
+        } else {
+          alert('Registration successful. Please login.');
+          const tabLogin = document.getElementById('tab-login');
+          tabLogin && tabLogin.click();
+        }
+      }).catch((err) => {
+        const message = err.message || 'Registration failed';
+        if (window.Swal) {
+          window.Swal.fire({ icon: 'error', title: 'Registration failed', text: message });
+        } else {
+          alert(message);
+        }
+      });
     }
   });
 </script>
