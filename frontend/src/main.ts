@@ -10,6 +10,7 @@ const walletStatus = document.getElementById('wallet-status') as HTMLDivElement;
 const transferForm = document.getElementById('transfer-form') as HTMLFormElement;
 const usdBalanceEl = document.getElementById('usd-balance') as HTMLDivElement;
 const ethBalanceEl = document.getElementById('eth-balance') as HTMLDivElement;
+const usdcBalanceEl = document.getElementById('usdc-balance') as HTMLDivElement | null;
 const txRows = document.getElementById('tx-rows') as HTMLDivElement;
 const authSection = document.getElementById('auth-section') as HTMLDivElement;
 const signInBtn = document.getElementById('sign-in') as HTMLButtonElement;
@@ -59,6 +60,9 @@ async function updateBalances(account: string) {
     // Update ETH balance from connected wallet
     const ethWei = await web3Service.getEthBalance(account);
     if (ethBalanceEl) ethBalanceEl.textContent = `${ethers.utils.formatEther(ethWei)} ETH`;
+
+    // USDC balance placeholder (wire to ERC20 later)
+    if (usdcBalanceEl) usdcBalanceEl.textContent = `0.00 USDC`;
   });
 }
 

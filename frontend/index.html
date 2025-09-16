@@ -167,8 +167,8 @@
       <span style="font-weight:900; font-size:1.35em; letter-spacing:0.03em; background: linear-gradient(90deg,#0f172a 0%, #3b82f6 50%, #22c55e 100%); -webkit-background-clip:text; background-clip:text; color: transparent;">Wallets</span>
     </div>
     <div style="display: flex; justify-content: center; gap: 1rem; flex-wrap: wrap; width: 100%;">
-    <!-- USDT -->
-    <div style="flex: 1 1 200px; max-width: 240px; background: #fff; border-radius: 1rem; text-align: center; padding: 1.1rem; box-shadow: 0 4px 14px rgba(0,0,0,0.06); transition: transform 0.2s;">
+    <!-- USD -->
+    <div style="flex: 1 1 180px; max-width: 220px; background: #fff; border-radius: 1rem; text-align: center; padding: 1.1rem; box-shadow: 0 4px 14px rgba(0,0,0,0.06); transition: transform 0.2s;">
       <svg width="28" height="28" viewBox="0 0 24 24" fill="none" style="margin-bottom: 0.5rem;" aria-label="USD">
         <circle cx="12" cy="12" r="12" fill="#16a34a"/>
         <path d="M13.75 7.75c0-.966-.784-1.75-1.75-1.75s-1.75.784-1.75 1.75c0 .966.784 1.75 1.75 1.75h1c1.243 0 2.25 1.007 2.25 2.25s-1.007 2.25-2.25 2.25h-2.5" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
@@ -178,10 +178,20 @@
       <div style="font-weight: 600; color: #16a34a; font-size: 1.2em;" id="usd-balance">0</div>
     </div>
     <!-- ETH -->
-    <div style="flex: 1 1 200px; max-width: 240px; background: #fff; border-radius: 1rem; text-align: center; padding: 1.1rem; box-shadow: 0 4px 14px rgba(0,0,0,0.06); transition: transform 0.2s;">
+    <div style="flex: 1 1 180px; max-width: 220px; background: #fff; border-radius: 1rem; text-align: center; padding: 1.1rem; box-shadow: 0 4px 14px rgba(0,0,0,0.06); transition: transform 0.2s;">
       <img src="https://img.icons8.com/fluency/48/ethereum.png" alt="ETH" style="width: 28px; height: 28px; margin-bottom: 0.5rem;">
       <div style="font-weight: 700; color: #111827; font-size: 1.05em;">ETH Balance</div>
       <div style="font-weight: 600; color: #f97316; font-size: 1.2em;" id="eth-balance">0</div>
+    </div>
+    <!-- USDC -->
+    <div style="flex: 1 1 180px; max-width: 220px; background: #fff; border-radius: 1rem; text-align: center; padding: 1.1rem; box-shadow: 0 4px 14px rgba(0,0,0,0.06); transition: transform 0.2s;">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" style="margin-bottom: 0.5rem;" aria-label="USDC">
+        <circle cx="12" cy="12" r="12" fill="#2775CA"/>
+        <path d="M9.5 8.5c-.8.4-1.3 1.1-1.3 1.9 0 1.1.8 1.9 2.4 2.2 1.5.3 2 .7 2 .1 0-.5-.4-.8-1.4-1.1l-1.1-.3c-1.9-.4-2.9-1.4-2.9-2.9 0-1.3.9-2.3 2.3-2.7V5h1.3v1.3c1 .2 1.8.8 2.1 1.6l-1.2.5c-.2-.6-.7-1-1.5-1.2-.8-.2-1.4 0-1.7.3zM13.2 15.5c.9-.3 1.5-1 1.5-2 0-1.1-.8-1.9-2.5-2.2-1.3-.3-1.8-.5-1.8-.1 0 .4.4.7 1.3.9l1.2.3c2.1.5 3.1 1.5 3.1 3 0 1.4-1 2.5-2.7 2.8V19h-1.3v-1.3c-1.1-.2-2-.8-2.4-1.7l1.3-.5c.2.7.8 1.1 1.6 1.3.8.2 1.4 0 1.7-.3z" fill="#fff"/>
+        <path d="M7.2 18.3A7.2 7.2 0 1 1 18.3 7.2 7.2 7.2 0 0 1 7.2 18.3Zm0-1.4a5.8 5.8 0 1 0 0-11.6 5.8 5.8 0 0 0 0 11.6Z" fill="#fff"/>
+      </svg>
+      <div style="font-weight: 700; color: #111827; font-size: 1.05em;">USDC Balance</div>
+      <div style="font-weight: 600; color: #0ea5e9; font-size: 1.2em;" id="usdc-balance">0</div>
     </div>
     </div>
   </div>
@@ -248,7 +258,7 @@
 <script src="https://cdn.jsdelivr.net/npm/libphonenumber-js@1.10.53/bundle/libphonenumber-js.min.js"></script>
 <script>
   // Auth modal behaviors
-  const API_BASE = `${location.protocol}//${location.hostname}:3001`;
+  const API_BASE = '';
   async function parseApiError(res) {
     try {
       const data = await res.json();
