@@ -355,6 +355,7 @@ const FINCUBE_ERC20_ABI = [
 export class ContractService {
     private signer: ethers.Signer;
     private fincubeERC20: ethers.Contract;
+    private cachedDecimals: number | null = null;
 
     constructor(signer: ethers.Signer) {
         this.signer = signer;
@@ -364,8 +365,9 @@ export class ContractService {
 
     // ERC20 Functions
     async getBalance(address: string): Promise<string> {
+        const decimals = await this.getTokenDecimals();
         const balance = await this.fincubeERC20.balanceOf(address);
-        return ethers.utils.formatEther(balance);
+        return ethers.utils.formatUnits(balance, decimals);
     }
 
     async transfer(to: string, amount: string): Promise<ethers.ContractTransaction> {
@@ -373,62 +375,40 @@ export class ContractService {
         if (!/^\d*\.?\d+$/.test(normalized)) {
             throw new Error('Please enter a valid decimal amount');
         }
-        const parsedAmount = ethers.utils.parseEther(normalized);
+        const decimals = await this.getTokenDecimals();
+        const parsedAmount = ethers.utils.parseUnits(normalized, decimals);
+        if (parsedAmount.lte(0)) {
+            throw new Error('Amount must be greater than 0');
+        }
 
-        // Preflight: ensure we have enough ETH to pay gas
-        const signer = this.signer as ethers.Signer;
-        const provider = (signer.provider as ethers.providers.Provider);
-        const from = await signer.getAddress();
+        // Ensure token balance is sufficient
+        const from = await this.signer.getAddress();
+        const tokenBal = await this.fincubeERC20.balanceOf(from);
+        if (tokenBal.lt(parsedAmount)) {
+            const have = ethers.utils.formatUnits(tokenBal, decimals);
+            throw new Error(`Insufficient token balance. You have ${have}.`);
+        }
 
-        // Estimate gas and fee
+        // Estimate gas and add safety buffer
         let gasEstimate: ethers.BigNumber;
         try {
             gasEstimate = await this.fincubeERC20.estimateGas.transfer(to, parsedAmount);
         } catch (err: any) {
-            // Surface common ERC20 errors
             const msg = (err?.error?.message || err?.message || '').toLowerCase();
-            if (msg.includes('insufficient balance')) {
-                throw new Error('Token balance is insufficient for this transfer.');
-            }
-            if (msg.includes('transfer amount exceeds balance')) {
-                throw new Error('Transfer amount exceeds your token balance.');
-            }
             if (msg.includes('execution reverted')) {
-                throw new Error('Transaction would revert. Check recipient and amount.');
+                throw new Error('Transfer would revert. Check recipient and amount.');
             }
-            // Fallback
-            throw new Error('Failed to estimate gas. The transaction may revert.');
+            throw new Error('Failed to estimate gas for token transfer.');
         }
-
-        const feeData = await (provider as ethers.providers.BaseProvider).getFeeData();
-        // Prefer EIP-1559 fees if available
         const gasLimit = gasEstimate.mul(120).div(100);
-        const price = feeData.maxFeePerGas || feeData.gasPrice;
-        if (price) {
-            const requiredWei = gasLimit.mul(price);
-            const ethBalance = await provider.getBalance(from);
-            if (ethBalance.lt(requiredWei)) {
-                const neededEth = ethers.utils.formatEther(requiredWei.sub(ethBalance).abs());
-                throw new Error(`Insufficient ETH for gas. You need approximately +${neededEth} ETH more to cover fees.`);
-            }
-        }
+        return await this.fincubeERC20.transfer(to, parsedAmount, { gasLimit });
+    }
 
-        // Send with the buffered gas limit
-        try {
-            return await this.fincubeERC20.transfer(to, parsedAmount, { gasLimit });
-        } catch (err: any) {
-            const msg = (err?.error?.message || err?.message || '').toLowerCase();
-            if (msg.includes('insufficient funds')) {
-                throw new Error('Insufficient ETH for gas. Please add some ETH to your wallet.');
-            }
-            if (msg.includes('user rejected')) {
-                throw new Error('Transaction rejected in wallet.');
-            }
-            if (msg.includes('execution reverted')) {
-                throw new Error('Transaction reverted by the contract.');
-            }
-            throw err;
-        }
+    private async getTokenDecimals(): Promise<number> {
+        if (this.cachedDecimals !== null) return this.cachedDecimals;
+        const d: number = await this.fincubeERC20.decimals();
+        this.cachedDecimals = d;
+        return d;
     }
 
 

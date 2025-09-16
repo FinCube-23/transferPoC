@@ -52,6 +52,44 @@ export class Web3Service {
         return await this.contractService.transfer(to, amount);
     }
 
+    // Send native ETH transfer with preflight checks
+    async transferEth(to: string, amount: string): Promise<ethers.providers.TransactionResponse> {
+        if (!this.provider || !this.signer) {
+            throw new Error('Not connected to Web3');
+        }
+        const normalized = (amount || '').trim().replace(/,/g, '');
+        if (!/^\d*\.?\d+$/.test(normalized)) {
+            throw new Error('Please enter a valid decimal amount');
+        }
+        const value = ethers.utils.parseEther(normalized);
+        if (value.lte(0)) {
+            throw new Error('Amount must be greater than 0');
+        }
+        const from = await this.signer.getAddress();
+        const provider = this.provider;
+        // Estimate gas
+        let gasLimit: ethers.BigNumber;
+        try {
+            gasLimit = await provider.estimateGas({ from, to, value });
+        } catch (err: any) {
+            throw new Error('Failed to estimate gas for ETH transfer.');
+        }
+        // Fee data
+        const feeData = await provider.getFeeData();
+        const price = feeData.maxFeePerGas || feeData.gasPrice;
+        const bufferedGasLimit = gasLimit.mul(120).div(100);
+        const requiredForGas = price ? bufferedGasLimit.mul(price) : ethers.BigNumber.from(0);
+        const balance = await provider.getBalance(from);
+        // Ensure enough for value + gas
+        const totalRequired = requiredForGas.add(value);
+        if (balance.lt(totalRequired)) {
+            const shortEth = ethers.utils.formatEther(totalRequired.sub(balance));
+            throw new Error(`Insufficient ETH. Need approximately +${shortEth} ETH to cover value + gas.`);
+        }
+        // Send
+        return await this.signer.sendTransaction({ to, value, gasLimit: bufferedGasLimit, ...(feeData.maxFeePerGas ? { maxFeePerGas: feeData.maxFeePerGas, maxPriorityFeePerGas: feeData.maxPriorityFeePerGas || undefined } : {}) });
+    }
+
     isConnected(): boolean {
         return this.provider !== null && this.signer !== null;
     }
