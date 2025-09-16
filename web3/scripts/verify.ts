@@ -1,4 +1,4 @@
-import hre from "hardhat"
+import hre, { network } from "hardhat"
 import { verifyContract } from "@nomicfoundation/hardhat-verify/verify"
 
 async function main() {
@@ -8,15 +8,41 @@ async function main() {
     )
 
     // Fill these with your real deployed addresses and initialization data
-    const finCubeDAOImplAddress = "0x37211c898060a1e4c55e73ea4e2ff24215787bc2"
-    const finCubeImplAddress = "0xf76e85a3e349282341ebb538df9f46fd2aa984fa"
-    const finCubeDAOProxyAddress = "0xd07a07501d7a03768504403cc7bab95357cf254b"
-    const finCubeProxyAddress = "0xbd1a23dcf907762bb7b772b25a80e05b8fb531e4"
-    const mockERC20Address = "0x347668c8dc9186c762715dd85f8db5a13eef1118"
+    const finCubeDAOImplAddress = "0xcAe35772f0A1f8936c22EF4477Ae776BB93d5153"
+    const finCubeImplAddress = "0x9F8E553172D95b6465A668e3FaA92D64576eDD2d"
+    const finCubeDAOProxyAddress = "0xe857cBCfA7714C22e22DDfF7777A0455AeA39145"
+    const finCubeProxyAddress = "0xE992A526e8e51120F9C0Bf05c26f301e576D45E0"
+    const mockERC20Address = "0x01205E30606F8Ca83c03690e33a9c7C8Eb64BF62"
 
     // Also the calldata (init data) you used when deploying proxies, encoded
     // For example: the bytes from encodeFunctionData for initialize(...)
-    const { encodeFunctionData } = await import("viem")
+    const { encodeFunctionData, getAddress } = await import("viem")
+    const { viem } = await network.connect()
+    const [deployer] = await viem.getWalletClients()
+
+    console.log("Verifying contracts deployed by:", deployer.account.address)
+
+    // DAO URI following EIP-4824
+    const _daoURI = {
+        "@context": "https://github.com/FinCube-23/DAO-Proposal-Governance",
+        type: "DAO",
+        name: "FinCube-23",
+        description:
+            "FinCube is a DAO for Mobile Financial Services. The DAO allows MFS entities to set policies to enable global currency transfer.",
+        membersURI: "",
+        proposalsURI: "",
+        activityLogURI: "",
+        governanceURI: "",
+        contractsURI: "",
+    }
+
+    // Owner URI following EIP-4824
+    const _ownerURI = {
+        "@context": "https://www.bkash.com/",
+        type: "Organization",
+        name: "bKash",
+        members: [{ type: "EthereumAddress", id: getAddress(deployer.account.address) }],
+    }
 
     const daoInitCalldata = encodeFunctionData({
         abi: [
@@ -31,8 +57,8 @@ async function main() {
         ],
         functionName: "initialize",
         args: [
-            "https://fincube-dao.com/metadata",
-            "https://fincube-dao.com/owner",
+            JSON.stringify(_daoURI),
+            JSON.stringify(_ownerURI),
         ],
     })
 
