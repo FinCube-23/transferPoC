@@ -1,44 +1,43 @@
-import { network } from "hardhat"
-import { encodeFunctionData, getAddress } from "viem"
+// web3/scripts/01_deploy_dao_uup_v1.ts
+import { ethers, upgrades } from "hardhat"
+import { trackDataSaver } from "./trackDataSaver"
 
+/**
+ * Deploy FinCubeDAO (UUPS Proxy), FinCube (UUPS Proxy), and MockERC20
+ * The Universal Upgradeable Proxies
+ * Ref: https://eips.ethereum.org/EIPS/eip-1822
+ * JS Package: https://www.npmjs.com/package/@openzeppelin/hardhat-upgrades
+ */
 async function main() {
-    console.log("🚀 Starting deployment to Sepolia...")
-    const { viem } = await network.connect()
-
-    const [deployer] = await viem.getWalletClients()
-    const publicClient = await viem.getPublicClient()
-
-    console.log("Deploying with account:", deployer.account.address)
-
-    // Get balance
-    const balance = await publicClient.getBalance({
-        address: deployer.account.address,
-    })
-    console.log("Account balance:", balance.toString(), "wei")
-
-    // 1. Deploy FinCubeDAO Implementation
-    console.log("\n📋 Deploying FinCubeDAO implementation...")
-    const finCubeDAOImpl = await viem.deployContract("FinCubeDAO")
+    const [deployer] = await ethers.getSigners()
+    console.log("Deploying contracts with the account:", deployer.address)
     console.log(
-        "✅ FinCubeDAO implementation deployed at:",
-        finCubeDAOImpl.address
+        "Account balance:",
+        (await deployer.provider.getBalance(deployer.address)).toString()
     )
 
-    // 2. Deploy FinCube Implementation
-    console.log("\n📋 Deploying FinCube implementation...")
-    const finCubeImpl = await viem.deployContract("FinCube")
-    console.log("✅ FinCube implementation deployed at:", finCubeImpl.address)
+    // 1. Deploy MockERC20 first (not upgradeable)
+    console.log("\n=== Deploying MockERC20 ===")
+    const MockERC20 = await ethers.getContractFactory("MockERC20")
+    const mockERC20 = await MockERC20.deploy(
+        "FinCube USDC",
+        "fUSDC",
+        ethers.parseUnits("1000000", 6) // 1M tokens with 6 decimals
+    )
+    await mockERC20.waitForDeployment()
+    const mockERC20Address = await mockERC20.getAddress()
+    console.log("MockERC20 deployed to:", mockERC20Address)
 
-    // 3. Deploy MockERC20 for testing (optional)
-    console.log("\n📋 Deploying MockERC20 token...")
-    const mockERC20 = await viem.deployContract("MockERC20", [
-        "FinCube Test Token",
-        "FCT",
-        18n,
-    ])
-    console.log("✅ MockERC20 deployed at:", mockERC20.address)
+    // Store MockERC20 address
+    await trackDataSaver(
+        "mockERC20_contract_address",
+        "MockERC20Contract",
+        mockERC20Address
+    )
 
-    // 4. Prepare FinCubeDAO initialization data
+    // 2. Deploy FinCubeDAO (UUPS Proxy)
+    console.log("\n=== Deploying FinCubeDAO ===")
+
     // DAO URI following EIP-4824
     const _daoURI = {
         "@context": "https://github.com/FinCube-23/DAO-Proposal-Governance",
@@ -56,144 +55,101 @@ async function main() {
     // Owner URI following EIP-4824
     const _ownerURI = {
         "@context": "https://www.bkash.com/",
-        type: "Organization",
+        type: "MFS",
         name: "bKash",
-        members: [
-            {
-                type: "EthereumAddress",
-                id: getAddress(deployer.account.address),
-            },
-        ],
+        members: [{ type: "EthereumAddress", id: deployer.address }],
     }
-    const daoInitData = encodeFunctionData({
-        abi: [
-            {
-                name: "initialize",
-                type: "function",
-                inputs: [
-                    { name: "_daoURI", type: "string" },
-                    { name: "_ownerURI", type: "string" },
-                ],
-            },
-        ],
-        functionName: "initialize",
-        args: [JSON.stringify(_daoURI), JSON.stringify(_ownerURI)],
-    })
 
-    // 5. Deploy FinCubeDAO Proxy - FIXED LINE
-    console.log("\n📋 Deploying FinCubeDAO proxy...")
-    const finCubeDAOProxy = await viem.deployContract("TestERC1967Proxy", [
-        finCubeDAOImpl.address,
-        daoInitData,
-    ])
-    console.log("✅ FinCubeDAO proxy deployed at:", finCubeDAOProxy.address)
-
-    // 6. Prepare FinCube initialization data
-    const finCubeInitData = encodeFunctionData({
-        abi: [
-            {
-                name: "initialize",
-                type: "function",
-                inputs: [
-                    { name: "_dao", type: "address" },
-                    { name: "_token", type: "address" },
-                ],
-            },
-        ],
-        functionName: "initialize",
-        args: [
-            finCubeDAOProxy.address, // DAO proxy address
-            mockERC20.address, // Initial token (can be changed via governance)
-        ],
-    })
-
-    // 7. Deploy FinCube Proxy - FIXED LINE
-    console.log("\n📋 Deploying FinCube proxy...")
-    const finCubeProxy = await viem.deployContract("TestERC1967Proxy", [
-        finCubeImpl.address,
-        finCubeInitData,
-    ])
-    console.log("✅ FinCube proxy deployed at:", finCubeProxy.address)
-
-    // 8. Verify deployment by checking proxy initialization
-    console.log("\n🔍 Verifying proxy initialization...")
-
-    // Get contract instances pointing to proxies
-    const finCubeDAO = await viem.getContractAt(
-        "FinCubeDAO",
-        finCubeDAOProxy.address
+    const FinCubeDAO = await ethers.getContractFactory("FinCubeDAO")
+    const finCubeDAO = await upgrades.deployProxy(
+        FinCubeDAO,
+        [JSON.stringify(_daoURI), JSON.stringify(_ownerURI)],
+        {
+            kind: "uups",
+            initializer: "initialize",
+        }
     )
-    const finCube = await viem.getContractAt("FinCube", finCubeProxy.address)
+    await finCubeDAO.waitForDeployment()
+    const finCubeDAOAddress = await finCubeDAO.getAddress()
+    console.log("FinCubeDAO proxy deployed to:", finCubeDAOAddress)
 
-    // Verify FinCubeDAO initialization
-    const owner = await finCubeDAO.read.owner()
-    const daoURI = await finCubeDAO.read.daoURI()
-    const memberCount = await finCubeDAO.read.memberCount()
+    // Get implementation address for FinCubeDAO
+    const daoImplementationAddress =
+        await upgrades.erc1967.getImplementationAddress(finCubeDAOAddress)
+    console.log("FinCubeDAO implementation address:", daoImplementationAddress)
 
-    console.log("FinCubeDAO Owner:", owner)
-    console.log("FinCubeDAO URI:", daoURI)
-    console.log("Initial Member Count:", memberCount.toString())
-
-    // Verify FinCube initialization
-    const daoAddress = await finCube.read.dao()
-    const tokenAddress = await finCube.read.approvedERC20()
-
-    console.log("FinCube DAO Address:", daoAddress)
-    console.log("FinCube Token Address:", tokenAddress)
-
-    // 9. Set up basic governance parameters
-    console.log("\n⚙️  Setting up governance parameters...")
-    await finCubeDAO.write.setVotingDelay([300n]) // 5 minutes
-    await finCubeDAO.write.setVotingPeriod([7200n]) // 2 hours
-
-    console.log("✅ Voting delay set to 300 seconds")
-    console.log("✅ Voting period set to 7200 seconds")
-
-    // 10. Print summary
-    console.log("\n🎉 DEPLOYMENT SUMMARY")
-    console.log("=".repeat(50))
-    console.log("📍 Network: Sepolia")
-    console.log("👤 Deployer:", deployer.account.address)
-    console.log()
-    console.log("📋 IMPLEMENTATION CONTRACTS:")
-    console.log("   FinCubeDAO Impl:", finCubeDAOImpl.address)
-    console.log("   FinCube Impl:   ", finCubeImpl.address)
-    console.log()
-    console.log("🔗 PROXY CONTRACTS (USE THESE):")
-    console.log("   FinCubeDAO Proxy:", finCubeDAOProxy.address)
-    console.log("   FinCube Proxy:   ", finCubeProxy.address)
-    console.log()
-    console.log("🪙 TEST TOKEN:")
-    console.log("   MockERC20:      ", mockERC20.address)
-    console.log()
-    console.log("🔍 Etherscan Links:")
-    console.log(
-        `   DAO: https://sepolia.etherscan.io/address/${finCubeDAOProxy.address}`
+    // Store FinCubeDAO addresses
+    await trackDataSaver(
+        "fincubeDAO_contract_address",
+        "FinCubeDAOContract",
+        finCubeDAOAddress
     )
-    console.log(
-        `   FinCube: https://sepolia.etherscan.io/address/${finCubeProxy.address}`
-    )
-    console.log(
-        `   Token: https://sepolia.etherscan.io/address/${mockERC20.address}`
+    await trackDataSaver(
+        "fincubeDAO_implementation_address",
+        "FinCubeDAOImplementationAddress",
+        daoImplementationAddress
     )
 
-    // Return addresses for potential verification script
-    return {
-        implementations: {
-            finCubeDAO: finCubeDAOImpl.address,
-            finCube: finCubeImpl.address,
-        },
-        proxies: {
-            finCubeDAO: finCubeDAOProxy.address,
-            finCube: finCubeProxy.address,
-        },
-        token: mockERC20.address,
-    }
+    // 3. Deploy FinCube (UUPS Proxy) - depends on FinCubeDAO
+    console.log("\n=== Deploying FinCube ===")
+
+    const FinCube = await ethers.getContractFactory("FinCube")
+    const finCube = await upgrades.deployProxy(
+        FinCube,
+        [finCubeDAOAddress, mockERC20Address], // DAO address and approved ERC20
+        {
+            kind: "uups",
+            initializer: "initialize",
+        }
+    )
+    await finCube.waitForDeployment()
+    const finCubeAddress = await finCube.getAddress()
+    console.log("FinCube proxy deployed to:", finCubeAddress)
+
+    // Get implementation address for FinCube
+    const finCubeImplementationAddress =
+        await upgrades.erc1967.getImplementationAddress(finCubeAddress)
+    console.log("FinCube implementation address:", finCubeImplementationAddress)
+
+    // Store FinCube addresses
+    await trackDataSaver(
+        "finCube_contract_address",
+        "FinCubeContract",
+        finCubeAddress
+    )
+    await trackDataSaver(
+        "finCube_implementation_address",
+        "FinCubeImplementationAddress",
+        finCubeImplementationAddress
+    )
+
+    // 4. Initialize FinCubeDAO with proper voting parameters
+    console.log("\n=== Setting FinCubeDAO Parameters ===")
+    await finCubeDAO.setVotingDelay(300) // 5 minutes delay
+    await finCubeDAO.setVotingPeriod(86400) // 24 hours voting period
+    console.log("Voting delay set to 300 seconds (5 minutes)")
+    console.log("Voting period set to 86400 seconds (24 hours)")
+
+    // 5. Mint some test tokens to deployer
+    console.log("\n=== Minting Test Tokens ===")
+    await mockERC20.mint(deployer.address, ethers.parseUnits("10000", 6)) // 10K additional tokens
+    console.log("Minted 10,000 fUSDC to deployer address")
+
+    console.log("\n=== Deployment Summary ===")
+    console.log("MockERC20 Address:", mockERC20Address)
+    console.log("FinCubeDAO Proxy Address:", finCubeDAOAddress)
+    console.log("FinCubeDAO Implementation Address:", daoImplementationAddress)
+    console.log("FinCube Proxy Address:", finCubeAddress)
+    console.log("FinCube Implementation Address:", finCubeImplementationAddress)
+    console.log("Deployer Address:", deployer.address)
 }
 
 main()
     .then(() => process.exit(0))
     .catch((error) => {
-        console.error("❌ Deployment failed:", error)
+        console.error(error)
         process.exit(1)
     })
+
+// command: npx hardhat run scripts/01_deploy_dao_uup_v1.ts --network sepolia
+// verify commands will be shown after deployment

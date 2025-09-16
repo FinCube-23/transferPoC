@@ -1,51 +1,70 @@
-import type { HardhatUserConfig } from "hardhat/config"
-import hardhatToolboxViemPlugin from "@nomicfoundation/hardhat-toolbox-viem"
-import hardhatVerify from "@nomicfoundation/hardhat-verify"
-import * as dotenv from "dotenv";
-dotenv.config();
-
-const SepoliaRPC = process.env.SEPOLIA_RPC_URL || ""
-const SepoliaPrivateKey = process.env.SEPOLIA_PRIVATE_KEY || ""
-const EtherscanAPIKey = process.env.ETHERSCAN_API_KEY || ""
+import { HardhatUserConfig } from "hardhat/config"
+import "@openzeppelin/hardhat-upgrades"
+import "@nomicfoundation/hardhat-toolbox"
+import "hardhat-storage-layout"
+import "hardhat-gas-reporter"
+import "@openzeppelin/hardhat-upgrades"
+import * as dotenv from "dotenv"
+dotenv.config({ path: ".env" })
 
 const config: HardhatUserConfig = {
-    plugins: [hardhatToolboxViemPlugin, hardhatVerify],
     solidity: {
-        profiles: {
-            default: {
-                version: "0.8.28",
-            },
-            production: {
+        compilers: [
+            {
                 version: "0.8.28",
                 settings: {
                     optimizer: {
                         enabled: true,
-                        runs: 200,
+                        runs: 1000,
                     },
                 },
             },
-        },
+        ],
     },
     networks: {
-        hardhatMainnet: {
-            type: "edr-simulated",
-            chainType: "l1",
-        },
-        hardhatOp: {
-            type: "edr-simulated",
-            chainType: "op",
+        // Ref: https://trufflesuite.com/docs/truffle/getting-started/using-the-truffle-dashboard/#usage-with-non-truffle-tooling
+        mumbai: {
+            url: `${process.env.MUMBAI_ENDPOINT}/${process.env.MUMBAI_API_KEY}`,
+            gasPrice: 50000000000,
+            accounts: [`0x${process.env.WALLET_PRIVATE_KEY}`],
         },
         sepolia: {
-            type: "http",
-            chainType: "l1",
-            url: SepoliaRPC,
-            accounts: [SepoliaPrivateKey],
+            url: `${process.env.SEPOLIA_ENDPOINT}/${process.env.SEPOLIA_API_KEY}`,
+            gasPrice: 50000000000,
+            accounts: [`0x${process.env.WALLET_PRIVATE_KEY}`],
+        },
+        amoy: {
+            url: `${process.env.AMOY_ENDPOINT}/${process.env.AMOY_API_KEY}`,
+            gasPrice: 50000000000,
+            accounts: [`0x${process.env.WALLET_PRIVATE_KEY}`],
         },
     },
-    verify: {
-        etherscan: {
-            apiKey: EtherscanAPIKey,
+
+    // https://hardhat.org/hardhat-runner/docs/guides/verifying
+    // (npm etherscan deprecated)
+    // https://coinsbench.com/verify-smart-contract-on-polygonscan-using-hardhat-9b8331dbd888
+    etherscan: {
+        apiKey: {
+            // Polygon
+            polygonMumbai: process.env.POLYGONSCAN_MUMBAI_API_KEY,
+
+            // Sepolia
+            sepolia: process.env.ETHERSCAN_API_KEY,
+
+            // Amoy
+            amoy: process.env.POLYGONSCAN_MUMBAI_API_KEY,
         },
+        // Ref: https://docs.polygonscan.com/getting-started/endpoint-urls
+        customChains: [
+            {
+                network: "amoy",
+                chainId: 80002,
+                urls: {
+                    apiURL: "https://api-amoy.polygonscan.com/api",
+                    browserURL: "https://amoy.polygonscan.com/",
+                },
+            },
+        ],
     },
 }
 
