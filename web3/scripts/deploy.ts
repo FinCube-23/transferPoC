@@ -39,6 +39,32 @@ async function main() {
     console.log("✅ MockERC20 deployed at:", mockERC20.address)
 
     // 4. Prepare FinCubeDAO initialization data
+    // DAO URI following EIP-4824
+    const _daoURI = {
+        "@context": "https://github.com/FinCube-23/DAO-Proposal-Governance",
+        type: "DAO",
+        name: "FinCube-23",
+        description:
+            "FinCube is a DAO for Mobile Financial Services. The DAO allows MFS entities to set policies to enable global currency transfer.",
+        membersURI: "",
+        proposalsURI: "",
+        activityLogURI: "",
+        governanceURI: "",
+        contractsURI: "",
+    }
+
+    // Owner URI following EIP-4824
+    const _ownerURI = {
+        "@context": "https://www.bkash.com/",
+        type: "Organization",
+        name: "bKash",
+        members: [
+            {
+                type: "EthereumAddress",
+                id: getAddress(deployer.account.address),
+            },
+        ],
+    }
     const daoInitData = encodeFunctionData({
         abi: [
             {
@@ -51,10 +77,7 @@ async function main() {
             },
         ],
         functionName: "initialize",
-        args: [
-            "https://fincube-dao.com/metadata", // DAO URI
-            "https://fincube-dao.com/owner", // Owner URI
-        ],
+        args: [JSON.stringify(_daoURI), JSON.stringify(_ownerURI)],
     })
 
     // 5. Deploy FinCubeDAO Proxy - FIXED LINE
