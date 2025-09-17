@@ -3,7 +3,7 @@ import { ethers, upgrades } from "hardhat"
 import { trackDataSaver } from "./trackDataSaver"
 
 /**
- * Deploy FinCubeDAO (UUPS Proxy), FinCube (UUPS Proxy), and MockERC20
+ * Deploy FinCubeDAO (UUPS Proxy), FinCube (UUPS Proxy), using Sepolia USDC
  * The Universal Upgradeable Proxies
  * Ref: https://eips.ethereum.org/EIPS/eip-1822
  * JS Package: https://www.npmjs.com/package/@openzeppelin/hardhat-upgrades
@@ -16,24 +16,13 @@ async function main() {
         (await deployer.provider.getBalance(deployer.address)).toString()
     )
 
-    // 1. Deploy MockERC20 first (not upgradeable)
-    console.log("\n=== Deploying MockERC20 ===")
-    const MockERC20 = await ethers.getContractFactory("MockERC20")
-    const mockERC20 = await MockERC20.deploy(
-        "FinCube USDC",
-        "fUSDC",
-        ethers.parseUnits("1000000", 6) // 1M tokens with 6 decimals
-    )
-    await mockERC20.waitForDeployment()
-    const mockERC20Address = await mockERC20.getAddress()
-    console.log("MockERC20 deployed to:", mockERC20Address)
+    // 1. Use Sepolia USDC instead of deploying MockERC20
+    console.log("\n=== Using Sepolia USDC ===")
+    const usdcAddress = "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238" // Sepolia USDC
+    console.log("Using USDC at:", usdcAddress)
 
-    // Store MockERC20 address
-    await trackDataSaver(
-        "mockERC20_contract_address",
-        "MockERC20Contract",
-        mockERC20Address
-    )
+    // Store USDC address
+    await trackDataSaver("usdc_contract_address", "USDCContract", usdcAddress)
 
     // 2. Deploy FinCubeDAO (UUPS Proxy)
     console.log("\n=== Deploying FinCubeDAO ===")
@@ -96,7 +85,7 @@ async function main() {
     const FinCube = await ethers.getContractFactory("FinCube")
     const finCube = await upgrades.deployProxy(
         FinCube,
-        [finCubeDAOAddress, mockERC20Address], // DAO address and approved ERC20
+        [finCubeDAOAddress, usdcAddress], // DAO address and USDC
         {
             kind: "uups",
             initializer: "initialize",
@@ -130,13 +119,16 @@ async function main() {
     console.log("Voting delay set to 300 seconds (5 minutes)")
     console.log("Voting period set to 86400 seconds (24 hours)")
 
-    // 5. Mint some test tokens to deployer
-    console.log("\n=== Minting Test Tokens ===")
-    await mockERC20.mint(deployer.address, ethers.parseUnits("10000", 6)) // 10K additional tokens
-    console.log("Minted 10,000 fUSDC to deployer address")
+    // 5. Token Setup Information
+    console.log("\n=== Token Setup ===")
+    console.log(
+        "Using Sepolia USDC - you'll need to acquire USDC tokens separately"
+    )
+    console.log("USDC Contract:", usdcAddress)
+    console.log("You can get test USDC from Sepolia faucets or DEXs")
 
     console.log("\n=== Deployment Summary ===")
-    console.log("MockERC20 Address:", mockERC20Address)
+    console.log("USDC Address:", usdcAddress)
     console.log("FinCubeDAO Proxy Address:", finCubeDAOAddress)
     console.log("FinCubeDAO Implementation Address:", daoImplementationAddress)
     console.log("FinCube Proxy Address:", finCubeAddress)
@@ -151,5 +143,5 @@ main()
         process.exit(1)
     })
 
-// command: npx hardhat run scripts/01_deploy_dao_uup_v1.ts --network sepolia
+// command: npx hardhat run scripts/deploy.ts --network sepolia
 // verify commands will be shown after deployment

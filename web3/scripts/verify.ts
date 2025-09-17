@@ -2,7 +2,7 @@
 import { run } from "hardhat"
 
 // Load deployed addresses
-const mockERC20Address = require("../../json-log/mockERC20_contract_address.json")
+const usdcAddress = require("../../json-log/usdc_contract_address.json")
 const daoAddresses = require("../../json-log/fincubeDAO_contract_address.json")
 const finCubeAddresses = require("../../json-log/finCube_contract_address.json")
 const daoImplementation = require("../../json-log/fincubeDAO_implementation_address.json")
@@ -12,19 +12,12 @@ async function main() {
     console.log("Starting contract verification...")
 
     try {
-        // 1. Verify MockERC20
-        console.log("\n=== Verifying MockERC20 ===")
-        await run("verify:verify", {
-            address: mockERC20Address.MockERC20Contract,
-            constructorArguments: [
-                "FinCube USDC",
-                "fUSDC",
-                "1000000000000", // 1M tokens with 6 decimals
-            ],
-        })
-        console.log("MockERC20 verified successfully")
+        // Note: USDC is already deployed and verified on Sepolia
+        console.log("\n=== USDC Contract (Pre-deployed) ===")
+        console.log("USDC Address:", usdcAddress.USDCContract)
+        console.log("USDC is already deployed and verified on Sepolia")
 
-        // 2. Verify FinCubeDAO Implementation
+        // 1. Verify FinCubeDAO Implementation
         console.log("\n=== Verifying FinCubeDAO Implementation ===")
         await run("verify:verify", {
             address: daoImplementation.FinCubeDAOImplementationAddress,
@@ -32,7 +25,7 @@ async function main() {
         })
         console.log("FinCubeDAO Implementation verified successfully")
 
-        // 3. Verify FinCube Implementation
+        // 2. Verify FinCube Implementation
         console.log("\n=== Verifying FinCube Implementation ===")
         await run("verify:verify", {
             address: finCubeImplementation.FinCubeImplementationAddress,
@@ -41,7 +34,7 @@ async function main() {
         console.log("FinCube Implementation verified successfully")
 
         console.log("\n=== All contracts verified successfully ===")
-        console.log("MockERC20:", mockERC20Address.MockERC20Contract)
+        console.log("USDC (pre-deployed):", usdcAddress.USDCContract)
         console.log("FinCubeDAO Proxy:", daoAddresses.FinCubeDAOContract)
         console.log(
             "FinCubeDAO Implementation:",
