@@ -1,113 +1,78 @@
-import { ethers } from 'ethers';
+import { ethers, BigNumber } from 'ethers';
 import { contractAddresses } from '../contracts/addresses';
-
-const FINCUBE_ERC20_ABI = [
-
-    {
-        "inputs": [
-            {
-                "internalType": "string",
-                "name": "name",
-                "type": "string"
-            },
-            {
-                "internalType": "string",
-                "name": "symbol",
-                "type": "string"
-            },
-            {
-                "internalType": "uint256",
-                "name": "initialSupply",
-                "type": "uint256"
-            }
-        ],
-        "stateMutability": "nonpayable",
-        "type": "constructor"
-    },
+const FINCUBE_ABI = [
     {
         "inputs": [
             {
                 "internalType": "address",
-                "name": "spender",
+                "name": "target",
                 "type": "address"
-            },
-            {
-                "internalType": "uint256",
-                "name": "allowance",
-                "type": "uint256"
-            },
-            {
-                "internalType": "uint256",
-                "name": "needed",
-                "type": "uint256"
             }
         ],
-        "name": "ERC20InsufficientAllowance",
+        "name": "AddressEmptyCode",
         "type": "error"
     },
     {
         "inputs": [
             {
                 "internalType": "address",
-                "name": "sender",
+                "name": "implementation",
                 "type": "address"
-            },
-            {
-                "internalType": "uint256",
-                "name": "balance",
-                "type": "uint256"
-            },
-            {
-                "internalType": "uint256",
-                "name": "needed",
-                "type": "uint256"
             }
         ],
-        "name": "ERC20InsufficientBalance",
+        "name": "ERC1967InvalidImplementation",
+        "type": "error"
+    },
+    {
+        "inputs": [],
+        "name": "ERC1967NonPayable",
+        "type": "error"
+    },
+    {
+        "inputs": [],
+        "name": "FailedCall",
+        "type": "error"
+    },
+    {
+        "inputs": [],
+        "name": "InvalidInitialization",
+        "type": "error"
+    },
+    {
+        "inputs": [],
+        "name": "NotInitializing",
+        "type": "error"
+    },
+    {
+        "inputs": [],
+        "name": "ReentrancyGuardReentrantCall",
         "type": "error"
     },
     {
         "inputs": [
             {
                 "internalType": "address",
-                "name": "approver",
+                "name": "token",
                 "type": "address"
             }
         ],
-        "name": "ERC20InvalidApprover",
+        "name": "SafeERC20FailedOperation",
+        "type": "error"
+    },
+    {
+        "inputs": [],
+        "name": "UUPSUnauthorizedCallContext",
         "type": "error"
     },
     {
         "inputs": [
             {
-                "internalType": "address",
-                "name": "receiver",
-                "type": "address"
+                "internalType": "bytes32",
+                "name": "slot",
+                "type": "bytes32"
             }
         ],
-        "name": "ERC20InvalidReceiver",
-        "type": "error"
-    },
-    {
-        "inputs": [
-            {
-                "internalType": "address",
-                "name": "sender",
-                "type": "address"
-            }
-        ],
-        "name": "ERC20InvalidSender",
-        "type": "error"
-    },
-    {
-        "inputs": [
-            {
-                "internalType": "address",
-                "name": "spender",
-                "type": "address"
-            }
-        ],
-        "name": "ERC20InvalidSpender",
+        "name": "UUPSUnsupportedProxiableUUID",
         "type": "error"
     },
     {
@@ -116,23 +81,37 @@ const FINCUBE_ERC20_ABI = [
             {
                 "indexed": true,
                 "internalType": "address",
-                "name": "owner",
+                "name": "newToken",
                 "type": "address"
-            },
+            }
+        ],
+        "name": "ApprovedERC20Updated",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
             {
                 "indexed": true,
                 "internalType": "address",
-                "name": "spender",
+                "name": "newDAO",
                 "type": "address"
-            },
-            {
-                "indexed": false,
-                "internalType": "uint256",
-                "name": "value",
-                "type": "uint256"
             }
         ],
-        "name": "Approval",
+        "name": "DAOUpdated",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": false,
+                "internalType": "uint64",
+                "name": "version",
+                "type": "uint64"
+            }
+        ],
+        "name": "Initialized",
         "type": "event"
     },
     {
@@ -153,75 +132,46 @@ const FINCUBE_ERC20_ABI = [
             {
                 "indexed": false,
                 "internalType": "uint256",
-                "name": "value",
+                "name": "amount",
                 "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "internalType": "string",
+                "name": "memo",
+                "type": "string"
+            },
+            {
+                "indexed": false,
+                "internalType": "bytes32",
+                "name": "nullifier",
+                "type": "bytes32"
             }
         ],
-        "name": "Transfer",
+        "name": "StablecoinTransfer",
         "type": "event"
     },
     {
+        "anonymous": false,
         "inputs": [
             {
+                "indexed": true,
                 "internalType": "address",
-                "name": "owner",
-                "type": "address"
-            },
-            {
-                "internalType": "address",
-                "name": "spender",
+                "name": "implementation",
                 "type": "address"
             }
         ],
-        "name": "allowance",
-        "outputs": [
-            {
-                "internalType": "uint256",
-                "name": "",
-                "type": "uint256"
-            }
-        ],
-        "stateMutability": "view",
-        "type": "function"
+        "name": "Upgraded",
+        "type": "event"
     },
     {
-        "inputs": [
-            {
-                "internalType": "address",
-                "name": "spender",
-                "type": "address"
-            },
-            {
-                "internalType": "uint256",
-                "name": "value",
-                "type": "uint256"
-            }
-        ],
-        "name": "approve",
+        "inputs": [],
+        "name": "UPGRADE_INTERFACE_VERSION",
         "outputs": [
             {
-                "internalType": "bool",
+                "internalType": "string",
                 "name": "",
-                "type": "bool"
-            }
-        ],
-        "stateMutability": "nonpayable",
-        "type": "function"
-    },
-    {
-        "inputs": [
-            {
-                "internalType": "address",
-                "name": "account",
-                "type": "address"
-            }
-        ],
-        "name": "balanceOf",
-        "outputs": [
-            {
-                "internalType": "uint256",
-                "name": "",
-                "type": "uint256"
+                "type": "string"
             }
         ],
         "stateMutability": "view",
@@ -229,12 +179,25 @@ const FINCUBE_ERC20_ABI = [
     },
     {
         "inputs": [],
-        "name": "decimals",
+        "name": "approvedERC20",
         "outputs": [
             {
-                "internalType": "uint8",
+                "internalType": "address",
                 "name": "",
-                "type": "uint8"
+                "type": "address"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "dao",
+        "outputs": [
+            {
+                "internalType": "address",
+                "name": "",
+                "type": "address"
             }
         ],
         "stateMutability": "view",
@@ -242,6 +205,42 @@ const FINCUBE_ERC20_ABI = [
     },
     {
         "inputs": [
+            {
+                "internalType": "address",
+                "name": "_dao",
+                "type": "address"
+            },
+            {
+                "internalType": "address",
+                "name": "_token",
+                "type": "address"
+            }
+        ],
+        "name": "initialize",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "proxiableUUID",
+        "outputs": [
+            {
+                "internalType": "bytes32",
+                "name": "",
+                "type": "bytes32"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "from",
+                "type": "address"
+            },
             {
                 "internalType": "address",
                 "name": "to",
@@ -251,73 +250,33 @@ const FINCUBE_ERC20_ABI = [
                 "internalType": "uint256",
                 "name": "amount",
                 "type": "uint256"
+            },
+            {
+                "internalType": "string",
+                "name": "memo",
+                "type": "string"
+            },
+            {
+                "internalType": "bytes32",
+                "name": "nullifier",
+                "type": "bytes32"
             }
         ],
-        "name": "mint",
+        "name": "safeTransfer",
         "outputs": [],
         "stateMutability": "nonpayable",
         "type": "function"
     },
     {
-        "inputs": [],
-        "name": "name",
-        "outputs": [
-            {
-                "internalType": "string",
-                "name": "",
-                "type": "string"
-            }
-        ],
-        "stateMutability": "view",
-        "type": "function"
-    },
-    {
-        "inputs": [],
-        "name": "symbol",
-        "outputs": [
-            {
-                "internalType": "string",
-                "name": "",
-                "type": "string"
-            }
-        ],
-        "stateMutability": "view",
-        "type": "function"
-    },
-    {
-        "inputs": [],
-        "name": "totalSupply",
-        "outputs": [
-            {
-                "internalType": "uint256",
-                "name": "",
-                "type": "uint256"
-            }
-        ],
-        "stateMutability": "view",
-        "type": "function"
-    },
-    {
         "inputs": [
             {
                 "internalType": "address",
-                "name": "to",
+                "name": "newToken",
                 "type": "address"
-            },
-            {
-                "internalType": "uint256",
-                "name": "value",
-                "type": "uint256"
             }
         ],
-        "name": "transfer",
-        "outputs": [
-            {
-                "internalType": "bool",
-                "name": "",
-                "type": "bool"
-            }
-        ],
+        "name": "setApprovedERC20",
+        "outputs": [],
         "stateMutability": "nonpayable",
         "type": "function"
     },
@@ -325,21 +284,42 @@ const FINCUBE_ERC20_ABI = [
         "inputs": [
             {
                 "internalType": "address",
-                "name": "from",
+                "name": "newDAO",
                 "type": "address"
-            },
-            {
-                "internalType": "address",
-                "name": "to",
-                "type": "address"
-            },
-            {
-                "internalType": "uint256",
-                "name": "value",
-                "type": "uint256"
             }
         ],
-        "name": "transferFrom",
+        "name": "setDAO",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "newImplementation",
+                "type": "address"
+            },
+            {
+                "internalType": "bytes",
+                "name": "data",
+                "type": "bytes"
+            }
+        ],
+        "name": "upgradeToAndCall",
+        "outputs": [],
+        "stateMutability": "payable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "bytes32",
+                "name": "",
+                "type": "bytes32"
+            }
+        ],
+        "name": "usedNullifiers",
         "outputs": [
             {
                 "internalType": "bool",
@@ -347,69 +327,40 @@ const FINCUBE_ERC20_ABI = [
                 "type": "bool"
             }
         ],
-        "stateMutability": "nonpayable",
+        "stateMutability": "view",
         "type": "function"
     }
-]
+];
 
 export class ContractService {
     private signer: ethers.Signer;
-    private fincubeERC20: ethers.Contract;
-    private cachedDecimals: number | null = null;
-
+    private fincube: ethers.Contract;
     constructor(signer: ethers.Signer) {
         this.signer = signer;
-
-        this.fincubeERC20 = new ethers.Contract(contractAddresses.fincubeERC20, FINCUBE_ERC20_ABI, signer);
+        this.fincube = new ethers.Contract(contractAddresses.finCube, FINCUBE_ABI, signer);
     }
 
-    // ERC20 Functions
-    async getBalance(address: string): Promise<string> {
-        const decimals = await this.getTokenDecimals();
-        const balance = await this.fincubeERC20.balanceOf(address);
-        return ethers.utils.formatUnits(balance, decimals);
-    }
-
-    async transfer(to: string, amount: string): Promise<ethers.ContractTransaction> {
-        const normalized = amount.trim().replace(/,/g, '');
-        if (!/^\d*\.?\d+$/.test(normalized)) {
-            throw new Error('Please enter a valid decimal amount');
-        }
-        const decimals = await this.getTokenDecimals();
-        const parsedAmount = ethers.utils.parseUnits(normalized, decimals);
-        if (parsedAmount.lte(0)) {
-            throw new Error('Amount must be greater than 0');
-        }
-
-        // Ensure token balance is sufficient
+    async safeTransfer(
+        to: string,
+        amount: BigNumber, // amount should already be in raw token units
+        memo: string,
+        nullifier: string
+    ): Promise<ethers.ContractTransaction> {
         const from = await this.signer.getAddress();
-        const tokenBal = await this.fincubeERC20.balanceOf(from);
-        if (tokenBal.lt(parsedAmount)) {
-            const have = ethers.utils.formatUnits(tokenBal, decimals);
-            throw new Error(`Insufficient token balance. You have ${have}.`);
-        }
 
-        // Estimate gas and add safety buffer
-        let gasEstimate: ethers.BigNumber;
-        try {
-            gasEstimate = await this.fincubeERC20.estimateGas.transfer(to, parsedAmount);
-        } catch (err: any) {
-            const msg = (err?.error?.message || err?.message || '').toLowerCase();
-            if (msg.includes('execution reverted')) {
-                throw new Error('Transfer would revert. Check recipient and amount.');
-            }
-            throw new Error('Failed to estimate gas for token transfer.');
-        }
+        // Estimate gas
+        const gasEstimate = await this.fincube.estimateGas.safeTransfer(
+            from,
+            to,
+            amount,
+            memo,
+            nullifier
+        );
         const gasLimit = gasEstimate.mul(120).div(100);
-        return await this.fincubeERC20.transfer(to, parsedAmount, { gasLimit });
+        //testing perpouse only, in production consider removing the above line and uncommenting the below line
+        nullifier = ethers.utils.id(Date.now().toString() + Math.random());
+        memo = memo || "No memo";
+        return await this.fincube.safeTransfer(from, to, amount, memo, nullifier, { gasLimit });
     }
-
-    private async getTokenDecimals(): Promise<number> {
-        if (this.cachedDecimals !== null) return this.cachedDecimals;
-        const d: number = await this.fincubeERC20.decimals();
-        this.cachedDecimals = d;
-        return d;
-    }
-
 
 }
