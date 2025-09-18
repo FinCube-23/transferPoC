@@ -30,6 +30,16 @@
       "address": "0x2E1D2B3aab75082AA2A49300F77bA13163f20D53",
       "txHash": "0xa4c614f9942fa56ab9c592cdfcb5de1ae5359dfb9ca84b5f8385edc5284cd6dd",
       "kind": "uups"
+    },
+    {
+      "address": "0x7cD0C9654e28415Fe19b359d3C294DeF7b28E1B8",
+      "txHash": "0x6eee36dc2d68baebe9aff47e3ec500b95ca7345848c65100e518430364f2bf09",
+      "kind": "uups"
+    },
+    {
+      "address": "0x8a263DcEfee44B9Abe968C1B18e370f6A0A5F878",
+      "txHash": "0xf8e65533194b890951eba73bd4d8444bceedd8841f54cc9b12e77088df59b965",
+      "kind": "uups"
     }
   ],
   "impls": {
@@ -429,6 +439,125 @@
             "numberOfBytes": "32"
           },
           "t_struct(ReentrancyGuardStorage)226_storage": {
+            "label": "struct ReentrancyGuardUpgradeable.ReentrancyGuardStorage",
+            "members": [
+              {
+                "label": "_status",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_uint256": {
+            "label": "uint256",
+            "numberOfBytes": "32"
+          },
+          "t_uint64": {
+            "label": "uint64",
+            "numberOfBytes": "8"
+          },
+          "t_address": {
+            "label": "address",
+            "numberOfBytes": "20"
+          },
+          "t_bytes32": {
+            "label": "bytes32",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_bytes32,t_bool)": {
+            "label": "mapping(bytes32 => bool)",
+            "numberOfBytes": "32"
+          }
+        },
+        "namespaces": {
+          "erc7201:openzeppelin.storage.ReentrancyGuard": [
+            {
+              "contract": "ReentrancyGuardUpgradeable",
+              "label": "_status",
+              "type": "t_uint256",
+              "src": "@openzeppelin\\contracts-upgradeable\\utils\\ReentrancyGuardUpgradeable.sol:43",
+              "offset": 0,
+              "slot": "0"
+            }
+          ],
+          "erc7201:openzeppelin.storage.Initializable": [
+            {
+              "contract": "Initializable",
+              "label": "_initialized",
+              "type": "t_uint64",
+              "src": "@openzeppelin\\contracts-upgradeable\\proxy\\utils\\Initializable.sol:69",
+              "offset": 0,
+              "slot": "0"
+            },
+            {
+              "contract": "Initializable",
+              "label": "_initializing",
+              "type": "t_bool",
+              "src": "@openzeppelin\\contracts-upgradeable\\proxy\\utils\\Initializable.sol:73",
+              "offset": 8,
+              "slot": "0"
+            }
+          ]
+        }
+      }
+    },
+    "873e92ee4580ac363d21b959d5f9aba2afd4b5574317c5f5eb0b06ef7a9f6748": {
+      "address": "0x51E4bceD3EBA01541708f392be55DdFA2d1f6d92",
+      "txHash": "0xd8bdfe2f884cef016cbdf081752ba3f9e6aec56b6672afe44823452e19b1a845",
+      "layout": {
+        "solcVersion": "0.8.28",
+        "storage": [
+          {
+            "label": "dao",
+            "offset": 0,
+            "slot": "0",
+            "type": "t_address",
+            "contract": "FinCube",
+            "src": "contracts\\FinCube.sol:21"
+          },
+          {
+            "label": "approvedERC20",
+            "offset": 0,
+            "slot": "1",
+            "type": "t_address",
+            "contract": "FinCube",
+            "src": "contracts\\FinCube.sol:24"
+          },
+          {
+            "label": "usedNullifiers",
+            "offset": 0,
+            "slot": "2",
+            "type": "t_mapping(t_bytes32,t_bool)",
+            "contract": "FinCube",
+            "src": "contracts\\FinCube.sol:27"
+          }
+        ],
+        "types": {
+          "t_bool": {
+            "label": "bool",
+            "numberOfBytes": "1"
+          },
+          "t_struct(InitializableStorage)7_storage": {
+            "label": "struct Initializable.InitializableStorage",
+            "members": [
+              {
+                "label": "_initialized",
+                "type": "t_uint64",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "_initializing",
+                "type": "t_bool",
+                "offset": 8,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_struct(ReentrancyGuardStorage)132_storage": {
             "label": "struct ReentrancyGuardUpgradeable.ReentrancyGuardStorage",
             "members": [
               {
