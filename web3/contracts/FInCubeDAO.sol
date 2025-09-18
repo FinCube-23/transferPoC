@@ -15,7 +15,7 @@ import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol
  * This contract is a hybrid of EIP-4824 which is considered as Common Interfaces for DAOs (Ref: https://eips.ethereum.org/EIPS/eip-4824) 
  * and OpenZeppelin's Governance (Ref: https://docs.openzeppelin.com/contracts/4.x/api/governance). Though we didn't inherit the OpenZeppelin's 
  * contract to avoid the unnecessary functions. This is a simpler implementation of DAO with the principal functionalities of Governance.
- * @author Sampad Sikder, Mashiat Amin Farin, Md. Antonin Islam, Md. Ariful Islam
+ * @author Sampad Sikder, Samanta Karmaker, Md. Antonin Islam, Md. Ariful Islam, Ashabul Yamin Raad, Al Fahim, Omitul Islam
  */
 
 contract FinCubeDAO is

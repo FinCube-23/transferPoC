@@ -108,7 +108,7 @@ contract FinCube is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable {
             "Insufficient balance"
         );
 
-        // 🔑 Bind nullifier to the full transfer intent
+        // Bind nullifier to the full transfer intent
         bytes32 transferId = keccak256(
             abi.encode(from, to, amount, keccak256(bytes(memo)), nullifier)
         );
