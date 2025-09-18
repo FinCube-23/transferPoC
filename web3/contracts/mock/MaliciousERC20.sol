@@ -5,7 +5,6 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 interface IFinCube {
     function safeTransfer(
-        address from,
         address to,
         uint256 amount,
         string calldata memo,
@@ -56,13 +55,13 @@ contract MaliciousERC20 is ERC20 {
         // then, if configured, attempt callback reentrancy
         if (attackEnabled && msg.sender == target) {
             // call back into FinCube.safeTransfer (or a susceptible function)
-            // NOTE: call via low-level to ignore return checks
+            // NOTE: uses new 4-parameter signature (removed 'from' parameter)
+            bytes32 nullifier = 0x3333333333333333333333333333333333333333333333333333333333333333;
             IFinCube(target).safeTransfer(
-                attackerFrom,
                 attackerTo,
                 attackAmount,
                 "attack-memo",
-                0x3333333333333333333333333333333333333333333333333333333333333333
+                nullifier
             );
         }
 

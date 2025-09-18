@@ -50,79 +50,29 @@ import { Contract } from "ethers"
  */
 
 describe("FinCube", function () {
-    it("Should deploy FinCubeDAO contract", async function () {
-        const FinCubeDAO = await ethers.getContractFactory("FinCubeDAO")
-        const finCubeDAO = await FinCubeDAO.deploy()
-        await finCubeDAO.waitForDeployment()
+    let finCubeDAO: any
+    let mockERC20: any
+    let finCube: any
+    let owner: any
+    let member1: any
+    let member2: any
+    let nonOwner: any
 
-        // Verify the contract was deployed successfully
-        expect(await finCubeDAO.getAddress()).to.be.properAddress
-    })
-
-    it("Should deploy MockERC20 token contract", async function () {
-        const MockERC20 = await ethers.getContractFactory("MockERC20")
-        const mockERC20 = await MockERC20.deploy("Test Token", "TEST", 18)
-        await mockERC20.waitForDeployment()
-
-        // Verify the contract was deployed successfully
-        expect(await mockERC20.getAddress()).to.be.properAddress
-    })
-
-    it("Should deploy FinCube contract", async function () {
-        const FinCube = await ethers.getContractFactory("FinCube")
-        const finCube = await FinCube.deploy()
-        await finCube.waitForDeployment()
-
-        // Verify the contract was deployed successfully
-        expect(await finCube.getAddress()).to.be.properAddress
-    })
-
-    it("Should initialize FinCube with DAO and token addresses", async function () {
-        // Deploy all contracts
-        const FinCubeDAO = await ethers.getContractFactory("FinCubeDAO")
-        const finCubeDAO = await FinCubeDAO.deploy()
-        await finCubeDAO.waitForDeployment()
-
-        const MockERC20 = await ethers.getContractFactory("MockERC20")
-        const mockERC20 = await MockERC20.deploy("Test Token", "TEST", 18)
-        await mockERC20.waitForDeployment()
-
-        const FinCube = await ethers.getContractFactory("FinCube")
-        const finCube = await FinCube.deploy()
-        await finCube.waitForDeployment()
-
-        // Initialize DAO first
-        await finCubeDAO.initialize("Test DAO URI", "Owner URI")
-
-        // Initialize FinCube with DAO and token addresses
-        await finCube.initialize(
-            await finCubeDAO.getAddress(),
-            await mockERC20.getAddress()
-        )
-
-        // Verify initialization
-        const daoAddress = await finCube.dao()
-        const tokenAddress = await finCube.approvedERC20()
-
-        expect(daoAddress).to.equal(await finCubeDAO.getAddress())
-        expect(tokenAddress).to.equal(await mockERC20.getAddress())
-    })
-
-    it("Should mint ERC20 tokens and test stablecoin transfer flow", async function () {
+    beforeEach(async function () {
         // Get test accounts
-        const [owner, member1, member2] = await ethers.getSigners()
+        ;[owner, member1, member2, nonOwner] = await ethers.getSigners()
 
         // Deploy all contracts
         const FinCubeDAO = await ethers.getContractFactory("FinCubeDAO")
-        const finCubeDAO = await FinCubeDAO.deploy()
+        finCubeDAO = await FinCubeDAO.deploy()
         await finCubeDAO.waitForDeployment()
 
         const MockERC20 = await ethers.getContractFactory("MockERC20")
-        const mockERC20 = await MockERC20.deploy("Test Token", "TEST", 18)
+        mockERC20 = await MockERC20.deploy("Test Token", "TEST", 18)
         await mockERC20.waitForDeployment()
 
         const FinCube = await ethers.getContractFactory("FinCube")
-        const finCube = await FinCube.deploy()
+        finCube = await FinCube.deploy()
         await finCube.waitForDeployment()
 
         // Initialize contracts
@@ -132,6 +82,36 @@ describe("FinCube", function () {
             await mockERC20.getAddress()
         )
 
+        // Set default voting parameters
+        await finCubeDAO.setVotingDelay(1)
+        await finCubeDAO.setVotingPeriod(3)
+    })
+
+    it("Should deploy FinCubeDAO contract", async function () {
+        // Verify the contract was deployed successfully
+        expect(await finCubeDAO.getAddress()).to.be.properAddress
+    })
+
+    it("Should deploy MockERC20 token contract", async function () {
+        // Verify the contract was deployed successfully
+        expect(await mockERC20.getAddress()).to.be.properAddress
+    })
+
+    it("Should deploy FinCube contract", async function () {
+        // Verify the contract was deployed successfully
+        expect(await finCube.getAddress()).to.be.properAddress
+    })
+
+    it("Should initialize FinCube with DAO and token addresses", async function () {
+        // Verify initialization
+        const daoAddress = await finCube.dao()
+        const tokenAddress = await finCube.approvedERC20()
+
+        expect(daoAddress).to.equal(await finCubeDAO.getAddress())
+        expect(tokenAddress).to.equal(await mockERC20.getAddress())
+    })
+
+    it("Should mint ERC20 tokens and test stablecoin transfer flow", async function () {
         // Mint tokens to member1
         const mintAmount = ethers.parseEther("1000") // 1000 tokens
         await mockERC20.mint(member1.address, mintAmount)
@@ -143,10 +123,6 @@ describe("FinCube", function () {
         await finCubeDAO
             .connect(member2)
             .registerMember(member2.address, "Member 2 URI")
-
-        // Set voting delay and period
-        await finCubeDAO.connect(owner).setVotingDelay(1)
-        await finCubeDAO.connect(owner).setVotingPeriod(3)
 
         // Create proposal to approve member1
         await finCubeDAO.newMemberApprovalProposal(
@@ -211,7 +187,6 @@ describe("FinCube", function () {
             finCube
                 .connect(member1)
                 .safeTransfer(
-                    member1.address,
                     member2.address,
                     transferAmount,
                     "Test transfer memo",
@@ -222,8 +197,9 @@ describe("FinCube", function () {
             .withArgs(
                 member1.address,
                 member2.address,
-                transferAmount,
+                "Test transfer memo", // Provide original memo, not hash
                 "Test transfer memo",
+                transferAmount,
                 nullifier
             )
 
@@ -236,14 +212,7 @@ describe("FinCube", function () {
     })
 
     it("Should create and execute stablecoin address change proposal", async function () {
-        // Get test accounts
-        const [owner, member1] = await ethers.getSigners()
-
-        // Deploy contracts
-        const FinCubeDAO = await ethers.getContractFactory("FinCubeDAO")
-        const finCubeDAO = await FinCubeDAO.deploy()
-        await finCubeDAO.waitForDeployment()
-
+        // Deploy additional tokens for this test
         const MockERC20 = await ethers.getContractFactory("MockERC20")
         const oldToken = await MockERC20.deploy("Old Token", "OLD", 18)
         await oldToken.waitForDeployment()
@@ -251,45 +220,50 @@ describe("FinCube", function () {
         const newToken = await MockERC20.deploy("New Token", "NEW", 18)
         await newToken.waitForDeployment()
 
-        const FinCube = await ethers.getContractFactory("FinCube")
-        const finCube = await FinCube.deploy()
-        await finCube.waitForDeployment()
+        // Deploy fresh contracts for this test to avoid conflicts
+        const FinCubeDAO = await ethers.getContractFactory("FinCubeDAO")
+        const testFinCubeDAO = await FinCubeDAO.deploy()
+        await testFinCubeDAO.waitForDeployment()
 
-        // Initialize contracts
-        await finCubeDAO.initialize("Test DAO URI", "Owner URI")
-        await finCube.initialize(
-            await finCubeDAO.getAddress(),
+        const FinCube = await ethers.getContractFactory("FinCube")
+        const testFinCube = await FinCube.deploy()
+        await testFinCube.waitForDeployment()
+
+        // Initialize contracts with old token
+        await testFinCubeDAO.initialize("Test DAO URI", "Owner URI")
+        await testFinCube.initialize(
+            await testFinCubeDAO.getAddress(),
             await oldToken.getAddress()
         )
 
         // Register and approve member1
-        await finCubeDAO
+        await testFinCubeDAO
             .connect(member1)
             .registerMember(member1.address, "Member 1 URI")
-        await finCubeDAO.setVotingDelay(1)
-        await finCubeDAO.setVotingPeriod(3)
+        await testFinCubeDAO.setVotingDelay(1)
+        await testFinCubeDAO.setVotingPeriod(3)
 
         // Create and execute member approval proposal
-        await finCubeDAO.newMemberApprovalProposal(
+        await testFinCubeDAO.newMemberApprovalProposal(
             member1.address,
             "Approve Member 1"
         )
         await ethers.provider.send("evm_increaseTime", [1])
         await ethers.provider.send("evm_mine", [])
-        await finCubeDAO.castVote(0, true)
+        await testFinCubeDAO.castVote(0, true)
         await ethers.provider.send("evm_increaseTime", [3])
         await ethers.provider.send("evm_mine", [])
-        await finCubeDAO.executeProposal(0)
+        await testFinCubeDAO.executeProposal(0)
 
         // Create proposal to change stablecoin address
-        const finCubeInterface = finCube.interface
+        const finCubeInterface = testFinCube.interface
         const functionSelector = finCubeInterface.encodeFunctionData(
             "setApprovedERC20",
             [await newToken.getAddress()]
         )
 
-        await finCubeDAO.propose(
-            [await finCube.getAddress()],
+        await testFinCubeDAO.propose(
+            [await testFinCube.getAddress()],
             [0],
             [functionSelector],
             "Change approved ERC20 token"
@@ -300,23 +274,23 @@ describe("FinCube", function () {
         await ethers.provider.send("evm_mine", [])
 
         // Cast votes (owner and member1 vote yes)
-        await finCubeDAO.castVote(1, true) // owner votes
-        await finCubeDAO.connect(member1).castVote(1, true) // member1 votes
+        await testFinCubeDAO.castVote(1, true) // owner votes
+        await testFinCubeDAO.connect(member1).castVote(1, true) // member1 votes
 
         // Wait for voting period
         await ethers.provider.send("evm_increaseTime", [3])
         await ethers.provider.send("evm_mine", [])
 
         // Execute the proposal
-        await finCubeDAO.executeProposal(1)
+        await testFinCubeDAO.executeProposal(1)
 
         // Verify the stablecoin address was changed
-        const currentToken = await finCube.approvedERC20()
+        const currentToken = await testFinCube.approvedERC20()
         expect(currentToken).to.equal(await newToken.getAddress())
 
         // Verify event was emitted - simplified approach
-        const filter = finCube.filters.ApprovedERC20Updated()
-        const events = await finCube.queryFilter(filter)
+        const filter = testFinCube.filters.ApprovedERC20Updated()
+        const events = await testFinCube.queryFilter(filter)
 
         expect(events.length).to.be.greaterThan(0)
         const lastEvent = events[events.length - 1]
@@ -324,13 +298,7 @@ describe("FinCube", function () {
     })
 
     it("Should handle complete workflow: deploy, initialize, create proposal, vote, execute, and change token", async function () {
-        const [owner, member1, member2] = await ethers.getSigners()
-
-        // 1. Deploy contracts
-        const FinCubeDAO = await ethers.getContractFactory("FinCubeDAO")
-        const finCubeDAO = await FinCubeDAO.deploy()
-        await finCubeDAO.waitForDeployment()
-
+        // 1. Deploy additional tokens for this test
         const MockERC20 = await ethers.getContractFactory("MockERC20")
         const initialToken = await MockERC20.deploy("Initial Token", "INIT", 18)
         await initialToken.waitForDeployment()
@@ -338,14 +306,19 @@ describe("FinCube", function () {
         const newToken = await MockERC20.deploy("New Token", "NEW", 18)
         await newToken.waitForDeployment()
 
+        // Deploy fresh contracts for this test
+        const FinCubeDAO = await ethers.getContractFactory("FinCubeDAO")
+        const testFinCubeDAO = await FinCubeDAO.deploy()
+        await testFinCubeDAO.waitForDeployment()
+
         const FinCube = await ethers.getContractFactory("FinCube")
-        const finCube = await FinCube.deploy()
-        await finCube.waitForDeployment()
+        const testFinCube = await FinCube.deploy()
+        await testFinCube.waitForDeployment()
 
         // 2. Initialize FinCube with DAO and token addresses
-        await finCubeDAO.initialize("DAO URI", "Owner URI")
-        await finCube.initialize(
-            await finCubeDAO.getAddress(),
+        await testFinCubeDAO.initialize("DAO URI", "Owner URI")
+        await testFinCube.initialize(
+            await testFinCubeDAO.getAddress(),
             await initialToken.getAddress()
         )
 
@@ -355,51 +328,51 @@ describe("FinCube", function () {
         await newToken.mint(member2.address, mintAmount)
 
         // Setup DAO voting parameters
-        await finCubeDAO.setVotingDelay(1)
-        await finCubeDAO.setVotingPeriod(3)
+        await testFinCubeDAO.setVotingDelay(1)
+        await testFinCubeDAO.setVotingPeriod(3)
 
         // Register and approve members
-        await finCubeDAO
+        await testFinCubeDAO
             .connect(member1)
             .registerMember(member1.address, "Member 1 URI")
-        await finCubeDAO
+        await testFinCubeDAO
             .connect(member2)
             .registerMember(member2.address, "Member 2 URI")
 
         // Approve member1
-        await finCubeDAO.newMemberApprovalProposal(
+        await testFinCubeDAO.newMemberApprovalProposal(
             member1.address,
             "Approve Member 1"
         )
         await ethers.provider.send("evm_increaseTime", [1])
         await ethers.provider.send("evm_mine", [])
-        await finCubeDAO.castVote(0, true)
+        await testFinCubeDAO.castVote(0, true)
         await ethers.provider.send("evm_increaseTime", [3])
         await ethers.provider.send("evm_mine", [])
-        await finCubeDAO.executeProposal(0)
+        await testFinCubeDAO.executeProposal(0)
 
         // Approve member2
-        await finCubeDAO.newMemberApprovalProposal(
+        await testFinCubeDAO.newMemberApprovalProposal(
             member2.address,
             "Approve Member 2"
         )
         await ethers.provider.send("evm_increaseTime", [1])
         await ethers.provider.send("evm_mine", [])
-        await finCubeDAO.castVote(1, true)
-        await finCubeDAO.connect(member1).castVote(1, true)
+        await testFinCubeDAO.castVote(1, true)
+        await testFinCubeDAO.connect(member1).castVote(1, true)
         await ethers.provider.send("evm_increaseTime", [3])
         await ethers.provider.send("evm_mine", [])
-        await finCubeDAO.executeProposal(1)
+        await testFinCubeDAO.executeProposal(1)
 
         // 4. Create stablecoin proposal (target -> contract address)
-        const finCubeInterface = finCube.interface
+        const finCubeInterface = testFinCube.interface
         const setTokenCalldata = finCubeInterface.encodeFunctionData(
             "setApprovedERC20",
             [await newToken.getAddress()]
         )
 
-        await finCubeDAO.propose(
-            [await finCube.getAddress()],
+        await testFinCubeDAO.propose(
+            [await testFinCube.getAddress()],
             [0],
             [setTokenCalldata],
             "Change approved ERC20 token"
@@ -408,43 +381,43 @@ describe("FinCube", function () {
         // 5. Cast votes
         await ethers.provider.send("evm_increaseTime", [1])
         await ethers.provider.send("evm_mine", [])
-        await finCubeDAO.castVote(2, true) // owner
-        await finCubeDAO.connect(member1).castVote(2, true) // member1
+        await testFinCubeDAO.castVote(2, true) // owner
+        await testFinCubeDAO.connect(member1).castVote(2, true) // member1
 
         // 6. Execute the proposal
         await ethers.provider.send("evm_increaseTime", [3])
         await ethers.provider.send("evm_mine", [])
-        await finCubeDAO.executeProposal(2)
+        await testFinCubeDAO.executeProposal(2)
 
         // 7. Verify the stablecoin address was changed
-        const finalTokenAddress = await finCube.approvedERC20()
+        const finalTokenAddress = await testFinCube.approvedERC20()
         expect(finalTokenAddress).to.equal(await newToken.getAddress())
 
         // Test safe transfer with new token
         await newToken
             .connect(member2)
-            .approve(await finCube.getAddress(), ethers.parseEther("100"))
+            .approve(await testFinCube.getAddress(), ethers.parseEther("100"))
 
         const nullifier2 =
             "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"
 
         await expect(
-            finCube
+            testFinCube
                 .connect(member2)
                 .safeTransfer(
-                    member2.address,
                     member1.address,
                     ethers.parseEther("50"),
                     "Final test transfer",
                     nullifier2
                 )
         )
-            .to.emit(finCube, "StablecoinTransfer")
+            .to.emit(testFinCube, "StablecoinTransfer")
             .withArgs(
                 member2.address,
                 member1.address,
-                ethers.parseEther("50"),
+                "Final test transfer", // Provide original memo, not hash
                 "Final test transfer",
+                ethers.parseEther("50"),
                 nullifier2
             )
 
@@ -459,32 +432,11 @@ describe("FinCube", function () {
     })
 
     it("Should verify FinCube contract is upgradeable (UUPS)", async function () {
-        const [owner] = await ethers.getSigners()
-
-        // Deploy contracts
-        const FinCubeDAO = await ethers.getContractFactory("FinCubeDAO")
-        const finCubeDAO = await FinCubeDAO.deploy()
-        await finCubeDAO.waitForDeployment()
-
-        const MockERC20 = await ethers.getContractFactory("MockERC20")
-        const mockERC20 = await MockERC20.deploy("Test Token", "TEST", 18)
-        await mockERC20.waitForDeployment()
-
-        const FinCube = await ethers.getContractFactory("FinCube")
-        const finCube = await FinCube.deploy()
-        await finCube.waitForDeployment()
-
-        // Initialize contracts
-        await finCubeDAO.initialize("Test DAO URI", "Owner URI")
-        await finCube.initialize(
-            await finCubeDAO.getAddress(),
-            await mockERC20.getAddress()
-        )
-
         // Verify that the contract has UUPS upgrade functionality
         // Only DAO should be able to authorize upgrades
 
         // Deploy a new implementation
+        const FinCube = await ethers.getContractFactory("FinCube")
         const finCubeV2 = await FinCube.deploy()
         await finCubeV2.waitForDeployment()
 
@@ -501,16 +453,8 @@ describe("FinCube", function () {
     })
 
     it("Should verify FinCubeDAO contract is upgradeable (UUPS)", async function () {
-        const [owner, nonOwner] = await ethers.getSigners()
-
-        // Deploy and initialize DAO
-        const FinCubeDAO = await ethers.getContractFactory("FinCubeDAO")
-        const finCubeDAO = await FinCubeDAO.deploy()
-        await finCubeDAO.waitForDeployment()
-
-        await finCubeDAO.initialize("Test DAO URI", "Owner URI")
-
         // Deploy a new implementation
+        const FinCubeDAO = await ethers.getContractFactory("FinCubeDAO")
         const finCubeDAOV2 = await FinCubeDAO.deploy()
         await finCubeDAOV2.waitForDeployment()
 
@@ -530,8 +474,6 @@ describe("FinCube", function () {
     })
 
     it("Should test reentrancy protection in FinCube safeTransfer", async function () {
-        const [owner, member1, member2] = await ethers.getSigners()
-
         // Deploy malicious ERC20 (use the malicious implementation)
         const MaliciousERC20 = await ethers.getContractFactory("MaliciousERC20")
         const maliciousERC20 = await MaliciousERC20.deploy(
@@ -540,67 +482,67 @@ describe("FinCube", function () {
         )
         await maliciousERC20.waitForDeployment()
 
-        // Deploy normal contracts
+        // Deploy fresh contracts for this test
         const FinCubeDAO = await ethers.getContractFactory("FinCubeDAO")
-        const finCubeDAO = await FinCubeDAO.deploy()
-        await finCubeDAO.waitForDeployment()
+        const testFinCubeDAO = await FinCubeDAO.deploy()
+        await testFinCubeDAO.waitForDeployment()
 
         const FinCube = await ethers.getContractFactory("FinCube")
-        const finCube = await FinCube.deploy()
-        await finCube.waitForDeployment()
+        const testFinCube = await FinCube.deploy()
+        await testFinCube.waitForDeployment()
 
         // Initialize contracts
-        await finCubeDAO.initialize("Test DAO URI", "Owner URI")
-        await finCube.initialize(
-            await finCubeDAO.getAddress(),
+        await testFinCubeDAO.initialize("Test DAO URI", "Owner URI")
+        await testFinCube.initialize(
+            await testFinCubeDAO.getAddress(),
             await maliciousERC20.getAddress()
         )
 
         // Set up DAO parameters
-        await finCubeDAO.setVotingDelay(1)
-        await finCubeDAO.setVotingPeriod(3)
+        await testFinCubeDAO.setVotingDelay(1)
+        await testFinCubeDAO.setVotingPeriod(3)
 
         // Register and approve members
-        await finCubeDAO
+        await testFinCubeDAO
             .connect(member1)
             .registerMember(member1.address, "Member 1 URI")
-        await finCubeDAO
+        await testFinCubeDAO
             .connect(member2)
             .registerMember(member2.address, "Member 2 URI")
 
         // Approve member1
-        await finCubeDAO.newMemberApprovalProposal(
+        await testFinCubeDAO.newMemberApprovalProposal(
             member1.address,
             "Approve Member 1"
         )
         await ethers.provider.send("evm_increaseTime", [1])
         await ethers.provider.send("evm_mine", [])
-        await finCubeDAO.castVote(0, true)
+        await testFinCubeDAO.castVote(0, true)
         await ethers.provider.send("evm_increaseTime", [3])
         await ethers.provider.send("evm_mine", [])
-        await finCubeDAO.executeProposal(0)
+        await testFinCubeDAO.executeProposal(0)
 
         // Approve member2
-        await finCubeDAO.newMemberApprovalProposal(
+        await testFinCubeDAO.newMemberApprovalProposal(
             member2.address,
             "Approve Member 2"
         )
         await ethers.provider.send("evm_increaseTime", [1])
         await ethers.provider.send("evm_mine", [])
-        await finCubeDAO.castVote(1, true)
+        await testFinCubeDAO.castVote(1, true)
         await ethers.provider.send("evm_increaseTime", [3])
         await ethers.provider.send("evm_mine", [])
-        await finCubeDAO.executeProposal(1)
+        await testFinCubeDAO.executeProposal(1)
 
         // Mint tokens and approve
         const mintAmount = ethers.parseEther("1000")
         await maliciousERC20.mint(member1.address, mintAmount)
         await maliciousERC20
             .connect(member1)
-            .approve(await finCube.getAddress(), mintAmount)
+            .approve(await testFinCube.getAddress(), mintAmount)
 
         // Configure attacker to target FinCube and attempt reentrancy
-        await maliciousERC20.setTargetContract(await finCube.getAddress())
+        await maliciousERC20.setTargetContract(await testFinCube.getAddress())
         await maliciousERC20.enableAttack(
             member1.address,
             member2.address,
@@ -612,16 +554,18 @@ describe("FinCube", function () {
             "0x1111111111111111111111111111111111111111111111111111111111111111"
 
         await expect(
-            finCube
+            testFinCube
                 .connect(member1)
                 .safeTransfer(
-                    member1.address,
                     member2.address,
                     ethers.parseEther("100"),
                     "Reentrancy test memo",
                     nullifier3
                 )
-        ).to.be.revertedWithCustomError(finCube, "ReentrancyGuardReentrantCall")
+        ).to.be.revertedWithCustomError(
+            testFinCube,
+            "ReentrancyGuardReentrantCall"
+        )
 
         // Disable attack and ensure normal transfer works
         await maliciousERC20.disableAttack()
@@ -629,36 +573,29 @@ describe("FinCube", function () {
             "0x2222222222222222222222222222222222222222222222222222222222222222"
 
         await expect(
-            finCube
+            testFinCube
                 .connect(member1)
                 .safeTransfer(
-                    member1.address,
                     member2.address,
                     ethers.parseEther("100"),
                     "Normal transfer memo",
                     nullifier4
                 )
-        ).to.emit(finCube, "StablecoinTransfer")
+        ).to.emit(testFinCube, "StablecoinTransfer")
 
         const member2Balance = await maliciousERC20.balanceOf(member2.address)
         expect(member2Balance).to.equal(ethers.parseEther("100"))
     })
 
     it("Should test reentrancy protection in FinCubeDAO executeProposal", async function () {
-        const [owner, member1] = await ethers.getSigners()
-
-        // Deploy contracts
+        // Deploy fresh contracts for this test
         const FinCubeDAO = await ethers.getContractFactory("FinCubeDAO")
-        const finCubeDAO = await FinCubeDAO.deploy()
-        await finCubeDAO.waitForDeployment()
-
-        const MockERC20 = await ethers.getContractFactory("MockERC20")
-        const mockERC20 = await MockERC20.deploy("Test Token", "TEST", 18)
-        await mockERC20.waitForDeployment()
+        const testFinCubeDAO = await FinCubeDAO.deploy()
+        await testFinCubeDAO.waitForDeployment()
 
         const FinCube = await ethers.getContractFactory("FinCube")
-        const finCube = await FinCube.deploy()
-        await finCube.waitForDeployment()
+        const testFinCube = await FinCube.deploy()
+        await testFinCube.waitForDeployment()
 
         // Deploy malicious target contract
         const MaliciousTarget = await ethers.getContractFactory(
@@ -668,41 +605,41 @@ describe("FinCube", function () {
         await maliciousTarget.waitForDeployment()
 
         // Initialize contracts
-        await finCubeDAO.initialize("Test DAO URI", "Owner URI")
-        await finCube.initialize(
-            await finCubeDAO.getAddress(),
+        await testFinCubeDAO.initialize("Test DAO URI", "Owner URI")
+        await testFinCube.initialize(
+            await testFinCubeDAO.getAddress(),
             await mockERC20.getAddress()
         )
 
         // Set up DAO parameters
-        await finCubeDAO.setVotingDelay(1)
-        await finCubeDAO.setVotingPeriod(10)
+        await testFinCubeDAO.setVotingDelay(1)
+        await testFinCubeDAO.setVotingPeriod(10)
 
         // Register and approve members
-        await finCubeDAO
+        await testFinCubeDAO
             .connect(member1)
             .registerMember(member1.address, "Member 1 URI")
 
         // Approve member1
-        await finCubeDAO.newMemberApprovalProposal(
+        await testFinCubeDAO.newMemberApprovalProposal(
             member1.address,
             "Approve Member 1"
         )
         await ethers.provider.send("evm_increaseTime", [1])
         await ethers.provider.send("evm_mine", [])
-        await finCubeDAO.castVote(0, true)
+        await testFinCubeDAO.castVote(0, true)
         await ethers.provider.send("evm_increaseTime", [10])
         await ethers.provider.send("evm_mine", [])
-        await finCubeDAO.executeProposal(0)
+        await testFinCubeDAO.executeProposal(0)
 
         // Malicious target knows DAO
-        await maliciousTarget.setDAOContract(await finCubeDAO.getAddress())
+        await maliciousTarget.setDAOContract(await testFinCubeDAO.getAddress())
 
         // Create malicious proposal that calls maliciousTarget.maliciousFunction
         const maliciousCalldata =
             maliciousTarget.interface.encodeFunctionData("maliciousFunction")
 
-        await finCubeDAO.propose(
+        await testFinCubeDAO.propose(
             [await maliciousTarget.getAddress()],
             [0],
             [maliciousCalldata],
@@ -715,69 +652,47 @@ describe("FinCube", function () {
         // vote and wait
         await ethers.provider.send("evm_increaseTime", [1])
         await ethers.provider.send("evm_mine", [])
-        await finCubeDAO.castVote(1, true)
-        await finCubeDAO.connect(member1).castVote(1, true)
+        await testFinCubeDAO.castVote(1, true)
+        await testFinCubeDAO.connect(member1).castVote(1, true)
         await ethers.provider.send("evm_increaseTime", [10])
         await ethers.provider.send("evm_mine", [])
 
         // Execution should revert due to reentrancy guard in executeProposal
         await expect(
-            finCubeDAO.executeProposal(1)
+            testFinCubeDAO.executeProposal(1)
         ).to.be.revertedWithCustomError(
-            finCubeDAO,
+            testFinCubeDAO,
             "ReentrancyGuardReentrantCall"
         )
 
         // disable attack and make a normal proposal that should succeed
         await maliciousTarget.disableAttack()
 
-        const finCubeInterface = finCube.interface
+        const finCubeInterface = testFinCube.interface
         const setTokenCalldata = finCubeInterface.encodeFunctionData(
             "setApprovedERC20",
             [await mockERC20.getAddress()]
         )
 
-        await finCubeDAO.propose(
-            [await finCube.getAddress()],
+        await testFinCubeDAO.propose(
+            [await testFinCube.getAddress()],
             [0],
             [setTokenCalldata],
             "Normal proposal"
         )
         await ethers.provider.send("evm_increaseTime", [1])
         await ethers.provider.send("evm_mine", [])
-        await finCubeDAO.castVote(2, true)
-        await finCubeDAO.connect(member1).castVote(2, true)
+        await testFinCubeDAO.castVote(2, true)
+        await testFinCubeDAO.connect(member1).castVote(2, true)
         await ethers.provider.send("evm_increaseTime", [10])
         await ethers.provider.send("evm_mine", [])
-        await finCubeDAO.executeProposal(2)
+        await testFinCubeDAO.executeProposal(2)
 
-        const currentToken = await finCube.approvedERC20()
+        const currentToken = await testFinCube.approvedERC20()
         expect(currentToken).to.equal(await mockERC20.getAddress())
     })
 
     it("Should verify contracts implement proper access controls", async function () {
-        const [owner, nonOwner, member1] = await ethers.getSigners()
-
-        // Deploy contracts
-        const FinCubeDAO = await ethers.getContractFactory("FinCubeDAO")
-        const finCubeDAO = await FinCubeDAO.deploy()
-        await finCubeDAO.waitForDeployment()
-
-        const MockERC20 = await ethers.getContractFactory("MockERC20")
-        const mockERC20 = await MockERC20.deploy("Test Token", "TEST", 18)
-        await mockERC20.waitForDeployment()
-
-        const FinCube = await ethers.getContractFactory("FinCube")
-        const finCube = await FinCube.deploy()
-        await finCube.waitForDeployment()
-
-        // Initialize contracts
-        await finCubeDAO.initialize("Test DAO URI", "Owner URI")
-        await finCube.initialize(
-            await finCubeDAO.getAddress(),
-            await mockERC20.getAddress()
-        )
-
         // Test FinCube access controls
         // Only DAO should be able to set approved ERC20
         await expect(
@@ -811,8 +726,6 @@ describe("FinCube", function () {
         await finCubeDAO
             .connect(member1)
             .registerMember(member1.address, "Member 1 URI")
-        await finCubeDAO.setVotingDelay(1)
-        await finCubeDAO.setVotingPeriod(3)
 
         // Non-members should not be able to create proposals
         await expect(
@@ -823,23 +736,6 @@ describe("FinCube", function () {
     })
 
     it("Should verify initialization can only happen once", async function () {
-        // Deploy contracts
-        const FinCubeDAO = await ethers.getContractFactory("FinCubeDAO")
-        const finCubeDAO = await FinCubeDAO.deploy()
-
-        const MockERC20 = await ethers.getContractFactory("MockERC20")
-        const mockERC20 = await MockERC20.deploy("Test Token", "TEST", 18)
-
-        const FinCube = await ethers.getContractFactory("FinCube")
-        const finCube = await FinCube.deploy()
-
-        // Initialize contracts
-        await finCubeDAO.initialize("Test DAO URI", "Owner URI")
-        await finCube.initialize(
-            await finCubeDAO.getAddress(),
-            await mockERC20.getAddress()
-        )
-
         // Try to initialize again (should fail)
         await expect(
             finCubeDAO.initialize("Test DAO URI 2", "Owner URI 2")
@@ -1517,7 +1413,6 @@ describe("FinCube", function () {
         await finCube
             .connect(member1)
             .safeTransfer(
-                member1.address,
                 member2.address,
                 transferAmount,
                 "First transfer",
@@ -1533,7 +1428,6 @@ describe("FinCube", function () {
         // Attempt second transfer with the SAME nullifier - should fail
         await expect(
             finCube.connect(member1).safeTransfer(
-                member1.address,
                 member2.address,
                 transferAmount,
                 "First transfer", // Same memo
@@ -1615,7 +1509,6 @@ describe("FinCube", function () {
         const nullifier1 =
             "0x1111111111111111111111111111111111111111111111111111111111111111"
         await finCube.connect(member1).safeTransfer(
-            member1.address,
             member2.address,
             transferAmount,
             "Same memo", // Same memo as second transfer
@@ -1626,7 +1519,6 @@ describe("FinCube", function () {
         const nullifier2 =
             "0x2222222222222222222222222222222222222222222222222222222222222222"
         await finCube.connect(member1).safeTransfer(
-            member1.address,
             member2.address,
             transferAmount,
             "Same memo", // Same memo as first transfer
@@ -1637,7 +1529,6 @@ describe("FinCube", function () {
         const nullifier3 =
             "0x3333333333333333333333333333333333333333333333333333333333333333"
         await finCube.connect(member1).safeTransfer(
-            member1.address,
             member2.address,
             transferAmount,
             "Same memo", // Same memo again
@@ -1713,7 +1604,6 @@ describe("FinCube", function () {
         await finCube
             .connect(member1)
             .safeTransfer(
-                member1.address,
                 member2.address,
                 50n * 10n ** 18n,
                 "memo1",
@@ -1722,7 +1612,6 @@ describe("FinCube", function () {
 
         // Transfer 2: member1 -> member3, 50 tokens, "memo1" (different recipient)
         await finCube.connect(member1).safeTransfer(
-            member1.address,
             member3.address, // Different recipient
             50n * 10n ** 18n,
             "memo1",
@@ -1731,7 +1620,6 @@ describe("FinCube", function () {
 
         // Transfer 3: member1 -> member2, 75 tokens, "memo1" (different amount)
         await finCube.connect(member1).safeTransfer(
-            member1.address,
             member2.address,
             75n * 10n ** 18n, // Different amount
             "memo1",
@@ -1740,7 +1628,6 @@ describe("FinCube", function () {
 
         // Transfer 4: member1 -> member2, 50 tokens, "memo2" (different memo)
         await finCube.connect(member1).safeTransfer(
-            member1.address,
             member2.address,
             50n * 10n ** 18n,
             "memo2", // Different memo
@@ -1762,7 +1649,6 @@ describe("FinCube", function () {
         // Now try exact duplicate of first transfer - should fail
         await expect(
             finCube.connect(member1).safeTransfer(
-                member1.address,
                 member2.address,
                 50n * 10n ** 18n,
                 "memo1", // Same as first transfer
@@ -1859,7 +1745,6 @@ describe("FinCube", function () {
         await finCube
             .connect(member1)
             .safeTransfer(
-                member1.address,
                 member3.address,
                 100n * 10n ** 18n,
                 "Test transfer",
@@ -1872,7 +1757,6 @@ describe("FinCube", function () {
         const member3BalanceBefore = await mockERC20.balanceOf(member3.address)
 
         await finCube.connect(member2).safeTransfer(
-            member2.address, // Different caller/from address
             member3.address,
             100n * 10n ** 18n,
             "Different transfer", // Different memo
@@ -1888,7 +1772,6 @@ describe("FinCube", function () {
         // NOW test actual nullifier collision: same sender tries to reuse nullifier with identical parameters
         await expect(
             finCube.connect(member1).safeTransfer(
-                member1.address, // Same caller as first transfer
                 member3.address, // Same recipient
                 100n * 10n ** 18n, // Same amount
                 "Test transfer", // Same memo
