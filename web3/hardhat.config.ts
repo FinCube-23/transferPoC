@@ -23,11 +23,6 @@ const config: HardhatUserConfig = {
     },
     networks: {
         // Ref: https://trufflesuite.com/docs/truffle/getting-started/using-the-truffle-dashboard/#usage-with-non-truffle-tooling
-        mumbai: {
-            url: `${process.env.MUMBAI_ENDPOINT}/${process.env.MUMBAI_API_KEY}`,
-            gasPrice: 50000000000,
-            accounts: [`0x${process.env.WALLET_PRIVATE_KEY}`],
-        },
         sepolia: {
             url: `${process.env.SEPOLIA_ENDPOINT}/${process.env.SEPOLIA_API_KEY}`,
             gasPrice: 50000000000,
@@ -45,9 +40,6 @@ const config: HardhatUserConfig = {
     // https://coinsbench.com/verify-smart-contract-on-polygonscan-using-hardhat-9b8331dbd888
     etherscan: {
         apiKey: {
-            // Polygon
-            polygonMumbai: process.env.POLYGONSCAN_MUMBAI_API_KEY,
-
             // Sepolia
             sepolia: process.env.ETHERSCAN_API_KEY,
 
