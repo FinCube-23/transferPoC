@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.19;
+pragma solidity 0.8.28;
 
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
@@ -23,13 +23,17 @@ contract FinCube is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable {
     /// @notice The only ERC20 allowed for transfers
     address public approvedERC20;
 
+    /// @notice Used nullifiers to prevent double spending
+    mapping(bytes32 => bool) public usedNullifiers;
+
     event DAOUpdated(address indexed newDAO);
     event ApprovedERC20Updated(address indexed newToken);
     event StablecoinTransfer(
         address indexed from,
         address indexed to,
         uint256 amount,
-        string memo
+        string memo,
+        bytes32 nullifier
     );
 
     modifier onlyDAO() {
@@ -70,12 +74,14 @@ contract FinCube is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable {
     /// @notice Transfer stablecoin between DAO members using the approved ERC20
     /// @dev Reentrancy-safe; requires allowance from `from` to this contract.
     /// @dev Both from and to address should be DAO member; Caller must be a member too
+    /// @dev Prevents double-spending via nullifier.
 
     function safeTransfer(
         address from,
         address to,
         uint256 amount,
-        string calldata memo
+        string calldata memo,
+        bytes32 nullifier
     ) external nonReentrant {
         require(dao != address(0), "DAO not set");
         require(approvedERC20 != address(0), "Token not set");
@@ -102,7 +108,16 @@ contract FinCube is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable {
             "Insufficient balance"
         );
 
+        // Bind nullifier to the full transfer intent
+        bytes32 transferId = keccak256(
+            abi.encode(from, to, amount, keccak256(bytes(memo)), nullifier)
+        );
+        require(!usedNullifiers[transferId], "Nullifier already used");
+        usedNullifiers[transferId] = true;
+
+        // Transfer funds
         IERC20(approvedERC20).safeTransferFrom(from, to, amount);
-        emit StablecoinTransfer(from, to, amount, memo);
+
+        emit StablecoinTransfer(from, to, amount, memo, nullifier);
     }
 }

@@ -1,8 +1,6 @@
-// We don't have Ethereum specific assertions in Hardhat 3 yet
-import assert from "node:assert/strict"
-import { describe, it, beforeEach } from "node:test"
-import { network } from "hardhat"
-import { encodeFunctionData, getAddress } from "viem"
+import { expect } from "chai"
+import { ethers, upgrades } from "hardhat"
+import { Contract } from "ethers"
 
 /*
  * ===============================================================================
@@ -51,875 +49,812 @@ import { encodeFunctionData, getAddress } from "viem"
  * ===============================================================================
  */
 
-describe("FinCube", async function () {
-    const { viem } = await network.connect()
-    const publicClient = await viem.getPublicClient()
-    const rpc: any = publicClient
-
+describe("FinCube", function () {
     it("Should deploy FinCubeDAO contract", async function () {
-        const finCubeDAO = await viem.deployContract("FinCubeDAO")
+        const FinCubeDAO = await ethers.getContractFactory("FinCubeDAO")
+        const finCubeDAO = await FinCubeDAO.deploy()
+        await finCubeDAO.waitForDeployment()
 
         // Verify the contract was deployed successfully
-        assert.ok(finCubeDAO.address)
+        expect(await finCubeDAO.getAddress()).to.be.properAddress
     })
 
     it("Should deploy MockERC20 token contract", async function () {
-        const mockERC20 = await viem.deployContract("MockERC20", [
-            "Test Token",
-            "TEST",
-            18n,
-        ])
+        const MockERC20 = await ethers.getContractFactory("MockERC20")
+        const mockERC20 = await MockERC20.deploy("Test Token", "TEST", 18)
+        await mockERC20.waitForDeployment()
 
         // Verify the contract was deployed successfully
-        assert.ok(mockERC20.address)
+        expect(await mockERC20.getAddress()).to.be.properAddress
     })
 
     it("Should deploy FinCube contract", async function () {
-        const finCube = await viem.deployContract("FinCube")
+        const FinCube = await ethers.getContractFactory("FinCube")
+        const finCube = await FinCube.deploy()
+        await finCube.waitForDeployment()
 
         // Verify the contract was deployed successfully
-        assert.ok(finCube.address)
+        expect(await finCube.getAddress()).to.be.properAddress
     })
 
     it("Should initialize FinCube with DAO and token addresses", async function () {
         // Deploy all contracts
-        const finCubeDAO = await viem.deployContract("FinCubeDAO")
-        const mockERC20 = await viem.deployContract("MockERC20", [
-            "Test Token",
-            "TEST",
-            18n,
-        ])
-        const finCube = await viem.deployContract("FinCube")
+        const FinCubeDAO = await ethers.getContractFactory("FinCubeDAO")
+        const finCubeDAO = await FinCubeDAO.deploy()
+        await finCubeDAO.waitForDeployment()
+
+        const MockERC20 = await ethers.getContractFactory("MockERC20")
+        const mockERC20 = await MockERC20.deploy("Test Token", "TEST", 18)
+        await mockERC20.waitForDeployment()
+
+        const FinCube = await ethers.getContractFactory("FinCube")
+        const finCube = await FinCube.deploy()
+        await finCube.waitForDeployment()
 
         // Initialize DAO first
-        await finCubeDAO.write.initialize(["Test DAO URI", "Owner URI"])
+        await finCubeDAO.initialize("Test DAO URI", "Owner URI")
 
         // Initialize FinCube with DAO and token addresses
-        await finCube.write.initialize([finCubeDAO.address, mockERC20.address])
+        await finCube.initialize(
+            await finCubeDAO.getAddress(),
+            await mockERC20.getAddress()
+        )
 
         // Verify initialization
-        const daoAddress = (await finCube.read.dao()) as string
-        const tokenAddress = (await finCube.read.approvedERC20()) as string
+        const daoAddress = await finCube.dao()
+        const tokenAddress = await finCube.approvedERC20()
 
-        assert.equal(
-            getAddress(daoAddress as string),
-            getAddress(finCubeDAO.address)
-        )
-        assert.equal(
-            getAddress(tokenAddress as string),
-            getAddress(mockERC20.address)
-        )
+        expect(daoAddress).to.equal(await finCubeDAO.getAddress())
+        expect(tokenAddress).to.equal(await mockERC20.getAddress())
     })
 
     it("Should mint ERC20 tokens and test stablecoin transfer flow", async function () {
         // Get test accounts
-        const [owner, member1, member2] = await viem.getWalletClients()
+        const [owner, member1, member2] = await ethers.getSigners()
 
         // Deploy all contracts
-        const finCubeDAO = await viem.deployContract("FinCubeDAO")
-        const mockERC20 = await viem.deployContract("MockERC20", [
-            "Test Token",
-            "TEST",
-            18n,
-        ])
-        const finCube = await viem.deployContract("FinCube")
+        const FinCubeDAO = await ethers.getContractFactory("FinCubeDAO")
+        const finCubeDAO = await FinCubeDAO.deploy()
+        await finCubeDAO.waitForDeployment()
+
+        const MockERC20 = await ethers.getContractFactory("MockERC20")
+        const mockERC20 = await MockERC20.deploy("Test Token", "TEST", 18)
+        await mockERC20.waitForDeployment()
+
+        const FinCube = await ethers.getContractFactory("FinCube")
+        const finCube = await FinCube.deploy()
+        await finCube.waitForDeployment()
 
         // Initialize contracts
-        await finCubeDAO.write.initialize(["Test DAO URI", "Owner URI"])
-        await finCube.write.initialize([finCubeDAO.address, mockERC20.address])
+        await finCubeDAO.initialize("Test DAO URI", "Owner URI")
+        await finCube.initialize(
+            await finCubeDAO.getAddress(),
+            await mockERC20.getAddress()
+        )
 
         // Mint tokens to member1
-        const mintAmount = 1000n * 10n ** 18n // 1000 tokens
-        await mockERC20.write.mint([member1.account.address, mintAmount])
+        const mintAmount = ethers.parseEther("1000") // 1000 tokens
+        await mockERC20.mint(member1.address, mintAmount)
 
         // Register members in DAO
-        await finCubeDAO.write.registerMember(
-            [member1.account.address, "Member 1 URI"],
-            { account: member1.account }
-        )
-        await finCubeDAO.write.registerMember(
-            [member2.account.address, "Member 2 URI"],
-            { account: member2.account }
-        )
+        await finCubeDAO
+            .connect(member1)
+            .registerMember(member1.address, "Member 1 URI")
+        await finCubeDAO
+            .connect(member2)
+            .registerMember(member2.address, "Member 2 URI")
 
         // Set voting delay and period
-        await finCubeDAO.write.setVotingDelay([1n], { account: owner.account })
-        await finCubeDAO.write.setVotingPeriod([3n], { account: owner.account })
+        await finCubeDAO.connect(owner).setVotingDelay(1)
+        await finCubeDAO.connect(owner).setVotingPeriod(3)
 
         // Create proposal to approve member1
-        await finCubeDAO.write.newMemberApprovalProposal([
-            member1.account.address,
-            "Approve Member 1",
-        ])
-
-        // Wait for voting delay
-        await (publicClient as any).request({
-            method: "evm_increaseTime",
-            params: [1],
-        })
-        await (publicClient as any).request({ method: "evm_mine" })
-
-        // Cast vote (owner votes yes)
-        await finCubeDAO.write.castVote([0n, true])
-
-        // Wait for voting period to end
-        await (publicClient as any).request({
-            method: "evm_increaseTime",
-            params: [3],
-        })
-        await (publicClient as any).request({ method: "evm_mine" })
-
-        // Execute proposal to approve member1
-        await finCubeDAO.write.executeProposal([0n])
-
-        // Create proposal to approve member2
-        await finCubeDAO.write.newMemberApprovalProposal([
-            member2.account.address,
-            "Approve Member 2",
-        ])
-
-        // Wait for voting delay
-        await rpc.request({ method: "evm_increaseTime", params: [1] })
-        await rpc.request({ method: "evm_mine" })
-
-        // Cast vote (owner votes yes)
-        await finCubeDAO.write.castVote([1n, true])
-
-        // Wait and execute proposal to approve member2
-        await rpc.request({ method: "evm_increaseTime", params: [3] })
-        await rpc.request({ method: "evm_mine" })
-        await finCubeDAO.write.executeProposal([1n])
-
-        // Verify members are approved
-        const member1Approved = await finCubeDAO.read.checkIsMemberApproved([
-            member1.account.address,
-        ])
-        const member2Approved = await finCubeDAO.read.checkIsMemberApproved([
-            member2.account.address,
-        ])
-
-        assert.equal(member1Approved, true)
-        assert.equal(member2Approved, true)
-
-        // Approve FinCube contract to spend tokens on behalf of member1
-        const transferAmount = 100n * 10n ** 18n // 100 tokens
-        await mockERC20.write.approve([finCube.address, transferAmount], {
-            account: member1.account,
-        })
-
-        // Perform safe transfer from member1 to member2
-        await viem.assertions.emitWithArgs(
-            finCube.write.safeTransfer(
-                [
-                    getAddress(member1.account.address),
-                    getAddress(member2.account.address),
-                    transferAmount,
-                    "Test transfer memo",
-                ],
-                { account: member1.account }
-            ),
-            finCube,
-            "StablecoinTransfer",
-            [
-                getAddress(member1.account.address),
-                getAddress(member2.account.address),
-                transferAmount,
-                "Test transfer memo",
-            ]
+        await finCubeDAO.newMemberApprovalProposal(
+            member1.address,
+            "Approve Member 1"
         )
 
-        // Verify balances
-        const member1Balance = await mockERC20.read.balanceOf([
-            member1.account.address,
-        ])
-        const member2Balance = await mockERC20.read.balanceOf([
-            member2.account.address,
-        ])
+        // Wait for voting delay
+        await ethers.provider.send("evm_increaseTime", [1])
+        await ethers.provider.send("evm_mine", [])
 
-        assert.equal(member1Balance, mintAmount - transferAmount)
-        assert.equal(member2Balance, transferAmount)
+        // Cast vote (owner votes yes)
+        await finCubeDAO.castVote(0, true)
+
+        // Wait for voting period to end
+        await ethers.provider.send("evm_increaseTime", [3])
+        await ethers.provider.send("evm_mine", [])
+
+        // Execute proposal to approve member1
+        await finCubeDAO.executeProposal(0)
+
+        // Create proposal to approve member2
+        await finCubeDAO.newMemberApprovalProposal(
+            member2.address,
+            "Approve Member 2"
+        )
+
+        // Wait for voting delay
+        await ethers.provider.send("evm_increaseTime", [1])
+        await ethers.provider.send("evm_mine", [])
+
+        // Cast vote (owner votes yes)
+        await finCubeDAO.castVote(1, true)
+
+        // Wait and execute proposal to approve member2
+        await ethers.provider.send("evm_increaseTime", [3])
+        await ethers.provider.send("evm_mine", [])
+        await finCubeDAO.executeProposal(1)
+
+        // Verify members are approved
+        const member1Approved = await finCubeDAO.checkIsMemberApproved(
+            member1.address
+        )
+        const member2Approved = await finCubeDAO.checkIsMemberApproved(
+            member2.address
+        )
+
+        expect(member1Approved).to.be.true
+        expect(member2Approved).to.be.true
+
+        // Approve FinCube contract to spend tokens on behalf of member1
+        const transferAmount = ethers.parseEther("100") // 100 tokens
+        await mockERC20
+            .connect(member1)
+            .approve(await finCube.getAddress(), transferAmount)
+
+        // Perform safe transfer from member1 to member2
+        const nullifier =
+            "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+
+        await expect(
+            finCube
+                .connect(member1)
+                .safeTransfer(
+                    member1.address,
+                    member2.address,
+                    transferAmount,
+                    "Test transfer memo",
+                    nullifier
+                )
+        )
+            .to.emit(finCube, "StablecoinTransfer")
+            .withArgs(
+                member1.address,
+                member2.address,
+                transferAmount,
+                "Test transfer memo",
+                nullifier
+            )
+
+        // Verify balances
+        const member1Balance = await mockERC20.balanceOf(member1.address)
+        const member2Balance = await mockERC20.balanceOf(member2.address)
+
+        expect(member1Balance).to.equal(mintAmount - transferAmount)
+        expect(member2Balance).to.equal(transferAmount)
     })
 
     it("Should create and execute stablecoin address change proposal", async function () {
         // Get test accounts
-        const [owner, member1] = await viem.getWalletClients()
+        const [owner, member1] = await ethers.getSigners()
 
         // Deploy contracts
-        const finCubeDAO = await viem.deployContract("FinCubeDAO")
-        const oldToken = await viem.deployContract("MockERC20", [
-            "Old Token",
-            "OLD",
-            18n,
-        ])
-        const newToken = await viem.deployContract("MockERC20", [
-            "New Token",
-            "NEW",
-            18n,
-        ])
-        const finCube = await viem.deployContract("FinCube")
+        const FinCubeDAO = await ethers.getContractFactory("FinCubeDAO")
+        const finCubeDAO = await FinCubeDAO.deploy()
+        await finCubeDAO.waitForDeployment()
+
+        const MockERC20 = await ethers.getContractFactory("MockERC20")
+        const oldToken = await MockERC20.deploy("Old Token", "OLD", 18)
+        await oldToken.waitForDeployment()
+
+        const newToken = await MockERC20.deploy("New Token", "NEW", 18)
+        await newToken.waitForDeployment()
+
+        const FinCube = await ethers.getContractFactory("FinCube")
+        const finCube = await FinCube.deploy()
+        await finCube.waitForDeployment()
 
         // Initialize contracts
-        await finCubeDAO.write.initialize(["Test DAO URI", "Owner URI"])
-        await finCube.write.initialize([finCubeDAO.address, oldToken.address])
+        await finCubeDAO.initialize("Test DAO URI", "Owner URI")
+        await finCube.initialize(
+            await finCubeDAO.getAddress(),
+            await oldToken.getAddress()
+        )
 
         // Register and approve member1
-        await finCubeDAO.write.registerMember(
-            [member1.account.address, "Member 1 URI"],
-            { account: member1.account }
-        )
-        await finCubeDAO.write.setVotingDelay([1n])
-        await finCubeDAO.write.setVotingPeriod([3n])
+        await finCubeDAO
+            .connect(member1)
+            .registerMember(member1.address, "Member 1 URI")
+        await finCubeDAO.setVotingDelay(1)
+        await finCubeDAO.setVotingPeriod(3)
 
         // Create and execute member approval proposal
-        await finCubeDAO.write.newMemberApprovalProposal([
-            member1.account.address,
-            "Approve Member 1",
-        ])
-        await rpc.request({ method: "evm_increaseTime", params: [1] })
-        await rpc.request({ method: "evm_mine" })
-        await finCubeDAO.write.castVote([0n, true])
-        await rpc.request({ method: "evm_increaseTime", params: [3] })
-        await rpc.request({ method: "evm_mine" })
-        await finCubeDAO.write.executeProposal([0n])
+        await finCubeDAO.newMemberApprovalProposal(
+            member1.address,
+            "Approve Member 1"
+        )
+        await ethers.provider.send("evm_increaseTime", [1])
+        await ethers.provider.send("evm_mine", [])
+        await finCubeDAO.castVote(0, true)
+        await ethers.provider.send("evm_increaseTime", [3])
+        await ethers.provider.send("evm_mine", [])
+        await finCubeDAO.executeProposal(0)
 
         // Create proposal to change stablecoin address
-        const functionSelector = encodeFunctionData({
-            abi: [
-                {
-                    name: "setApprovedERC20",
-                    type: "function",
-                    inputs: [{ name: "newToken", type: "address" }],
-                },
-            ],
-            functionName: "setApprovedERC20",
-            args: [newToken.address],
-        })
+        const finCubeInterface = finCube.interface
+        const functionSelector = finCubeInterface.encodeFunctionData(
+            "setApprovedERC20",
+            [await newToken.getAddress()]
+        )
 
-        await finCubeDAO.write.propose([
-            [finCube.address],
-            [0n],
+        await finCubeDAO.propose(
+            [await finCube.getAddress()],
+            [0],
             [functionSelector],
-            "Change approved ERC20 token",
-        ])
+            "Change approved ERC20 token"
+        )
 
         // Wait for voting delay
-        await rpc.request({ method: "evm_increaseTime", params: [1] })
-        await rpc.request({ method: "evm_mine" })
+        await ethers.provider.send("evm_increaseTime", [1])
+        await ethers.provider.send("evm_mine", [])
 
         // Cast votes (owner and member1 vote yes)
-        await finCubeDAO.write.castVote([1n, true]) // owner votes
-        await finCubeDAO.write.castVote([1n, true], {
-            account: member1.account,
-        }) // member1 votes
+        await finCubeDAO.castVote(1, true) // owner votes
+        await finCubeDAO.connect(member1).castVote(1, true) // member1 votes
 
         // Wait for voting period
-        await rpc.request({ method: "evm_increaseTime", params: [3] })
-        await rpc.request({ method: "evm_mine" })
+        await ethers.provider.send("evm_increaseTime", [3])
+        await ethers.provider.send("evm_mine", [])
 
         // Execute the proposal
-        await finCubeDAO.write.executeProposal([1n])
+        await finCubeDAO.executeProposal(1)
 
         // Verify the stablecoin address was changed
-        const currentToken = (await finCube.read.approvedERC20()) as string
-        assert.equal(getAddress(currentToken), getAddress(newToken.address))
+        const currentToken = await finCube.approvedERC20()
+        expect(currentToken).to.equal(await newToken.getAddress())
 
-        // Verify event was emitted
-        const deploymentBlockNumber = await publicClient.getBlockNumber()
-        const events = await publicClient.getContractEvents({
-            address: finCube.address,
-            abi: finCube.abi,
-            eventName: "ApprovedERC20Updated",
-            fromBlock: deploymentBlockNumber - 10n,
-            strict: true,
-        })
+        // Verify event was emitted - simplified approach
+        const filter = finCube.filters.ApprovedERC20Updated()
+        const events = await finCube.queryFilter(filter)
 
-        assert.ok(events.length > 0)
+        expect(events.length).to.be.greaterThan(0)
         const lastEvent = events[events.length - 1]
-        assert.equal(
-            (lastEvent.args as any)?.newToken,
-            getAddress(newToken.address)
-        )
+        expect(lastEvent.args[0]).to.equal(await newToken.getAddress())
     })
 
     it("Should handle complete workflow: deploy, initialize, create proposal, vote, execute, and change token", async function () {
-        const [owner, member1, member2] = await viem.getWalletClients()
+        const [owner, member1, member2] = await ethers.getSigners()
 
         // 1. Deploy contracts
-        const finCubeDAO = await viem.deployContract("FinCubeDAO")
-        const initialToken = await viem.deployContract("MockERC20", [
-            "Initial Token",
-            "INIT",
-            18n,
-        ])
-        const newToken = await viem.deployContract("MockERC20", [
-            "New Token",
-            "NEW",
-            18n,
-        ])
-        const finCube = await viem.deployContract("FinCube")
+        const FinCubeDAO = await ethers.getContractFactory("FinCubeDAO")
+        const finCubeDAO = await FinCubeDAO.deploy()
+        await finCubeDAO.waitForDeployment()
+
+        const MockERC20 = await ethers.getContractFactory("MockERC20")
+        const initialToken = await MockERC20.deploy("Initial Token", "INIT", 18)
+        await initialToken.waitForDeployment()
+
+        const newToken = await MockERC20.deploy("New Token", "NEW", 18)
+        await newToken.waitForDeployment()
+
+        const FinCube = await ethers.getContractFactory("FinCube")
+        const finCube = await FinCube.deploy()
+        await finCube.waitForDeployment()
 
         // 2. Initialize FinCube with DAO and token addresses
-        await finCubeDAO.write.initialize(["DAO URI", "Owner URI"])
-        await finCube.write.initialize([
-            getAddress(finCubeDAO.address),
-            getAddress(initialToken.address),
-        ])
+        await finCubeDAO.initialize("DAO URI", "Owner URI")
+        await finCube.initialize(
+            await finCubeDAO.getAddress(),
+            await initialToken.getAddress()
+        )
 
         // 3. Create dummy ERC20 tokens and mint them
-        const mintAmount = 1000n * 10n ** 18n
-        await initialToken.write.mint([member1.account.address, mintAmount])
-        await newToken.write.mint([member2.account.address, mintAmount])
+        const mintAmount = ethers.parseEther("1000")
+        await initialToken.mint(member1.address, mintAmount)
+        await newToken.mint(member2.address, mintAmount)
 
         // Setup DAO voting parameters
-        await finCubeDAO.write.setVotingDelay([1n])
-        await finCubeDAO.write.setVotingPeriod([3n])
+        await finCubeDAO.setVotingDelay(1)
+        await finCubeDAO.setVotingPeriod(3)
 
         // Register and approve members
-        await finCubeDAO.write.registerMember(
-            [member1.account.address, "Member 1 URI"],
-            { account: member1.account }
-        )
-        await finCubeDAO.write.registerMember(
-            [member2.account.address, "Member 2 URI"],
-            { account: member2.account }
-        )
+        await finCubeDAO
+            .connect(member1)
+            .registerMember(member1.address, "Member 1 URI")
+        await finCubeDAO
+            .connect(member2)
+            .registerMember(member2.address, "Member 2 URI")
 
         // Approve member1
-        await finCubeDAO.write.newMemberApprovalProposal([
-            member1.account.address,
-            "Approve Member 1",
-        ])
-        await rpc.request({ method: "evm_increaseTime", params: [1] })
-        await rpc.request({ method: "evm_mine" })
-        await finCubeDAO.write.castVote([0n, true])
-        await rpc.request({ method: "evm_increaseTime", params: [3] })
-        await rpc.request({ method: "evm_mine" })
-        await finCubeDAO.write.executeProposal([0n])
+        await finCubeDAO.newMemberApprovalProposal(
+            member1.address,
+            "Approve Member 1"
+        )
+        await ethers.provider.send("evm_increaseTime", [1])
+        await ethers.provider.send("evm_mine", [])
+        await finCubeDAO.castVote(0, true)
+        await ethers.provider.send("evm_increaseTime", [3])
+        await ethers.provider.send("evm_mine", [])
+        await finCubeDAO.executeProposal(0)
 
         // Approve member2
-        await finCubeDAO.write.newMemberApprovalProposal([
-            member2.account.address,
-            "Approve Member 2",
-        ])
-        await rpc.request({ method: "evm_increaseTime", params: [1] })
-        await rpc.request({ method: "evm_mine" })
-        await finCubeDAO.write.castVote([1n, true])
-        await finCubeDAO.write.castVote([1n, true], {
-            account: member1.account,
-        })
-        await rpc.request({ method: "evm_increaseTime", params: [3] })
-        await rpc.request({ method: "evm_mine" })
-        await finCubeDAO.write.executeProposal([1n])
+        await finCubeDAO.newMemberApprovalProposal(
+            member2.address,
+            "Approve Member 2"
+        )
+        await ethers.provider.send("evm_increaseTime", [1])
+        await ethers.provider.send("evm_mine", [])
+        await finCubeDAO.castVote(1, true)
+        await finCubeDAO.connect(member1).castVote(1, true)
+        await ethers.provider.send("evm_increaseTime", [3])
+        await ethers.provider.send("evm_mine", [])
+        await finCubeDAO.executeProposal(1)
 
         // 4. Create stablecoin proposal (target -> contract address)
-        const setTokenCalldata = encodeFunctionData({
-            abi: [
-                {
-                    name: "setApprovedERC20",
-                    type: "function",
-                    inputs: [{ name: "newToken", type: "address" }],
-                },
-            ],
-            functionName: "setApprovedERC20",
-            args: [newToken.address],
-        })
+        const finCubeInterface = finCube.interface
+        const setTokenCalldata = finCubeInterface.encodeFunctionData(
+            "setApprovedERC20",
+            [await newToken.getAddress()]
+        )
 
-        await finCubeDAO.write.propose([
-            [finCube.address],
-            [0n],
+        await finCubeDAO.propose(
+            [await finCube.getAddress()],
+            [0],
             [setTokenCalldata],
-            "Change approved ERC20 token",
-        ])
+            "Change approved ERC20 token"
+        )
 
         // 5. Cast votes
-        await rpc.request({ method: "evm_increaseTime", params: [1] })
-        await rpc.request({ method: "evm_mine" })
-        await finCubeDAO.write.castVote([2n, true]) // owner
-        await finCubeDAO.write.castVote([2n, true], {
-            account: member1.account,
-        }) // member1
+        await ethers.provider.send("evm_increaseTime", [1])
+        await ethers.provider.send("evm_mine", [])
+        await finCubeDAO.castVote(2, true) // owner
+        await finCubeDAO.connect(member1).castVote(2, true) // member1
 
         // 6. Execute the proposal
-        await rpc.request({ method: "evm_increaseTime", params: [3] })
-        await rpc.request({ method: "evm_mine" })
-        await finCubeDAO.write.executeProposal([2n])
+        await ethers.provider.send("evm_increaseTime", [3])
+        await ethers.provider.send("evm_mine", [])
+        await finCubeDAO.executeProposal(2)
 
         // 7. Verify the stablecoin address was changed
-        const finalTokenAddress = (await finCube.read.approvedERC20()) as string
-        assert.equal(
-            getAddress(finalTokenAddress as string),
-            getAddress(newToken.address)
-        )
+        const finalTokenAddress = await finCube.approvedERC20()
+        expect(finalTokenAddress).to.equal(await newToken.getAddress())
 
         // Test safe transfer with new token
-        await newToken.write.approve([finCube.address, 100n * 10n ** 18n], {
-            account: member2.account,
-        })
+        await newToken
+            .connect(member2)
+            .approve(await finCube.getAddress(), ethers.parseEther("100"))
 
-        await viem.assertions.emitWithArgs(
-            finCube.write.safeTransfer(
-                [
-                    member2.account.address,
-                    member1.account.address,
-                    50n * 10n ** 18n,
+        const nullifier2 =
+            "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"
+
+        await expect(
+            finCube
+                .connect(member2)
+                .safeTransfer(
+                    member2.address,
+                    member1.address,
+                    ethers.parseEther("50"),
                     "Final test transfer",
-                ],
-                { account: member2.account }
-            ),
-            finCube,
-            "StablecoinTransfer",
-            [
-                getAddress(member2.account.address),
-                getAddress(member1.account.address),
-                50n * 10n ** 18n,
-                "Final test transfer",
-            ]
+                    nullifier2
+                )
         )
+            .to.emit(finCube, "StablecoinTransfer")
+            .withArgs(
+                member2.address,
+                member1.address,
+                ethers.parseEther("50"),
+                "Final test transfer",
+                nullifier2
+            )
 
         // Verify final balances
-        const member1FinalBalance = await newToken.read.balanceOf([
-            member1.account.address,
-        ])
-        const member2FinalBalance = await newToken.read.balanceOf([
-            member2.account.address,
-        ])
+        const member1FinalBalance = await newToken.balanceOf(member1.address)
+        const member2FinalBalance = await newToken.balanceOf(member2.address)
 
-        assert.equal(member1FinalBalance, 50n * 10n ** 18n)
-        assert.equal(member2FinalBalance, mintAmount - 50n * 10n ** 18n)
+        expect(member1FinalBalance).to.equal(ethers.parseEther("50"))
+        expect(member2FinalBalance).to.equal(
+            mintAmount - ethers.parseEther("50")
+        )
     })
 
     it("Should verify FinCube contract is upgradeable (UUPS)", async function () {
-        const [owner] = await viem.getWalletClients()
+        const [owner] = await ethers.getSigners()
 
         // Deploy contracts
-        const finCubeDAO = await viem.deployContract("FinCubeDAO")
-        const mockERC20 = await viem.deployContract("MockERC20", [
-            "Test Token",
-            "TEST",
-            18n,
-        ])
-        const finCube = await viem.deployContract("FinCube")
+        const FinCubeDAO = await ethers.getContractFactory("FinCubeDAO")
+        const finCubeDAO = await FinCubeDAO.deploy()
+        await finCubeDAO.waitForDeployment()
+
+        const MockERC20 = await ethers.getContractFactory("MockERC20")
+        const mockERC20 = await MockERC20.deploy("Test Token", "TEST", 18)
+        await mockERC20.waitForDeployment()
+
+        const FinCube = await ethers.getContractFactory("FinCube")
+        const finCube = await FinCube.deploy()
+        await finCube.waitForDeployment()
 
         // Initialize contracts
-        await finCubeDAO.write.initialize(["Test DAO URI", "Owner URI"])
-        await finCube.write.initialize([finCubeDAO.address, mockERC20.address])
+        await finCubeDAO.initialize("Test DAO URI", "Owner URI")
+        await finCube.initialize(
+            await finCubeDAO.getAddress(),
+            await mockERC20.getAddress()
+        )
 
         // Verify that the contract has UUPS upgrade functionality
         // Only DAO should be able to authorize upgrades
 
         // Deploy a new implementation
-        const finCubeV2 = await viem.deployContract("FinCube")
+        const finCubeV2 = await FinCube.deploy()
+        await finCubeV2.waitForDeployment()
 
         // Try to upgrade from non-DAO address (should fail)
-        try {
-            await finCube.write.upgradeToAndCall([finCubeV2.address, "0x"], {
-                account: owner.account,
-            })
-            assert.fail("Should have failed - only DAO can upgrade")
-        } catch (error: any) {
-            assert.ok(
-                error.message.includes("Only DAO") ||
-                    error.message.includes("UUPSUnauthorizedCallContext()")
-            )
-        }
+        await expect(
+            finCube
+                .connect(owner)
+                .upgradeToAndCall(await finCubeV2.getAddress(), "0x")
+        ).to.be.revertedWithCustomError(finCube, "UUPSUnauthorizedCallContext")
 
         // Verify DAO address is set correctly
-        const daoAddress = (await finCube.read.dao()) as string
-        assert.equal(getAddress(daoAddress), getAddress(finCubeDAO.address))
+        const daoAddress = await finCube.dao()
+        expect(daoAddress).to.equal(await finCubeDAO.getAddress())
     })
 
     it("Should verify FinCubeDAO contract is upgradeable (UUPS)", async function () {
-        const [owner, nonOwner] = await viem.getWalletClients()
+        const [owner, nonOwner] = await ethers.getSigners()
 
         // Deploy and initialize DAO
-        const finCubeDAO = await viem.deployContract("FinCubeDAO")
-        await finCubeDAO.write.initialize(["Test DAO URI", "Owner URI"])
+        const FinCubeDAO = await ethers.getContractFactory("FinCubeDAO")
+        const finCubeDAO = await FinCubeDAO.deploy()
+        await finCubeDAO.waitForDeployment()
+
+        await finCubeDAO.initialize("Test DAO URI", "Owner URI")
 
         // Deploy a new implementation
-        const finCubeDAOV2 = await viem.deployContract("FinCubeDAO")
+        const finCubeDAOV2 = await FinCubeDAO.deploy()
+        await finCubeDAOV2.waitForDeployment()
 
         // Try to upgrade from non-owner address (should fail)
-        try {
-            await finCubeDAO.write.upgradeToAndCall(
-                [finCubeDAOV2.address, "0x"],
-                { account: nonOwner.account }
-            )
-            assert.fail("Should have failed - only owner can upgrade")
-        } catch (error: any) {
-            assert.ok(
-                error.message.includes("OwnableUnauthorizedAccount") ||
-                    error.message.includes("caller is not the owner") ||
-                    error.message.includes("UUPSUnauthorizedCallContext()")
-            )
-        }
+        await expect(
+            finCubeDAO
+                .connect(nonOwner)
+                .upgradeToAndCall(await finCubeDAOV2.getAddress(), "0x")
+        ).to.be.revertedWithCustomError(
+            finCubeDAO,
+            "UUPSUnauthorizedCallContext"
+        )
 
         // Owner should be able to upgrade (we'll just verify the call doesn't revert with auth error)
-        const owner_address = (await finCubeDAO.read.owner()) as string
-        assert.equal(
-            getAddress(owner_address as string),
-            getAddress(owner.account.address)
-        )
+        const owner_address = await finCubeDAO.owner()
+        expect(owner_address).to.equal(owner.address)
     })
 
     it("Should test reentrancy protection in FinCube safeTransfer", async function () {
-        const [owner, member1, member2] = await viem.getWalletClients()
+        const [owner, member1, member2] = await ethers.getSigners()
 
         // Deploy malicious ERC20 (use the malicious implementation)
-        const maliciousERC20 = await viem.deployContract("MaliciousERC20", [
+        const MaliciousERC20 = await ethers.getContractFactory("MaliciousERC20")
+        const maliciousERC20 = await MaliciousERC20.deploy(
             "Malicious Token",
-            "MAL",
-        ])
+            "MAL"
+        )
+        await maliciousERC20.waitForDeployment()
 
         // Deploy normal contracts
-        const finCubeDAO = await viem.deployContract("FinCubeDAO")
-        const finCube = await viem.deployContract("FinCube")
+        const FinCubeDAO = await ethers.getContractFactory("FinCubeDAO")
+        const finCubeDAO = await FinCubeDAO.deploy()
+        await finCubeDAO.waitForDeployment()
+
+        const FinCube = await ethers.getContractFactory("FinCube")
+        const finCube = await FinCube.deploy()
+        await finCube.waitForDeployment()
 
         // Initialize contracts
-        await finCubeDAO.write.initialize(["Test DAO URI", "Owner URI"])
-        await finCube.write.initialize([
-            finCubeDAO.address,
-            maliciousERC20.address,
-        ])
+        await finCubeDAO.initialize("Test DAO URI", "Owner URI")
+        await finCube.initialize(
+            await finCubeDAO.getAddress(),
+            await maliciousERC20.getAddress()
+        )
 
         // Set up DAO parameters
-        await finCubeDAO.write.setVotingDelay([1n])
-        await finCubeDAO.write.setVotingPeriod([3n])
+        await finCubeDAO.setVotingDelay(1)
+        await finCubeDAO.setVotingPeriod(3)
 
-        // Register and approve members (same as your flow)
-        await finCubeDAO.write.registerMember(
-            [member1.account.address, "Member 1 URI"],
-            { account: member1.account }
-        )
-        await finCubeDAO.write.registerMember(
-            [member2.account.address, "Member 2 URI"],
-            { account: member2.account }
-        )
+        // Register and approve members
+        await finCubeDAO
+            .connect(member1)
+            .registerMember(member1.address, "Member 1 URI")
+        await finCubeDAO
+            .connect(member2)
+            .registerMember(member2.address, "Member 2 URI")
 
         // Approve member1
-        await finCubeDAO.write.newMemberApprovalProposal([
-            member1.account.address,
-            "Approve Member 1",
-        ])
-        await rpc.request({ method: "evm_increaseTime", params: [1] })
-        await rpc.request({ method: "evm_mine" })
-        await finCubeDAO.write.castVote([0n, true])
-        await rpc.request({ method: "evm_increaseTime", params: [3] })
-        await rpc.request({ method: "evm_mine" })
-        await finCubeDAO.write.executeProposal([0n])
+        await finCubeDAO.newMemberApprovalProposal(
+            member1.address,
+            "Approve Member 1"
+        )
+        await ethers.provider.send("evm_increaseTime", [1])
+        await ethers.provider.send("evm_mine", [])
+        await finCubeDAO.castVote(0, true)
+        await ethers.provider.send("evm_increaseTime", [3])
+        await ethers.provider.send("evm_mine", [])
+        await finCubeDAO.executeProposal(0)
 
         // Approve member2
-        await finCubeDAO.write.newMemberApprovalProposal([
-            member2.account.address,
-            "Approve Member 2",
-        ])
-        await rpc.request({ method: "evm_increaseTime", params: [1] })
-        await rpc.request({ method: "evm_mine" })
-        await finCubeDAO.write.castVote([1n, true])
-        await rpc.request({ method: "evm_increaseTime", params: [3] })
-        await rpc.request({ method: "evm_mine" })
-        await finCubeDAO.write.executeProposal([1n])
+        await finCubeDAO.newMemberApprovalProposal(
+            member2.address,
+            "Approve Member 2"
+        )
+        await ethers.provider.send("evm_increaseTime", [1])
+        await ethers.provider.send("evm_mine", [])
+        await finCubeDAO.castVote(1, true)
+        await ethers.provider.send("evm_increaseTime", [3])
+        await ethers.provider.send("evm_mine", [])
+        await finCubeDAO.executeProposal(1)
 
         // Mint tokens and approve
-        const mintAmount = 1000n * 10n ** 18n
-        await maliciousERC20.write.mint([member1.account.address, mintAmount])
-        await maliciousERC20.write.approve([finCube.address, mintAmount], {
-            account: member1.account,
-        })
+        const mintAmount = ethers.parseEther("1000")
+        await maliciousERC20.mint(member1.address, mintAmount)
+        await maliciousERC20
+            .connect(member1)
+            .approve(await finCube.getAddress(), mintAmount)
 
         // Configure attacker to target FinCube and attempt reentrancy
-        await maliciousERC20.write.setTargetContract([finCube.address])
-        await maliciousERC20.write.enableAttack([
-            member1.account.address,
-            member2.account.address,
-            50n * 10n ** 18n,
-        ])
-
-        // Attempt transfer: malicious token will try to call back into safeTransfer
-        try {
-            await finCube.write.safeTransfer(
-                [
-                    member1.account.address,
-                    member2.account.address,
-                    100n * 10n ** 18n,
-                    "Reentrancy test memo",
-                ],
-                { account: member1.account }
-            )
-            assert.fail("Expected revert due to reentrancy guard")
-        } catch (error: any) {
-            // Most common OpenZeppelin revert
-            const msg = error && error.message ? error.message : ""
-            assert.ok(
-                msg.includes("ReentrancyGuard: reentrant call") ||
-                    msg.includes("ReentrancyGuard") ||
-                    msg.includes("reentrant call"),
-                `Unexpected error message: ${msg}`
-            )
-        }
-
-        // Disable attack and ensure normal transfer works
-        await maliciousERC20.write.disableAttack()
-        await finCube.write.safeTransfer(
-            [
-                member1.account.address,
-                member2.account.address,
-                100n * 10n ** 18n,
-                "Normal transfer memo",
-            ],
-            { account: member1.account }
+        await maliciousERC20.setTargetContract(await finCube.getAddress())
+        await maliciousERC20.enableAttack(
+            member1.address,
+            member2.address,
+            ethers.parseEther("50")
         )
 
-        const member2Balance = await maliciousERC20.read.balanceOf([
-            member2.account.address,
-        ])
-        assert.equal(member2Balance, 100n * 10n ** 18n)
+        // Attempt transfer: malicious token will try to call back into safeTransfer
+        const nullifier3 =
+            "0x1111111111111111111111111111111111111111111111111111111111111111"
+
+        await expect(
+            finCube
+                .connect(member1)
+                .safeTransfer(
+                    member1.address,
+                    member2.address,
+                    ethers.parseEther("100"),
+                    "Reentrancy test memo",
+                    nullifier3
+                )
+        ).to.be.revertedWithCustomError(finCube, "ReentrancyGuardReentrantCall")
+
+        // Disable attack and ensure normal transfer works
+        await maliciousERC20.disableAttack()
+        const nullifier4 =
+            "0x2222222222222222222222222222222222222222222222222222222222222222"
+
+        await expect(
+            finCube
+                .connect(member1)
+                .safeTransfer(
+                    member1.address,
+                    member2.address,
+                    ethers.parseEther("100"),
+                    "Normal transfer memo",
+                    nullifier4
+                )
+        ).to.emit(finCube, "StablecoinTransfer")
+
+        const member2Balance = await maliciousERC20.balanceOf(member2.address)
+        expect(member2Balance).to.equal(ethers.parseEther("100"))
     })
 
     it("Should test reentrancy protection in FinCubeDAO executeProposal", async function () {
-        const [owner, member1] = await viem.getWalletClients()
+        const [owner, member1] = await ethers.getSigners()
 
         // Deploy contracts
-        const finCubeDAO = await viem.deployContract("FinCubeDAO")
-        const mockERC20 = await viem.deployContract("MockERC20", [
-            "Test Token",
-            "TEST",
-            18n,
-        ])
-        const finCube = await viem.deployContract("FinCube")
+        const FinCubeDAO = await ethers.getContractFactory("FinCubeDAO")
+        const finCubeDAO = await FinCubeDAO.deploy()
+        await finCubeDAO.waitForDeployment()
+
+        const MockERC20 = await ethers.getContractFactory("MockERC20")
+        const mockERC20 = await MockERC20.deploy("Test Token", "TEST", 18)
+        await mockERC20.waitForDeployment()
+
+        const FinCube = await ethers.getContractFactory("FinCube")
+        const finCube = await FinCube.deploy()
+        await finCube.waitForDeployment()
 
         // Deploy malicious target contract
-        const maliciousTarget = await viem.deployContract("MaliciousTarget")
+        const MaliciousTarget = await ethers.getContractFactory(
+            "MaliciousTarget"
+        )
+        const maliciousTarget = await MaliciousTarget.deploy()
+        await maliciousTarget.waitForDeployment()
 
         // Initialize contracts
-        await finCubeDAO.write.initialize(["Test DAO URI", "Owner URI"])
-        await finCube.write.initialize([finCubeDAO.address, mockERC20.address])
-
-        // Set up DAO parameters
-        await finCubeDAO.write.setVotingDelay([1n])
-        await finCubeDAO.write.setVotingPeriod([10n])
-
-        // Register and approve members (same as your flow)
-        await finCubeDAO.write.registerMember(
-            [member1.account.address, "Member 1 URI"],
-            { account: member1.account }
+        await finCubeDAO.initialize("Test DAO URI", "Owner URI")
+        await finCube.initialize(
+            await finCubeDAO.getAddress(),
+            await mockERC20.getAddress()
         )
 
+        // Set up DAO parameters
+        await finCubeDAO.setVotingDelay(1)
+        await finCubeDAO.setVotingPeriod(10)
+
+        // Register and approve members
+        await finCubeDAO
+            .connect(member1)
+            .registerMember(member1.address, "Member 1 URI")
+
         // Approve member1
-        await finCubeDAO.write.newMemberApprovalProposal([
-            member1.account.address,
-            "Approve Member 1",
-        ])
-        await new Promise((r) => setTimeout(r, 4000))
-        await finCubeDAO.write.castVote([0n, true])
-        await new Promise((r) => setTimeout(r, 12000))
-        await finCubeDAO.write.executeProposal([0n])
+        await finCubeDAO.newMemberApprovalProposal(
+            member1.address,
+            "Approve Member 1"
+        )
+        await ethers.provider.send("evm_increaseTime", [1])
+        await ethers.provider.send("evm_mine", [])
+        await finCubeDAO.castVote(0, true)
+        await ethers.provider.send("evm_increaseTime", [10])
+        await ethers.provider.send("evm_mine", [])
+        await finCubeDAO.executeProposal(0)
 
         // Malicious target knows DAO
-        await maliciousTarget.write.setDAOContract([finCubeDAO.address])
+        await maliciousTarget.setDAOContract(await finCubeDAO.getAddress())
 
         // Create malicious proposal that calls maliciousTarget.maliciousFunction
-        const maliciousCalldata = encodeFunctionData({
-            abi: [{ name: "maliciousFunction", type: "function", inputs: [] }],
-            functionName: "maliciousFunction",
-            args: [],
-        })
-        await finCubeDAO.write.propose([
-            [maliciousTarget.address],
-            [0n],
+        const maliciousCalldata =
+            maliciousTarget.interface.encodeFunctionData("maliciousFunction")
+
+        await finCubeDAO.propose(
+            [await maliciousTarget.getAddress()],
+            [0],
             [maliciousCalldata],
-            "Malicious proposal",
-        ])
+            "Malicious proposal"
+        )
 
         // enable the attack for that proposal id (1)
-        await maliciousTarget.write.enableAttack([1n])
+        await maliciousTarget.enableAttack(1)
 
         // vote and wait
-        await new Promise((r) => setTimeout(r, 4000))
-        await finCubeDAO.write.castVote([1n, true])
-        await finCubeDAO.write.castVote([1n, true], {
-            account: member1.account,
-        })
-        await new Promise((r) => setTimeout(r, 8000))
+        await ethers.provider.send("evm_increaseTime", [1])
+        await ethers.provider.send("evm_mine", [])
+        await finCubeDAO.castVote(1, true)
+        await finCubeDAO.connect(member1).castVote(1, true)
+        await ethers.provider.send("evm_increaseTime", [10])
+        await ethers.provider.send("evm_mine", [])
 
         // Execution should revert due to reentrancy guard in executeProposal
-        try {
-            await finCubeDAO.write.executeProposal([1n])
-            assert.fail("Expected revert due to reentrancy")
-        } catch (error: any) {
-            const msg = error && error.message ? error.message : ""
-            assert.ok(
-                msg.includes("ReentrancyGuard: reentrant call") ||
-                    msg.includes("ReentrancyGuard") ||
-                    msg.includes("reentrant call"),
-                `Unexpected error message: ${msg}`
-            )
-        }
+        await expect(
+            finCubeDAO.executeProposal(1)
+        ).to.be.revertedWithCustomError(
+            finCubeDAO,
+            "ReentrancyGuardReentrantCall"
+        )
 
         // disable attack and make a normal proposal that should succeed
-        await maliciousTarget.write.disableAttack()
+        await maliciousTarget.disableAttack()
 
-        const setTokenCalldata = encodeFunctionData({
-            abi: [
-                {
-                    name: "setApprovedERC20",
-                    type: "function",
-                    inputs: [{ name: "newToken", type: "address" }],
-                },
-            ],
-            functionName: "setApprovedERC20",
-            args: [mockERC20.address],
-        })
-        await finCubeDAO.write.propose([
-            [finCube.address],
-            [0n],
+        const finCubeInterface = finCube.interface
+        const setTokenCalldata = finCubeInterface.encodeFunctionData(
+            "setApprovedERC20",
+            [await mockERC20.getAddress()]
+        )
+
+        await finCubeDAO.propose(
+            [await finCube.getAddress()],
+            [0],
             [setTokenCalldata],
-            "Normal proposal",
-        ])
-        await new Promise((r) => setTimeout(r, 4000))
-        await finCubeDAO.write.castVote([2n, true])
-        await finCubeDAO.write.castVote([2n, true], {
-            account: member1.account,
-        })
-        await new Promise((r) => setTimeout(r, 8000))
-        await finCubeDAO.write.executeProposal([2n])
+            "Normal proposal"
+        )
+        await ethers.provider.send("evm_increaseTime", [1])
+        await ethers.provider.send("evm_mine", [])
+        await finCubeDAO.castVote(2, true)
+        await finCubeDAO.connect(member1).castVote(2, true)
+        await ethers.provider.send("evm_increaseTime", [10])
+        await ethers.provider.send("evm_mine", [])
+        await finCubeDAO.executeProposal(2)
 
-        const currentToken = await finCube.read.approvedERC20()
-        assert.equal(getAddress(currentToken), getAddress(mockERC20.address))
+        const currentToken = await finCube.approvedERC20()
+        expect(currentToken).to.equal(await mockERC20.getAddress())
     })
 
     it("Should verify contracts implement proper access controls", async function () {
-        const [owner, nonOwner, member1] = await viem.getWalletClients()
+        const [owner, nonOwner, member1] = await ethers.getSigners()
 
         // Deploy contracts
-        const finCubeDAO = await viem.deployContract("FinCubeDAO")
-        const mockERC20 = await viem.deployContract("MockERC20", [
-            "Test Token",
-            "TEST",
-            18n,
-        ])
-        const finCube = await viem.deployContract("FinCube")
+        const FinCubeDAO = await ethers.getContractFactory("FinCubeDAO")
+        const finCubeDAO = await FinCubeDAO.deploy()
+        await finCubeDAO.waitForDeployment()
+
+        const MockERC20 = await ethers.getContractFactory("MockERC20")
+        const mockERC20 = await MockERC20.deploy("Test Token", "TEST", 18)
+        await mockERC20.waitForDeployment()
+
+        const FinCube = await ethers.getContractFactory("FinCube")
+        const finCube = await FinCube.deploy()
+        await finCube.waitForDeployment()
 
         // Initialize contracts
-        await finCubeDAO.write.initialize(["Test DAO URI", "Owner URI"])
-        await finCube.write.initialize([finCubeDAO.address, mockERC20.address])
+        await finCubeDAO.initialize("Test DAO URI", "Owner URI")
+        await finCube.initialize(
+            await finCubeDAO.getAddress(),
+            await mockERC20.getAddress()
+        )
 
         // Test FinCube access controls
         // Only DAO should be able to set approved ERC20
-        try {
-            await finCube.write.setApprovedERC20([mockERC20.address], {
-                account: nonOwner.account,
-            })
-            assert.fail("Should have failed - only DAO can set approved ERC20")
-        } catch (error: any) {
-            assert.ok(error.message.includes("Only DAO"))
-        }
+        await expect(
+            finCube
+                .connect(nonOwner)
+                .setApprovedERC20(await mockERC20.getAddress())
+        ).to.be.revertedWith("Only DAO")
 
         // Only DAO should be able to set DAO address
-        try {
-            await finCube.write.setDAO([nonOwner.account.address], {
-                account: nonOwner.account,
-            })
-            assert.fail("Should have failed - only DAO can set DAO")
-        } catch (error: any) {
-            assert.ok(error.message.includes("Only DAO"))
-        }
+        await expect(
+            finCube.connect(nonOwner).setDAO(nonOwner.address)
+        ).to.be.revertedWith("Only DAO")
 
         // Test FinCubeDAO access controls
         // Only owner should be able to set voting parameters
-        try {
-            await finCubeDAO.write.setVotingDelay([5n], {
-                account: nonOwner.account,
-            })
-            assert.fail("Should have failed - only owner can set voting delay")
-        } catch (error: any) {
-            assert.ok(
-                error.message.includes("OwnableUnauthorizedAccount") ||
-                    error.message.includes("caller is not the owner")
-            )
-        }
+        await expect(
+            finCubeDAO.connect(nonOwner).setVotingDelay(5)
+        ).to.be.revertedWithCustomError(
+            finCubeDAO,
+            "OwnableUnauthorizedAccount"
+        )
 
-        try {
-            await finCubeDAO.write.setVotingPeriod([10n], {
-                account: nonOwner.account,
-            })
-            assert.fail("Should have failed - only owner can set voting period")
-        } catch (error: any) {
-            assert.ok(
-                error.message.includes("OwnableUnauthorizedAccount") ||
-                    error.message.includes("caller is not the owner")
-            )
-        }
+        await expect(
+            finCubeDAO.connect(nonOwner).setVotingPeriod(10)
+        ).to.be.revertedWithCustomError(
+            finCubeDAO,
+            "OwnableUnauthorizedAccount"
+        )
 
         // Register a member to test member-only functions
-        await finCubeDAO.write.registerMember(
-            [member1.account.address, "Member 1 URI"],
-            { account: member1.account }
-        )
-        await finCubeDAO.write.setVotingDelay([1n])
-        await finCubeDAO.write.setVotingPeriod([3n])
+        await finCubeDAO
+            .connect(member1)
+            .registerMember(member1.address, "Member 1 URI")
+        await finCubeDAO.setVotingDelay(1)
+        await finCubeDAO.setVotingPeriod(3)
 
         // Non-members should not be able to create proposals
-        try {
-            await finCubeDAO.write.newMemberApprovalProposal(
-                [nonOwner.account.address, "Should fail"],
-                { account: nonOwner.account }
-            )
-            assert.fail(
-                "Should have failed - only members can create proposals"
-            )
-        } catch (error: any) {
-            assert.ok(
-                error.message.includes("Not a member") ||
-                    error.message.includes("Member not approved")
-            )
-        }
+        await expect(
+            finCubeDAO
+                .connect(nonOwner)
+                .newMemberApprovalProposal(nonOwner.address, "Should fail")
+        ).to.be.revertedWith("Not a member")
     })
 
     it("Should verify initialization can only happen once", async function () {
         // Deploy contracts
-        const finCubeDAO = await viem.deployContract("FinCubeDAO")
-        const mockERC20 = await viem.deployContract("MockERC20", [
-            "Test Token",
-            "TEST",
-            18n,
-        ])
-        const finCube = await viem.deployContract("FinCube")
+        const FinCubeDAO = await ethers.getContractFactory("FinCubeDAO")
+        const finCubeDAO = await FinCubeDAO.deploy()
+
+        const MockERC20 = await ethers.getContractFactory("MockERC20")
+        const mockERC20 = await MockERC20.deploy("Test Token", "TEST", 18)
+
+        const FinCube = await ethers.getContractFactory("FinCube")
+        const finCube = await FinCube.deploy()
 
         // Initialize contracts
-        await finCubeDAO.write.initialize(["Test DAO URI", "Owner URI"])
-        await finCube.write.initialize([finCubeDAO.address, mockERC20.address])
+        await finCubeDAO.initialize("Test DAO URI", "Owner URI")
+        await finCube.initialize(
+            await finCubeDAO.getAddress(),
+            await mockERC20.getAddress()
+        )
 
         // Try to initialize again (should fail)
-        try {
-            await finCubeDAO.write.initialize(["Test DAO URI 2", "Owner URI 2"])
-            assert.fail("Should have failed - already initialized")
-        } catch (error: any) {
-            assert.ok(
-                error.message.includes("InvalidInitialization") ||
-                    error.message.includes(
-                        "Initializable: contract is already initialized"
-                    )
-            )
-        }
+        await expect(
+            finCubeDAO.initialize("Test DAO URI 2", "Owner URI 2")
+        ).to.be.revertedWithCustomError(finCubeDAO, "InvalidInitialization")
 
-        try {
-            await finCube.write.initialize([
-                finCubeDAO.address,
-                mockERC20.address,
-            ])
-            assert.fail("Should have failed - already initialized")
-        } catch (error: any) {
-            assert.ok(
-                error.message.includes("InvalidInitialization") ||
-                    error.message.includes(
-                        "Initializable: contract is already initialized"
-                    )
+        await expect(
+            finCube.initialize(
+                await finCubeDAO.getAddress(),
+                await mockERC20.getAddress()
             )
-        }
+        ).to.be.revertedWithCustomError(finCube, "InvalidInitialization")
     })
 
     it("Should successfully upgrade FinCube contract through DAO proposal and verify upgrade", async function () {
-        const [owner, member1] = await viem.getWalletClients()
+        const [owner, member1] = await ethers.getSigners()
 
         /*
          * IMPORTANT: UUPS upgrades require PROXY contracts, not direct implementation contracts.
@@ -936,184 +871,157 @@ describe("FinCube", async function () {
          */
 
         // Deploy implementation contracts (these contain the logic but no state)
-        const finCubeDAOImpl = await viem.deployContract("FinCubeDAO")
-        const finCubeImpl = await viem.deployContract("FinCube")
-        const mockERC20 = await viem.deployContract("MockERC20", [
-            "Test Token",
-            "TEST",
-            18n,
-        ])
+        const FinCubeDAO = await ethers.getContractFactory("FinCubeDAO")
+        const finCubeDAOImpl = await FinCubeDAO.deploy()
+
+        const FinCube = await ethers.getContractFactory("FinCube")
+        const finCubeImpl = await FinCube.deploy()
+
+        const MockERC20 = await ethers.getContractFactory("MockERC20")
+        const mockERC20 = await MockERC20.deploy("Test Token", "TEST", 18)
 
         // Create initialization data for DAO proxy
-        const daoInitData = encodeFunctionData({
-            abi: [
-                {
-                    name: "initialize",
-                    type: "function",
-                    inputs: [
-                        { name: "_daoURI", type: "string" },
-                        { name: "_ownerURI", type: "string" },
-                    ],
-                },
-            ],
-            functionName: "initialize",
-            args: ["Test DAO URI", "Owner URI"],
-        })
+        const daoInitData = finCubeDAOImpl.interface.encodeFunctionData(
+            "initialize",
+            ["Test DAO URI", "Owner URI"]
+        )
 
         // Deploy DAO proxy that points to DAO implementation
-        const finCubeDAOProxy = await viem.deployContract("TestERC1967Proxy", [
-            finCubeDAOImpl.address,
-            daoInitData,
-        ])
+        const TestERC1967Proxy = await ethers.getContractFactory(
+            "TestERC1967Proxy"
+        )
+        const finCubeDAOProxy = await TestERC1967Proxy.deploy(
+            await finCubeDAOImpl.getAddress(),
+            daoInitData
+        )
 
         // Create initialization data for FinCube proxy
-        const finCubeInitData = encodeFunctionData({
-            abi: [
-                {
-                    name: "initialize",
-                    type: "function",
-                    inputs: [
-                        { name: "_dao", type: "address" },
-                        { name: "_token", type: "address" },
-                    ],
-                },
-            ],
-            functionName: "initialize",
-            args: [finCubeDAOProxy.address, mockERC20.address],
-        })
+        const finCubeInitData = finCubeImpl.interface.encodeFunctionData(
+            "initialize",
+            [await finCubeDAOProxy.getAddress(), await mockERC20.getAddress()]
+        )
 
         // Deploy FinCube proxy that points to FinCube implementation
-        const finCubeProxy = await viem.deployContract("TestERC1967Proxy", [
-            finCubeImpl.address,
-            finCubeInitData,
-        ])
+        const finCubeProxy = await TestERC1967Proxy.deploy(
+            await finCubeImpl.getAddress(),
+            finCubeInitData
+        )
 
         // Get contract instances that point to proxy addresses (these hold the state)
-        const finCubeDAO = await viem.getContractAt(
+        const finCubeDAO = await ethers.getContractAt(
             "FinCubeDAO",
-            finCubeDAOProxy.address
+            await finCubeDAOProxy.getAddress()
         )
-        const finCube = await viem.getContractAt(
+        const finCube = await ethers.getContractAt(
             "FinCube",
-            finCubeProxy.address
+            await finCubeProxy.getAddress()
         )
 
         // Set up DAO parameters
-        await finCubeDAO.write.setVotingDelay([1n])
-        await finCubeDAO.write.setVotingPeriod([3n])
+        await finCubeDAO.setVotingDelay(1)
+        await finCubeDAO.setVotingPeriod(3)
 
         // Register and approve member1
-        await finCubeDAO.write.registerMember(
-            [member1.account.address, "Member 1 URI"],
-            { account: member1.account }
-        )
+        await finCubeDAO
+            .connect(member1)
+            .registerMember(member1.address, "Member 1 URI")
 
-        await finCubeDAO.write.newMemberApprovalProposal([
-            member1.account.address,
-            "Approve Member 1",
-        ])
-        await new Promise((resolve) => setTimeout(resolve, 2000))
-        await finCubeDAO.write.castVote([0n, true])
-        await new Promise((resolve) => setTimeout(resolve, 4000))
-        await finCubeDAO.write.executeProposal([0n])
+        await finCubeDAO.newMemberApprovalProposal(
+            member1.address,
+            "Approve Member 1"
+        )
+        await ethers.provider.send("evm_increaseTime", [1])
+        await ethers.provider.send("evm_mine")
+        await finCubeDAO.castVote(0, true)
+        await ethers.provider.send("evm_increaseTime", [3])
+        await ethers.provider.send("evm_mine")
+        await finCubeDAO.executeProposal(0)
 
         // Store original state to verify preservation after upgrade
-        const originalDAO = (await finCube.read.dao()) as string
-        const originalToken = (await finCube.read.approvedERC20()) as string
+        const originalDAO = await finCube.dao()
+        const originalToken = await finCube.approvedERC20()
 
         // Deploy new implementation (V2) - this is just the logic, no state
-        const finCubeV2 = await viem.deployContract("FinCube")
+        const finCubeV2 = await FinCube.deploy()
 
         // Get implementation address before upgrade from the proxy's storage
         const implementationSlot =
             "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc"
-        const originalImplementation = await publicClient.getStorageAt({
-            address: finCube.address, // This is the proxy address holding the state
-            slot: implementationSlot,
-        })
+        const originalImplementation = await ethers.provider.getStorage(
+            await finCube.getAddress(), // This is the proxy address holding the state
+            implementationSlot
+        )
 
         // Create upgrade proposal through DAO (targeting the PROXY contract)
-        const upgradeCalldata = encodeFunctionData({
-            abi: [
-                {
-                    name: "upgradeToAndCall",
-                    type: "function",
-                    inputs: [
-                        { name: "newImplementation", type: "address" },
-                        { name: "data", type: "bytes" },
-                    ],
-                },
-            ],
-            functionName: "upgradeToAndCall",
-            args: [finCubeV2.address, "0x"], // Point to new implementation
-        })
+        const upgradeCalldata = finCube.interface.encodeFunctionData(
+            "upgradeToAndCall",
+            [await finCubeV2.getAddress(), "0x"] // Point to new implementation
+        )
 
-        await finCubeDAO.write.propose([
-            [finCube.address], // Target the PROXY address, not implementation
-            [0n],
+        await finCubeDAO.propose(
+            [await finCube.getAddress()], // Target the PROXY address, not implementation
+            [0],
             [upgradeCalldata],
-            "Upgrade FinCube to V2",
-        ])
+            "Upgrade FinCube to V2"
+        )
 
         // Vote on upgrade proposal
-        await new Promise((resolve) => setTimeout(resolve, 2000))
-        await finCubeDAO.write.castVote([1n, true]) // owner votes
-        await finCubeDAO.write.castVote([1n, true], {
-            account: member1.account,
-        }) // member1 votes
-        await new Promise((resolve) => setTimeout(resolve, 4000))
+        await ethers.provider.send("evm_increaseTime", [1])
+        await ethers.provider.send("evm_mine")
+        await finCubeDAO.castVote(1, true) // owner votes
+        await finCubeDAO.connect(member1).castVote(1, true) // member1 votes
+        await ethers.provider.send("evm_increaseTime", [3])
+        await ethers.provider.send("evm_mine")
 
         // Execute the upgrade proposal - this calls upgradeToAndCall on the proxy
-        await finCubeDAO.write.executeProposal([1n])
+        await finCubeDAO.executeProposal(1)
 
         // Verify upgrade succeeded by checking implementation address changed
-        const newImplementation = await publicClient.getStorageAt({
-            address: finCube.address, // Check proxy's implementation storage
-            slot: implementationSlot,
-        })
+        const newImplementation = await ethers.provider.getStorage(
+            await finCube.getAddress(), // Check proxy's implementation storage
+            implementationSlot
+        )
 
         // Implementation should have changed
-        assert.notEqual(originalImplementation, newImplementation)
+        expect(originalImplementation).to.not.equal(newImplementation)
 
         // The new implementation should point to finCubeV2 address (padded to 32 bytes)
         const expectedImplementation =
-            "0x" + "0".repeat(24) + finCubeV2.address.slice(2).toLowerCase()
-        assert.equal(newImplementation?.toLowerCase(), expectedImplementation)
+            "0x" +
+            "0".repeat(24) +
+            (await finCubeV2.getAddress()).slice(2).toLowerCase()
+        expect(newImplementation.toLowerCase()).to.equal(expectedImplementation)
 
         // Verify state/storage was preserved after upgrade (this is the key benefit of proxies)
-        const daoAfterUpgrade = (await finCube.read.dao()) as string
-        const tokenAfterUpgrade = (await finCube.read.approvedERC20()) as string
+        const daoAfterUpgrade = await finCube.dao()
+        const tokenAfterUpgrade = await finCube.approvedERC20()
 
-        assert.equal(getAddress(daoAfterUpgrade), getAddress(originalDAO))
-        assert.equal(getAddress(tokenAfterUpgrade), getAddress(originalToken))
+        expect(daoAfterUpgrade.toLowerCase()).to.equal(
+            originalDAO.toLowerCase()
+        )
+        expect(tokenAfterUpgrade.toLowerCase()).to.equal(
+            originalToken.toLowerCase()
+        )
 
         // Verify contract functionality still works after upgrade
         // Test that we can still call functions on the upgraded contract
-        const daoStillAccessible = await finCube.read.dao()
-        const tokenStillAccessible = await finCube.read.approvedERC20()
+        const daoStillAccessible = await finCube.dao()
+        const tokenStillAccessible = await finCube.approvedERC20()
 
-        assert.ok(daoStillAccessible)
-        assert.ok(tokenStillAccessible)
+        expect(daoStillAccessible).to.not.equal(ethers.ZeroAddress)
+        expect(tokenStillAccessible).to.not.equal(ethers.ZeroAddress)
 
-        // Test that upgrade authorization still works (only DAO can upgrade)
-        const finCubeV3 = await viem.deployContract("FinCube")
-        try {
-            await finCube.write.upgradeToAndCall([finCubeV3.address, "0x"], {
-                account: owner.account,
-            })
-            assert.fail(
-                "Should have failed - only DAO can upgrade after upgrade"
-            )
-        } catch (error: any) {
-            assert.ok(
-                error.message.includes("Only DAO") ||
-                    error.message.includes("UUPSUnauthorizedCallContext()")
-            )
-        }
+        // Test that upgrade authorization still works (only DAO can upgrade after upgrade)
+        const finCubeV3 = await FinCube.deploy()
+        await expect(
+            finCube
+                .connect(owner)
+                .upgradeToAndCall(await finCubeV3.getAddress(), "0x")
+        ).to.be.revertedWith("Only DAO")
     })
 
     it("Should successfully upgrade FinCubeDAO contract and verify upgrade", async function () {
-        const [owner, nonOwner] = await viem.getWalletClients()
+        const [owner, nonOwner] = await ethers.getSigners()
 
         /*
          * IMPORTANT: UUPS upgrades require PROXY contracts for the same reasons as above.
@@ -1127,458 +1035,865 @@ describe("FinCube", async function () {
          */
 
         // Deploy DAO implementation contract (logic only, no state)
-        const finCubeDAOImpl = await viem.deployContract("FinCubeDAO")
+        const FinCubeDAO = await ethers.getContractFactory("FinCubeDAO")
+        const finCubeDAOImpl = await FinCubeDAO.deploy()
 
         // Create initialization data for DAO proxy
-        const daoInitData = encodeFunctionData({
-            abi: [
-                {
-                    name: "initialize",
-                    type: "function",
-                    inputs: [
-                        { name: "_daoURI", type: "string" },
-                        { name: "_ownerURI", type: "string" },
-                    ],
-                },
-            ],
-            functionName: "initialize",
-            args: ["Test DAO URI", "Owner URI"],
-        })
+        const daoInitData = finCubeDAOImpl.interface.encodeFunctionData(
+            "initialize",
+            ["Test DAO URI", "Owner URI"]
+        )
 
         // Deploy DAO proxy that points to DAO implementation and initializes
-        const finCubeDAOProxy = await viem.deployContract("TestERC1967Proxy", [
-            finCubeDAOImpl.address,
-            daoInitData,
-        ])
+        const TestERC1967Proxy = await ethers.getContractFactory(
+            "TestERC1967Proxy"
+        )
+        const finCubeDAOProxy = await TestERC1967Proxy.deploy(
+            await finCubeDAOImpl.getAddress(),
+            daoInitData
+        )
 
         // Get contract instance that points to proxy address (this holds the state)
-        const finCubeDAO = await viem.getContractAt(
+        const finCubeDAO = await ethers.getContractAt(
             "FinCubeDAO",
-            finCubeDAOProxy.address
+            await finCubeDAOProxy.getAddress()
         )
 
         // Store original state to verify it's preserved after upgrade
-        const originalOwner = (await finCubeDAO.read.owner()) as string
+        const originalOwner = await finCubeDAO.owner()
 
         // Set some state to verify preservation across upgrade
-        await finCubeDAO.write.setVotingDelay([5n])
-        await finCubeDAO.write.setVotingPeriod([10n])
+        await finCubeDAO.setVotingDelay(5)
+        await finCubeDAO.setVotingPeriod(10)
 
         const stateBeforeUpgrade = {
-            owner: (await finCubeDAO.read.owner()) as string,
-            votingDelay: (await finCubeDAO.read.votingDelay()) as bigint,
-            votingPeriod: (await finCubeDAO.read.votingPeriod()) as bigint,
+            owner: await finCubeDAO.owner(),
+            votingDelay: await finCubeDAO.votingDelay(),
+            votingPeriod: await finCubeDAO.votingPeriod(),
         }
 
         // Deploy new DAO implementation (V2) - this is just the logic, no state
-        const finCubeDAOV2 = await viem.deployContract("FinCubeDAO")
+        const finCubeDAOV2 = await FinCubeDAO.deploy()
 
         // Get implementation address before upgrade from the proxy's storage
         const implementationSlot =
             "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc"
-        const originalImplementation = await publicClient.getStorageAt({
-            address: finCubeDAO.address, // This is the proxy address holding the state
-            slot: implementationSlot,
-        })
+        const originalImplementation = await ethers.provider.getStorage(
+            await finCubeDAO.getAddress(), // This is the proxy address holding the state
+            implementationSlot
+        )
 
         // Owner performs the upgrade directly (since DAO allows owner to upgrade)
-        await finCubeDAO.write.upgradeToAndCall([finCubeDAOV2.address, "0x"], {
-            account: owner.account,
-        })
+        await finCubeDAO
+            .connect(owner)
+            .upgradeToAndCall(await finCubeDAOV2.getAddress(), "0x")
 
         // Verify upgrade succeeded by checking implementation address changed
-        const newImplementation = await publicClient.getStorageAt({
-            address: finCubeDAO.address, // Check proxy's implementation storage
-            slot: implementationSlot,
-        })
+        const newImplementation = await ethers.provider.getStorage(
+            await finCubeDAO.getAddress(), // Check proxy's implementation storage
+            implementationSlot
+        )
 
         // Implementation should have changed
-        assert.notEqual(originalImplementation, newImplementation)
+        expect(originalImplementation).to.not.equal(newImplementation)
 
         // The new implementation should point to finCubeDAOV2 address (padded to 32 bytes)
         const expectedImplementation =
-            "0x" + "0".repeat(24) + finCubeDAOV2.address.slice(2).toLowerCase()
-        assert.equal(newImplementation?.toLowerCase(), expectedImplementation)
+            "0x" +
+            "0".repeat(24) +
+            (await finCubeDAOV2.getAddress()).slice(2).toLowerCase()
+        expect(newImplementation.toLowerCase()).to.equal(expectedImplementation)
 
         // Verify state/storage was preserved after upgrade (key benefit of proxy pattern)
         const stateAfterUpgrade = {
-            owner: (await finCubeDAO.read.owner()) as string,
-            votingDelay: (await finCubeDAO.read.votingDelay()) as bigint,
-            votingPeriod: (await finCubeDAO.read.votingPeriod()) as bigint,
+            owner: await finCubeDAO.owner(),
+            votingDelay: await finCubeDAO.votingDelay(),
+            votingPeriod: await finCubeDAO.votingPeriod(),
         }
 
-        assert.equal(
-            getAddress(stateAfterUpgrade.owner),
-            getAddress(stateBeforeUpgrade.owner)
+        expect(stateAfterUpgrade.owner.toLowerCase()).to.equal(
+            stateBeforeUpgrade.owner.toLowerCase()
         )
-        assert.equal(
-            stateAfterUpgrade.votingDelay,
+        expect(stateAfterUpgrade.votingDelay).to.equal(
             stateBeforeUpgrade.votingDelay
         )
-        assert.equal(
-            stateAfterUpgrade.votingPeriod,
+        expect(stateAfterUpgrade.votingPeriod).to.equal(
             stateBeforeUpgrade.votingPeriod
         )
 
         // Verify contract functionality still works after upgrade
         // Test that we can still call owner-only functions
-        await finCubeDAO.write.setVotingDelay([7n], { account: owner.account })
-        const newVotingDelay = (await finCubeDAO.read.votingDelay()) as bigint
-        assert.equal(newVotingDelay, 7n)
+        await finCubeDAO.connect(owner).setVotingDelay(7)
+        const newVotingDelay = await finCubeDAO.votingDelay()
+        expect(newVotingDelay).to.equal(7n)
 
         // Test that access control still works (only owner can upgrade)
-        const finCubeDAOV3 = await viem.deployContract("FinCubeDAO")
-        try {
-            await finCubeDAO.write.upgradeToAndCall(
-                [finCubeDAOV3.address, "0x"],
-                {
-                    account: nonOwner.account,
-                }
-            )
-            assert.fail(
-                "Should have failed - only owner can upgrade after upgrade"
-            )
-        } catch (error: any) {
-            assert.ok(
-                error.message.includes("OwnableUnauthorizedAccount") ||
-                    error.message.includes("caller is not the owner") ||
-                    error.message.includes("UUPSUnauthorizedCallContext()")
-            )
-        }
+        const finCubeDAOV3 = await FinCubeDAO.deploy()
+        await expect(
+            finCubeDAO
+                .connect(nonOwner)
+                .upgradeToAndCall(await finCubeDAOV3.getAddress(), "0x")
+        ).to.be.revertedWithCustomError(
+            finCubeDAO,
+            "OwnableUnauthorizedAccount"
+        )
     })
     it("Should reject execution without majority votes", async function () {
-        const [owner, member1] = await viem.getWalletClients()
+        const [owner, member1] = await ethers.getSigners()
 
         // Deploy contracts
-        const finCubeDAO = await viem.deployContract("FinCubeDAO")
-        const mockERC20 = await viem.deployContract("MockERC20", [
-            "Test Token",
-            "TEST",
-            18n,
-        ])
-        const finCube = await viem.deployContract("FinCube")
+        const FinCubeDAO = await ethers.getContractFactory("FinCubeDAO")
+        const finCubeDAO = await FinCubeDAO.deploy()
+
+        const MockERC20 = await ethers.getContractFactory("MockERC20")
+        const mockERC20 = await MockERC20.deploy("Test Token", "TEST", 18)
+
+        const FinCube = await ethers.getContractFactory("FinCube")
+        const finCube = await FinCube.deploy()
 
         // Initialize contracts
-        await finCubeDAO.write.initialize(["Test DAO URI", "Owner URI"])
-        await finCube.write.initialize([finCubeDAO.address, mockERC20.address])
-
-        // Set up DAO parameters
-        await finCubeDAO.write.setVotingDelay([1n])
-        await finCubeDAO.write.setVotingPeriod([120n])
-
-        // Register new member
-        await finCubeDAO.write.registerMember(
-            [member1.account.address, "Member 1 URI"],
-            { account: member1.account }
+        await finCubeDAO.initialize("Test DAO URI", "Owner URI")
+        await finCube.initialize(
+            await finCubeDAO.getAddress(),
+            await mockERC20.getAddress()
         )
 
+        // Set up DAO parameters
+        await finCubeDAO.setVotingDelay(1)
+        await finCubeDAO.setVotingPeriod(120)
+
+        // Register new member
+        await finCubeDAO
+            .connect(member1)
+            .registerMember(member1.address, "Member 1 URI")
+
         // Create approval proposal
-        await finCubeDAO.write.newMemberApprovalProposal([
-            member1.account.address,
-            "Test proposal",
-        ])
+        await finCubeDAO.newMemberApprovalProposal(
+            member1.address,
+            "Test proposal"
+        )
 
         // Wait for voting delay
-        await rpc.request({ method: "evm_increaseTime", params: [1] })
-        await rpc.request({ method: "evm_mine" })
+        await ethers.provider.send("evm_increaseTime", [1])
+        await ethers.provider.send("evm_mine")
 
         // NO VOTES CAST - zero yes votes
         // Wait for full voting period (120s)
-        await rpc.request({ method: "evm_increaseTime", params: [120] })
-        await rpc.request({ method: "evm_mine" })
+        await ethers.provider.send("evm_increaseTime", [120])
+        await ethers.provider.send("evm_mine")
 
         // Should fail - 0 yes votes, needs at least 1 vote
-        try {
-            await finCubeDAO.write.executeProposal([0n])
-            assert.fail("Should have failed - no majority vote")
-        } catch (error: any) {
-            assert.ok(
-                error.message.includes("Proposal doesn't have majority vote")
-            )
-        }
+        await expect(finCubeDAO.executeProposal(0)).to.be.revertedWith(
+            "Proposal doesn't have majority vote"
+        )
     })
 
     it("Should initialize with owner as first member", async function () {
-        const [owner] = await viem.getWalletClients()
+        const [owner] = await ethers.getSigners()
 
         // Deploy and initialize DAO
-        const finCubeDAO = await viem.deployContract("FinCubeDAO")
-        await finCubeDAO.write.initialize(["Test DAO URI", "Owner URI"])
+        const FinCubeDAO = await ethers.getContractFactory("FinCubeDAO")
+        const finCubeDAO = await FinCubeDAO.deploy()
+        await finCubeDAO.initialize("Test DAO URI", "Owner URI")
 
         // Owner should be first approved member after initialize
-        const isOwnerApproved = await finCubeDAO.read.checkIsMemberApproved([
-            owner.account.address,
-        ])
-        assert.equal(isOwnerApproved, true)
+        const isOwnerApproved = await finCubeDAO.checkIsMemberApproved(
+            owner.address
+        )
+        expect(isOwnerApproved).to.equal(true)
     })
 
     it("Should allow anyone to register new member", async function () {
-        const [owner, newMember] = await viem.getWalletClients()
+        const [owner, newMember] = await ethers.getSigners()
 
         // Deploy DAO
-        const finCubeDAO = await viem.deployContract("FinCubeDAO")
-        await finCubeDAO.write.initialize(["Test DAO URI", "Owner URI"])
+        const FinCubeDAO = await ethers.getContractFactory("FinCubeDAO")
+        const finCubeDAO = await FinCubeDAO.deploy()
+        await finCubeDAO.initialize("Test DAO URI", "Owner URI")
         // Set voting params required by proposal creation
-        await finCubeDAO.write.setVotingDelay([1n])
-        await finCubeDAO.write.setVotingPeriod([3n])
+        await finCubeDAO.setVotingDelay(1)
+        await finCubeDAO.setVotingPeriod(3)
 
         // Register new member (anyone can call)
-        const tx = await finCubeDAO.write.registerMember(
-            [newMember.account.address, "member://uri"],
-            { account: newMember.account }
-        )
+        const tx = await finCubeDAO
+            .connect(newMember)
+            .registerMember(newMember.address, "member://uri")
 
         // Verify member was registered: second registration should revert
-        try {
-            await finCubeDAO.write.registerMember(
-                [newMember.account.address, "member://uri"],
-                { account: newMember.account }
-            )
-            assert.fail("Should have failed - already a member")
-        } catch (error: any) {
-            assert.ok(error.message.includes("Already a member"))
-        }
+        await expect(
+            finCubeDAO
+                .connect(newMember)
+                .registerMember(newMember.address, "member://uri")
+        ).to.be.revertedWith("Already a member")
     })
 
     it("Should only allow members to create approval proposals", async function () {
-        const [owner, newMember, nonMember] = await viem.getWalletClients()
+        const [owner, newMember, nonMember] = await ethers.getSigners()
 
         // Deploy DAO
-        const finCubeDAO = await viem.deployContract("FinCubeDAO")
-        await finCubeDAO.write.initialize(["Test DAO URI", "Owner URI"])
+        const FinCubeDAO = await ethers.getContractFactory("FinCubeDAO")
+        const finCubeDAO = await FinCubeDAO.deploy()
+        await finCubeDAO.initialize("Test DAO URI", "Owner URI")
 
         // Register member first (pending status)
-        await finCubeDAO.write.registerMember(
-            [newMember.account.address, "member://uri"],
-            { account: newMember.account }
-        )
+        await finCubeDAO
+            .connect(newMember)
+            .registerMember(newMember.address, "member://uri")
 
         // Non-members should not be able to create proposals
-        await assert.rejects(
-            async () => {
-                await finCubeDAO.write.newMemberApprovalProposal(
-                    [nonMember.account.address, "Test proposal"],
-                    { account: nonMember.account }
-                )
-            },
-            (error: any) =>
-                error.message.includes("Not a member") ||
-                error.message.includes("Member not approved")
-        )
+        await expect(
+            finCubeDAO
+                .connect(nonMember)
+                .newMemberApprovalProposal(nonMember.address, "Test proposal")
+        ).to.be.revertedWith("Not a member")
 
         // Approved members can create proposals
-        await finCubeDAO.write.setVotingDelay([1n], { account: owner.account })
-        await finCubeDAO.write.setVotingPeriod([5n], { account: owner.account })
+        await finCubeDAO.connect(owner).setVotingDelay(1)
+        await finCubeDAO.connect(owner).setVotingPeriod(5)
 
-        await finCubeDAO.write.newMemberApprovalProposal(
-            [newMember.account.address, "Test proposal"],
-            { account: owner.account }
-        )
+        await finCubeDAO
+            .connect(owner)
+            .newMemberApprovalProposal(newMember.address, "Test proposal")
     })
 
     it("Should enforce voting delay before execution", async function () {
-        const [owner, newMember] = await viem.getWalletClients()
+        const [owner, newMember] = await ethers.getSigners()
 
         // Deploy DAO
-        const finCubeDAO = await viem.deployContract("FinCubeDAO")
-        await finCubeDAO.write.initialize(["Test DAO URI", "Owner URI"])
+        const FinCubeDAO = await ethers.getContractFactory("FinCubeDAO")
+        const finCubeDAO = await FinCubeDAO.deploy()
+        await finCubeDAO.initialize("Test DAO URI", "Owner URI")
 
         // Set up DAO parameters
-        await finCubeDAO.write.setVotingDelay([1n])
-        await finCubeDAO.write.setVotingPeriod([3n])
+        await finCubeDAO.setVotingDelay(1)
+        await finCubeDAO.setVotingPeriod(3)
 
         // Register and create proposal
-        await finCubeDAO.write.registerMember(
-            [newMember.account.address, "member://uri"],
-            { account: newMember.account }
+        await finCubeDAO
+            .connect(newMember)
+            .registerMember(newMember.address, "member://uri")
+        await finCubeDAO.newMemberApprovalProposal(
+            newMember.address,
+            "Test proposal"
         )
-        await finCubeDAO.write.newMemberApprovalProposal([
-            newMember.account.address,
-            "Test proposal",
-        ])
 
         // Wait for voting delay
-        await rpc.request({ method: "evm_increaseTime", params: [1] })
-        await rpc.request({ method: "evm_mine" })
+        await ethers.provider.send("evm_increaseTime", [1])
+        await ethers.provider.send("evm_mine")
 
         // Vote yes
-        await finCubeDAO.write.castVote([0n, true])
+        await finCubeDAO.castVote(0, true)
 
         // Should fail before voting period ends
-        try {
-            await finCubeDAO.write.executeProposal([0n])
-            assert.fail("Should have failed - voting still going on")
-        } catch (error: any) {
-            assert.ok(error.message.includes("Voting still going on"))
-        }
+        await expect(finCubeDAO.executeProposal(0)).to.be.revertedWith(
+            "Voting still going on"
+        )
 
         // Wait for voting period to end
-        await rpc.request({ method: "evm_increaseTime", params: [3] })
-        await rpc.request({ method: "evm_mine" })
+        await ethers.provider.send("evm_increaseTime", [3])
+        await ethers.provider.send("evm_mine")
 
         // Now should succeed
-        await finCubeDAO.write.executeProposal([0n])
+        await finCubeDAO.executeProposal(0)
 
         // Verify member is approved
-        const isApproved = await finCubeDAO.read.checkIsMemberApproved([
-            newMember.account.address,
-        ])
-        assert.equal(isApproved, true)
+        const isApproved = await finCubeDAO.checkIsMemberApproved(
+            newMember.address
+        )
+        expect(isApproved).to.equal(true)
     })
 
     it("Should complete full member approval flow", async function () {
-        const [owner, newMember] = await viem.getWalletClients()
+        const [owner, newMember] = await ethers.getSigners()
 
         // Deploy DAO
-        const finCubeDAO = await viem.deployContract("FinCubeDAO")
-        await finCubeDAO.write.initialize(["Test DAO URI", "Owner URI"])
+        const FinCubeDAO = await ethers.getContractFactory("FinCubeDAO")
+        const finCubeDAO = await FinCubeDAO.deploy()
+        await finCubeDAO.initialize("Test DAO URI", "Owner URI")
 
         // Set up DAO parameters
-        await finCubeDAO.write.setVotingDelay([1n])
-        await finCubeDAO.write.setVotingPeriod([3n])
+        await finCubeDAO.setVotingDelay(1)
+        await finCubeDAO.setVotingPeriod(3)
 
         // 1. Register new member (anyone can call)
-        await finCubeDAO.write.registerMember(
-            [newMember.account.address, "member://uri"],
-            { account: newMember.account }
-        )
+        await finCubeDAO
+            .connect(newMember)
+            .registerMember(newMember.address, "member://uri")
 
         // 2. Create approval proposal (only members can call)
-        await finCubeDAO.write.newMemberApprovalProposal([
-            newMember.account.address,
-            "Approve new member",
-        ])
+        await finCubeDAO.newMemberApprovalProposal(
+            newMember.address,
+            "Approve new member"
+        )
 
         // 3. Wait for voting delay and vote
-        await rpc.request({ method: "evm_increaseTime", params: [1] })
-        await rpc.request({ method: "evm_mine" })
-        await finCubeDAO.write.castVote([0n, true])
+        await ethers.provider.send("evm_increaseTime", [1])
+        await ethers.provider.send("evm_mine")
+        await finCubeDAO.castVote(0, true)
 
         // 4. Wait for voting period to end
-        await rpc.request({ method: "evm_increaseTime", params: [3] })
-        await rpc.request({ method: "evm_mine" })
+        await ethers.provider.send("evm_increaseTime", [3])
+        await ethers.provider.send("evm_mine")
 
         // 5. Execute proposal
-        await finCubeDAO.write.executeProposal([0n])
+        await finCubeDAO.executeProposal(0)
 
         // Verify new member is approved
-        const isApproved = await finCubeDAO.read.checkIsMemberApproved([
-            newMember.account.address,
-        ])
-        assert.equal(isApproved, true)
+        const isApproved = await finCubeDAO.checkIsMemberApproved(
+            newMember.address
+        )
+        expect(isApproved).to.equal(true)
     })
 
     it("Should not allow voting after voting period ends", async function () {
-        const [owner, newMember] = await viem.getWalletClients()
+        const [owner, newMember] = await ethers.getSigners()
 
         // Deploy DAO
-        const finCubeDAO = await viem.deployContract("FinCubeDAO")
-        await finCubeDAO.write.initialize(["Test DAO URI", "Owner URI"])
+        const FinCubeDAO = await ethers.getContractFactory("FinCubeDAO")
+        const finCubeDAO = await FinCubeDAO.deploy()
+        await finCubeDAO.initialize("Test DAO URI", "Owner URI")
 
         // Set up DAO parameters
-        await finCubeDAO.write.setVotingDelay([1n])
-        await finCubeDAO.write.setVotingPeriod([3n])
+        await finCubeDAO.setVotingDelay(1)
+        await finCubeDAO.setVotingPeriod(3)
 
         // Register and create proposal
-        await finCubeDAO.write.registerMember(
-            [newMember.account.address, "member://uri"],
-            { account: newMember.account }
+        await finCubeDAO
+            .connect(newMember)
+            .registerMember(newMember.address, "member://uri")
+        await finCubeDAO.newMemberApprovalProposal(
+            newMember.address,
+            "Test proposal"
         )
-        await finCubeDAO.write.newMemberApprovalProposal([
-            newMember.account.address,
-            "Test proposal",
-        ])
 
         // Wait for voting delay
-        await rpc.request({ method: "evm_increaseTime", params: [1] })
-        await rpc.request({ method: "evm_mine" })
+        await ethers.provider.send("evm_increaseTime", [1])
+        await ethers.provider.send("evm_mine")
 
         // Wait for voting period to end
-        await rpc.request({ method: "evm_increaseTime", params: [3] })
-        await rpc.request({ method: "evm_mine" })
+        await ethers.provider.send("evm_increaseTime", [3])
+        await ethers.provider.send("evm_mine")
 
         // Voting attempt after voting period should fail
-        try {
-            await finCubeDAO.write.castVote([0n, true])
-            assert.fail("Should have failed - voting period ended")
-        } catch (error: any) {
-            assert.ok(
-                error.message.includes("Voting is not allowed at this time")
-            )
-        }
+        await expect(finCubeDAO.castVote(0, true)).to.be.revertedWith(
+            "Voting is not allowed at this time"
+        )
     })
 
     it("Should not allow executing proposal before voting period ends", async function () {
-        const [owner, newMember] = await viem.getWalletClients()
+        const [owner, newMember] = await ethers.getSigners()
 
         // Deploy DAO
-        const finCubeDAO = await viem.deployContract("FinCubeDAO")
-        await finCubeDAO.write.initialize(["Test DAO URI", "Owner URI"])
+        const FinCubeDAO = await ethers.getContractFactory("FinCubeDAO")
+        const finCubeDAO = await FinCubeDAO.deploy()
+        await finCubeDAO.initialize("Test DAO URI", "Owner URI")
 
         // Set up DAO parameters
-        await finCubeDAO.write.setVotingDelay([1n])
-        await finCubeDAO.write.setVotingPeriod([3n])
+        await finCubeDAO.setVotingDelay(1)
+        await finCubeDAO.setVotingPeriod(3)
 
         // Register and create proposal
-        await finCubeDAO.write.registerMember(
-            [newMember.account.address, "member://uri"],
-            { account: newMember.account }
+        await finCubeDAO
+            .connect(newMember)
+            .registerMember(newMember.address, "member://uri")
+        await finCubeDAO.newMemberApprovalProposal(
+            newMember.address,
+            "Test proposal"
         )
-        await finCubeDAO.write.newMemberApprovalProposal([
-            newMember.account.address,
-            "Test proposal",
-        ])
 
         // Wait for voting delay
-        await rpc.request({ method: "evm_increaseTime", params: [1] })
-        await rpc.request({ method: "evm_mine" })
+        await ethers.provider.send("evm_increaseTime", [1])
+        await ethers.provider.send("evm_mine")
 
         // Vote
-        await finCubeDAO.write.castVote([0n, true])
+        await finCubeDAO.castVote(0, true)
 
         // Try executing too early (before voting period ends)
-        try {
-            await finCubeDAO.write.executeProposal([0n])
-            assert.fail("Should have failed - voting still going on")
-        } catch (error: any) {
-            assert.ok(error.message.includes("Voting still going on"))
-        }
+        await expect(finCubeDAO.executeProposal(0)).to.be.revertedWith(
+            "Voting still going on"
+        )
     })
 
     it("Should not allow voting twice on the same proposal", async function () {
-        const [owner, newMember] = await viem.getWalletClients()
+        const [owner, newMember] = await ethers.getSigners()
 
         // Deploy DAO
-        const finCubeDAO = await viem.deployContract("FinCubeDAO")
-        await finCubeDAO.write.initialize(["Test DAO URI", "Owner URI"])
+        const FinCubeDAO = await ethers.getContractFactory("FinCubeDAO")
+        const finCubeDAO = await FinCubeDAO.deploy()
+        await finCubeDAO.initialize("Test DAO URI", "Owner URI")
 
         // Set up DAO parameters
-        await finCubeDAO.write.setVotingDelay([1n])
-        await finCubeDAO.write.setVotingPeriod([3n])
+        await finCubeDAO.setVotingDelay(1)
+        await finCubeDAO.setVotingPeriod(3)
 
         // Register and create proposal
-        await finCubeDAO.write.registerMember(
-            [newMember.account.address, "member://uri"],
-            { account: newMember.account }
+        await finCubeDAO
+            .connect(newMember)
+            .registerMember(newMember.address, "member://uri")
+        await finCubeDAO.newMemberApprovalProposal(
+            newMember.address,
+            "Test proposal"
         )
-        await finCubeDAO.write.newMemberApprovalProposal([
-            newMember.account.address,
-            "Test proposal",
-        ])
 
         // Wait for voting delay
-        await rpc.request({ method: "evm_increaseTime", params: [1] })
-        await rpc.request({ method: "evm_mine" })
+        await ethers.provider.send("evm_increaseTime", [1])
+        await ethers.provider.send("evm_mine")
 
         // Vote once
-        await finCubeDAO.write.castVote([0n, true])
+        await finCubeDAO.castVote(0, true)
 
         // Try to vote again - should fail
-        try {
-            await finCubeDAO.write.castVote([0n, false])
-            assert.fail("Should have failed - already voted")
-        } catch (error: any) {
-            assert.ok(error.message.includes("Already voted for this proposal"))
+        await expect(finCubeDAO.castVote(0, false)).to.be.revertedWith(
+            "Already voted for this proposal"
+        )
+    })
+
+    it("Should prevent double spending with same nullifier", async function () {
+        const [owner, member1, member2] = await ethers.getSigners()
+
+        // Deploy contracts
+        const FinCubeDAO = await ethers.getContractFactory("FinCubeDAO")
+        const finCubeDAO = await FinCubeDAO.deploy()
+
+        const MockERC20 = await ethers.getContractFactory("MockERC20")
+        const mockERC20 = await MockERC20.deploy("Test Token", "TEST", 18)
+
+        const FinCube = await ethers.getContractFactory("FinCube")
+        const finCube = await FinCube.deploy()
+
+        // Initialize contracts
+        await finCubeDAO.initialize("Test DAO URI", "Owner URI")
+        await finCube.initialize(
+            await finCubeDAO.getAddress(),
+            await mockERC20.getAddress()
+        )
+
+        // Set up DAO and approve members
+        await finCubeDAO.setVotingDelay(1)
+        await finCubeDAO.setVotingPeriod(3)
+
+        // Register and approve member1
+        await finCubeDAO
+            .connect(member1)
+            .registerMember(member1.address, "Member 1 URI")
+        await finCubeDAO.newMemberApprovalProposal(
+            member1.address,
+            "Approve Member 1"
+        )
+        await ethers.provider.send("evm_increaseTime", [1])
+        await ethers.provider.send("evm_mine")
+        await finCubeDAO.castVote(0, true)
+        await ethers.provider.send("evm_increaseTime", [3])
+        await ethers.provider.send("evm_mine")
+        await finCubeDAO.executeProposal(0)
+
+        // Register and approve member2
+        await finCubeDAO
+            .connect(member2)
+            .registerMember(member2.address, "Member 2 URI")
+        await finCubeDAO.newMemberApprovalProposal(
+            member2.address,
+            "Approve Member 2"
+        )
+        await ethers.provider.send("evm_increaseTime", [1])
+        await ethers.provider.send("evm_mine")
+        await finCubeDAO.castVote(1, true)
+        await ethers.provider.send("evm_increaseTime", [3])
+        await ethers.provider.send("evm_mine")
+        await finCubeDAO.executeProposal(1)
+
+        // Mint tokens and approve spending
+        const mintAmount = 1000n * 10n ** 18n
+        await mockERC20.mint(member1.address, mintAmount)
+        await mockERC20
+            .connect(member1)
+            .approve(await finCube.getAddress(), mintAmount)
+
+        // First transfer with a specific nullifier
+        const transferAmount = 100n * 10n ** 18n
+        const duplicateNullifier =
+            "0xaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccdd"
+
+        await finCube
+            .connect(member1)
+            .safeTransfer(
+                member1.address,
+                member2.address,
+                transferAmount,
+                "First transfer",
+                duplicateNullifier
+            )
+
+        // Verify first transfer succeeded
+        const member2BalanceAfterFirst = await mockERC20.balanceOf(
+            member2.address
+        )
+        expect(member2BalanceAfterFirst).to.equal(transferAmount)
+
+        // Attempt second transfer with the SAME nullifier - should fail
+        await expect(
+            finCube.connect(member1).safeTransfer(
+                member1.address,
+                member2.address,
+                transferAmount,
+                "First transfer", // Same memo
+                duplicateNullifier // Same nullifier - this should cause failure
+            )
+        ).to.be.revertedWith("Nullifier already used")
+
+        // Verify balance hasn't changed (double spending prevented)
+        const member2BalanceAfterFailed = await mockERC20.balanceOf(
+            member2.address
+        )
+        expect(member2BalanceAfterFailed).to.equal(transferAmount) // Still same as after first transfer
+    })
+
+    it("Should allow multiple transfers with different nullifiers", async function () {
+        const [owner, member1, member2] = await ethers.getSigners()
+
+        // Deploy contracts
+        const FinCubeDAO = await ethers.getContractFactory("FinCubeDAO")
+        const finCubeDAO = await FinCubeDAO.deploy()
+
+        const MockERC20 = await ethers.getContractFactory("MockERC20")
+        const mockERC20 = await MockERC20.deploy("Test Token", "TEST", 18)
+
+        const FinCube = await ethers.getContractFactory("FinCube")
+        const finCube = await FinCube.deploy()
+
+        // Initialize contracts
+        await finCubeDAO.initialize("Test DAO URI", "Owner URI")
+        await finCube.initialize(
+            await finCubeDAO.getAddress(),
+            await mockERC20.getAddress()
+        )
+
+        // Set up DAO and approve members
+        await finCubeDAO.setVotingDelay(1)
+        await finCubeDAO.setVotingPeriod(3)
+
+        // Register and approve member1
+        await finCubeDAO
+            .connect(member1)
+            .registerMember(member1.address, "Member 1 URI")
+        await finCubeDAO.newMemberApprovalProposal(
+            member1.address,
+            "Approve Member 1"
+        )
+        await ethers.provider.send("evm_increaseTime", [1])
+        await ethers.provider.send("evm_mine")
+        await finCubeDAO.castVote(0, true)
+        await ethers.provider.send("evm_increaseTime", [3])
+        await ethers.provider.send("evm_mine")
+        await finCubeDAO.executeProposal(0)
+
+        // Register and approve member2
+        await finCubeDAO
+            .connect(member2)
+            .registerMember(member2.address, "Member 2 URI")
+        await finCubeDAO.newMemberApprovalProposal(
+            member2.address,
+            "Approve Member 2"
+        )
+        await ethers.provider.send("evm_increaseTime", [1])
+        await ethers.provider.send("evm_mine")
+        await finCubeDAO.castVote(1, true)
+        await ethers.provider.send("evm_increaseTime", [3])
+        await ethers.provider.send("evm_mine")
+        await finCubeDAO.executeProposal(1)
+
+        // Mint tokens and approve spending
+        const mintAmount = 1000n * 10n ** 18n
+        await mockERC20.mint(member1.address, mintAmount)
+        await mockERC20
+            .connect(member1)
+            .approve(await finCube.getAddress(), mintAmount)
+
+        const transferAmount = 100n * 10n ** 18n
+
+        // First transfer with nullifier1
+        const nullifier1 =
+            "0x1111111111111111111111111111111111111111111111111111111111111111"
+        await finCube.connect(member1).safeTransfer(
+            member1.address,
+            member2.address,
+            transferAmount,
+            "Same memo", // Same memo as second transfer
+            nullifier1 // Different nullifier
+        )
+
+        // Second transfer with nullifier2 (should succeed with different nullifier)
+        const nullifier2 =
+            "0x2222222222222222222222222222222222222222222222222222222222222222"
+        await finCube.connect(member1).safeTransfer(
+            member1.address,
+            member2.address,
+            transferAmount,
+            "Same memo", // Same memo as first transfer
+            nullifier2 // Different nullifier - should allow transfer
+        )
+
+        // Third transfer with nullifier3 (should also succeed)
+        const nullifier3 =
+            "0x3333333333333333333333333333333333333333333333333333333333333333"
+        await finCube.connect(member1).safeTransfer(
+            member1.address,
+            member2.address,
+            transferAmount,
+            "Same memo", // Same memo again
+            nullifier3 // Yet another different nullifier
+        )
+
+        // Verify all three transfers succeeded
+        const member2FinalBalance = await mockERC20.balanceOf(member2.address)
+        expect(member2FinalBalance).to.equal(transferAmount * 3n) // 3 successful transfers
+
+        const member1FinalBalance = await mockERC20.balanceOf(member1.address)
+        expect(member1FinalBalance).to.equal(mintAmount - transferAmount * 3n)
+    })
+
+    it("Should allow same nullifier when other transfer parameters change", async function () {
+        const [owner, member1, member2, member3] = await ethers.getSigners()
+
+        // Deploy contracts
+        const FinCubeDAO = await ethers.getContractFactory("FinCubeDAO")
+        const finCubeDAO = await FinCubeDAO.deploy()
+
+        const MockERC20 = await ethers.getContractFactory("MockERC20")
+        const mockERC20 = await MockERC20.deploy("Test Token", "TEST", 18)
+
+        const FinCube = await ethers.getContractFactory("FinCube")
+        const finCube = await FinCube.deploy()
+
+        // Initialize contracts
+        await finCubeDAO.initialize("Test DAO URI", "Owner URI")
+        await finCube.initialize(
+            await finCubeDAO.getAddress(),
+            await mockERC20.getAddress()
+        )
+
+        // Set up DAO and approve members
+        await finCubeDAO.setVotingDelay(1)
+        await finCubeDAO.setVotingPeriod(3)
+
+        // Register and approve all members
+        const members = [member1, member2, member3]
+        for (let i = 0; i < members.length; i++) {
+            await finCubeDAO
+                .connect(members[i])
+                .registerMember(members[i].address, `Member ${i + 1} URI`)
+            await finCubeDAO.newMemberApprovalProposal(
+                members[i].address,
+                `Approve Member ${i + 1}`
+            )
+            await ethers.provider.send("evm_increaseTime", [1])
+            await ethers.provider.send("evm_mine")
+            await finCubeDAO.castVote(i, true)
+            // For members after the first, we need the first member to vote too
+            if (i > 0) {
+                await finCubeDAO.connect(member1).castVote(i, true)
+            }
+            await ethers.provider.send("evm_increaseTime", [3])
+            await ethers.provider.send("evm_mine")
+            await finCubeDAO.executeProposal(i)
         }
+
+        // Mint tokens and approve spending
+        const mintAmount = 1000n * 10n ** 18n
+        await mockERC20.mint(member1.address, mintAmount)
+        await mockERC20
+            .connect(member1)
+            .approve(await finCube.getAddress(), mintAmount)
+
+        // Use the same nullifier for all transfers, but change other parameters
+        const sharedNullifier =
+            "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+
+        // Transfer 1: member1 -> member2, 50 tokens, "memo1"
+        await finCube
+            .connect(member1)
+            .safeTransfer(
+                member1.address,
+                member2.address,
+                50n * 10n ** 18n,
+                "memo1",
+                sharedNullifier
+            )
+
+        // Transfer 2: member1 -> member3, 50 tokens, "memo1" (different recipient)
+        await finCube.connect(member1).safeTransfer(
+            member1.address,
+            member3.address, // Different recipient
+            50n * 10n ** 18n,
+            "memo1",
+            sharedNullifier // Same nullifier should be OK
+        )
+
+        // Transfer 3: member1 -> member2, 75 tokens, "memo1" (different amount)
+        await finCube.connect(member1).safeTransfer(
+            member1.address,
+            member2.address,
+            75n * 10n ** 18n, // Different amount
+            "memo1",
+            sharedNullifier // Same nullifier should be OK
+        )
+
+        // Transfer 4: member1 -> member2, 50 tokens, "memo2" (different memo)
+        await finCube.connect(member1).safeTransfer(
+            member1.address,
+            member2.address,
+            50n * 10n ** 18n,
+            "memo2", // Different memo
+            sharedNullifier // Same nullifier should be OK
+        )
+
+        // Verify all transfers succeeded
+        const member2Balance = await mockERC20.balanceOf(member2.address)
+        const member3Balance = await mockERC20.balanceOf(member3.address)
+        const member1Balance = await mockERC20.balanceOf(member1.address)
+
+        // member2 received: 50 + 75 + 50 = 175 tokens
+        expect(member2Balance).to.equal(175n * 10n ** 18n)
+        // member3 received: 50 tokens
+        expect(member3Balance).to.equal(50n * 10n ** 18n)
+        // member1 sent: 50 + 50 + 75 + 50 = 225 tokens
+        expect(member1Balance).to.equal(mintAmount - 225n * 10n ** 18n)
+
+        // Now try exact duplicate of first transfer - should fail
+        await expect(
+            finCube.connect(member1).safeTransfer(
+                member1.address,
+                member2.address,
+                50n * 10n ** 18n,
+                "memo1", // Same as first transfer
+                sharedNullifier // Same nullifier + same parameters = should fail
+            )
+        ).to.be.revertedWith("Nullifier already used")
+    })
+
+    it("Should prevent nullifier reuse across different callers", async function () {
+        const [owner, member1, member2, member3] = await ethers.getSigners()
+
+        // Deploy contracts
+        const FinCubeDAO = await ethers.getContractFactory("FinCubeDAO")
+        const finCubeDAO = await FinCubeDAO.deploy()
+
+        const MockERC20 = await ethers.getContractFactory("MockERC20")
+        const mockERC20 = await MockERC20.deploy("Test Token", "TEST", 18)
+
+        const FinCube = await ethers.getContractFactory("FinCube")
+        const finCube = await FinCube.deploy()
+
+        // Quick initialization
+        await finCubeDAO.initialize("Test DAO URI", "Owner URI")
+        await finCube.initialize(
+            await finCubeDAO.getAddress(),
+            await mockERC20.getAddress()
+        )
+        await finCubeDAO.setVotingDelay(1)
+        await finCubeDAO.setVotingPeriod(3)
+
+        // Register and approve member1
+        await finCubeDAO
+            .connect(member1)
+            .registerMember(member1.address, "Member 1 URI")
+        await finCubeDAO.newMemberApprovalProposal(
+            member1.address,
+            "Approve Member 1"
+        )
+        await ethers.provider.send("evm_increaseTime", [1])
+        await ethers.provider.send("evm_mine")
+        await finCubeDAO.castVote(0, true)
+        await ethers.provider.send("evm_increaseTime", [3])
+        await ethers.provider.send("evm_mine")
+        await finCubeDAO.executeProposal(0)
+
+        // Register and approve member2
+        await finCubeDAO
+            .connect(member2)
+            .registerMember(member2.address, "Member 2 URI")
+        await finCubeDAO.newMemberApprovalProposal(
+            member2.address,
+            "Approve Member 2"
+        )
+        await ethers.provider.send("evm_increaseTime", [1])
+        await ethers.provider.send("evm_mine")
+        await finCubeDAO.castVote(1, true) // owner votes
+        await finCubeDAO.connect(member1).castVote(1, true) // member1 votes too
+        await ethers.provider.send("evm_increaseTime", [3])
+        await ethers.provider.send("evm_mine")
+        await finCubeDAO.executeProposal(1)
+
+        // Register and approve member3
+        await finCubeDAO
+            .connect(member3)
+            .registerMember(member3.address, "Member 3 URI")
+        await finCubeDAO.newMemberApprovalProposal(
+            member3.address,
+            "Approve Member 3"
+        )
+        await ethers.provider.send("evm_increaseTime", [1])
+        await ethers.provider.send("evm_mine")
+        await finCubeDAO.castVote(2, true) // owner votes
+        await finCubeDAO.connect(member1).castVote(2, true) // member1 votes too
+        await ethers.provider.send("evm_increaseTime", [3])
+        await ethers.provider.send("evm_mine")
+        await finCubeDAO.executeProposal(2)
+
+        // Mint tokens and approve spending for both member1 and member2
+        const mintAmount = 1000n * 10n ** 18n
+        await mockERC20.mint(member1.address, mintAmount)
+        await mockERC20.mint(member2.address, mintAmount)
+        await mockERC20
+            .connect(member1)
+            .approve(await finCube.getAddress(), mintAmount)
+        await mockERC20
+            .connect(member2)
+            .approve(await finCube.getAddress(), mintAmount)
+
+        // Test core nullifier functionality across different callers
+        const nullifier =
+            "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+
+        // First transfer: member1 -> member3
+        await finCube
+            .connect(member1)
+            .safeTransfer(
+                member1.address,
+                member3.address,
+                100n * 10n ** 18n,
+                "Test transfer",
+                nullifier
+            )
+
+        // Second transfer: member2 uses same nullifier but different from address
+        // This should SUCCEED because the transferId includes the 'from' address
+        // transferId = keccak256(abi.encode(from, to, amount, keccak256(memo), nullifier))
+        const member3BalanceBefore = await mockERC20.balanceOf(member3.address)
+
+        await finCube.connect(member2).safeTransfer(
+            member2.address, // Different caller/from address
+            member3.address,
+            100n * 10n ** 18n,
+            "Different transfer", // Different memo
+            nullifier // Same nullifier - should succeed because 'from' is different
+        )
+
+        // Verify the transfer succeeded
+        const member3BalanceAfter = await mockERC20.balanceOf(member3.address)
+        expect(member3BalanceAfter - member3BalanceBefore).to.equal(
+            100n * 10n ** 18n
+        )
+
+        // NOW test actual nullifier collision: same sender tries to reuse nullifier with identical parameters
+        await expect(
+            finCube.connect(member1).safeTransfer(
+                member1.address, // Same caller as first transfer
+                member3.address, // Same recipient
+                100n * 10n ** 18n, // Same amount
+                "Test transfer", // Same memo
+                nullifier // Same nullifier - should fail because all parameters identical
+            )
+        ).to.be.revertedWith("Nullifier already used")
     })
 })
