@@ -17,10 +17,14 @@ dataSources:
       language: wasm/assemblyscript
       entities:
         - Upgraded
+        - StablecoinTransfer
       abis:
         - name: Fincube
           file: ./abis/Fincube.json
       eventHandlers:
         - event: Upgraded(indexed address)
           handler: handleUpgraded
+        - event: StablecoinTransfer(indexed address,indexed address,indexed string,string,uint256,bytes32)
+          handler: handleStablecoinTransfer
+
       file: ./src/fincube.ts

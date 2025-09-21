@@ -16,6 +16,7 @@ export class Web3Service {
     private provider: ethers.providers.Web3Provider | null = null;
     private signer: ethers.Signer | null = null;
     private contractService: ContractService | null = null;
+    private currentAccount: string | null = null;
 
     async connect(): Promise<void> {
         if (typeof window.ethereum === 'undefined') {
@@ -26,6 +27,44 @@ export class Web3Service {
         this.provider = new ethers.providers.Web3Provider(window.ethereum);
         this.signer = this.provider.getSigner();
         this.contractService = new ContractService(this.signer);
+        try {
+            const accounts = await this.provider.listAccounts();
+            if (accounts && accounts.length > 0) this.currentAccount = accounts[0];
+        } catch (e) { /* ignore */ }
+    }
+
+    /**
+     * Attempt to restore a previous connection without prompting the user.
+     * If the site was previously connected and the wallet still exposes accounts
+     * this will reinitialize provider/signers silently.
+     */
+    async restoreConnection(): Promise<void> {
+        if (typeof window.ethereum === 'undefined') return;
+        try {
+            this.provider = new ethers.providers.Web3Provider(window.ethereum);
+            const accounts = await this.provider.listAccounts();
+            if (accounts.length === 0) {
+                // Not authorized / no accounts available
+                this.provider = null;
+                this.signer = null;
+                this.contractService = null;
+                this.currentAccount = null;
+                return;
+            }
+            this.signer = this.provider.getSigner();
+            this.contractService = new ContractService(this.signer);
+            this.currentAccount = accounts[0];
+        } catch (e) {
+            console.warn('restoreConnection failed', e);
+            this.provider = null;
+            this.signer = null;
+            this.contractService = null;
+            this.currentAccount = null;
+        }
+    }
+
+    getCurrentAccount(): string | null {
+        return this.currentAccount;
     }
 
     async getAccounts(): Promise<string[]> {
@@ -81,6 +120,35 @@ export class Web3Service {
         } catch (balanceError) {
             console.error("Failed to check balance:", balanceError);
             // Continue anyway, the contract will check this too
+        }
+        
+        // Diagnostic allowance checks: compare frontend expectations with on-chain allowance
+        try {
+            const approvedToken = await this.contractService.getApprovedERC20();
+            console.log('\u2139 Approved ERC20 according to FinCube contract:', approvedToken);
+
+            // Use a lightweight ERC20 instance to query allowance and decimals
+            const erc20 = new ethers.Contract(approvedToken, [
+                'function allowance(address owner, address spender) view returns (uint256)',
+                'function decimals() view returns (uint8)'
+            ], this.provider!);
+
+            const spender = (this.contractService as any).fincube?.address || null;
+            const decimals = await erc20.decimals();
+            const allowance: ethers.BigNumber = await erc20.allowance(userAddress, spender);
+            console.log(`\u2139 Token decimals: ${decimals}`);
+            console.log(`\u2139 On-chain allowance for spender ${spender}:`, ethers.utils.formatUnits(allowance, decimals));
+            console.log(`\u2139 Required amount:`, ethers.utils.formatUnits(amount, decimals));
+
+            if (allowance.lt(amount)) {
+                throw new Error(`Insufficient allowance: approved ${ethers.utils.formatUnits(allowance, decimals)} but need ${ethers.utils.formatUnits(amount, decimals)}. Please run approve(from, FinCubeAddress, amount).`);
+            }
+        } catch (allowError) {
+            console.warn('Allowance diagnostic check failed or showed insufficient allowance:', allowError);
+            // Let the contract run its own checks; surface a helpful message if we detected insufficiency
+            if (allowError instanceof Error && allowError.message && allowError.message.startsWith('Insufficient allowance')) {
+                throw allowError;
+            }
         }
         
         // Execute the transfer

@@ -302,12 +302,19 @@ const FINCUBE_ABI =   [
     } 
   ]
 export class ContractService {
-    private signer: ethers.Signer;
     private fincube: ethers.Contract;
     constructor(signer: ethers.Signer) {
-        this.signer = signer;
-        this.fincube = new ethers.Contract(contractAddresses.finCube, FINCUBE_ABI, signer);
+    this.fincube = new ethers.Contract(contractAddresses.finCube, FINCUBE_ABI, signer);
+        
     }
+
+  /**
+   * Return the approved ERC20 token address as stored in the FinCube contract.
+   * Useful for diagnostics to ensure frontend and contract agree on which token is used.
+   */
+  async getApprovedERC20(): Promise<string> {
+    return await this.fincube.approvedERC20();
+  }
 
     async safeTransfer(
         to: string,
