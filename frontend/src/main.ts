@@ -29,7 +29,9 @@ function shorten(addr: string): string {
 
 function renderRecentTxs(): void {
   if (!txRows) return;
-  txRows.innerHTML = recentTxs.slice(-10).reverse().map(tx => `
+  // sort by timestamp descending (newest first) and take up to 10
+  const sorted = recentTxs.slice().sort((a,b) => b.timestamp - a.timestamp).slice(0,10);
+  txRows.innerHTML = sorted.map(tx => `
     <div class="transaction-row">
       <div class="tx-address">${shorten(tx.sender)}</div>
       <div class="tx-address">${shorten(tx.recipient)}</div>
@@ -77,6 +79,46 @@ async function updateBalances(account: string) {
   });
 }
 
+// Fetch transfers for an account from The Graph
+async function fetchTransfersFromGraph(account: string): Promise<void> {
+  const endpoint = 'https://api.studio.thegraph.com/query/112514/fincube-transfer-token/version/latest';
+  const query = `
+    query($addr: Bytes!) {
+      stablecoinTransfers(where: { from: $addr }, first: 50, orderBy: blockNumber, orderDirection: desc) {
+        id
+        from
+        to
+        amount
+        memo
+        memoHash
+        nullifier
+        txHash
+        blockNumber
+        timestamp
+      }
+    }
+  `;
+
+  try {
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query, variables: { addr: account } })
+    });
+    const json = await res.json();
+    const items = json.data?.stablecoinTransfers || [];
+
+    // Replace recentTxs with results
+    recentTxs.length = 0;
+    for (const it of items) {
+      recentTxs.push({ sender: it.from, recipient: it.to, amount: `${parseInt(it.amount) / 1e6} USDC`, timestamp: parseInt(it.timestamp) * 1000 });
+    }
+    renderRecentTxs();
+  } catch (e) {
+    console.error('Graph fetch error', e);
+  }
+}
+
 // Update button state styles
 function setDisconnectedUI() {
   connectBtn.textContent = 'Connect Wallet';
@@ -99,15 +141,21 @@ connectBtn.addEventListener('click', async () => {
       const accounts = await web3Service.getAccounts();
       if (accounts.length === 0) throw new Error('No accounts found');
       const address = accounts[0];
+  try { localStorage.setItem('fincube_address', address); } catch (e) {}
+  try { localStorage.removeItem('fincube_user_disconnected'); } catch (e) {}
       const shortAddress = `${address.slice(0, 6)}...${address.slice(-4)}`;
       setConnectedUI(shortAddress);
       await updateBalances(address);
+      // Fetch from graph for this account
+      await fetchTransfersFromGraph(address);
 
       // Listen to account changes
       window.ethereum.on('accountsChanged', async (accounts: string[]) => {
         if (accounts.length > 0) {
           const addr = accounts[0];
+          try { localStorage.setItem('fincube_address', addr); } catch (e) {}
           await updateBalances(addr);
+          await fetchTransfersFromGraph(addr);
         } else {
           web3Service.disconnect();
           walletStatus.innerHTML = `<div class="status-light disconnected-light"></div>Wallet disconnected`;
@@ -118,11 +166,29 @@ connectBtn.addEventListener('click', async () => {
       // Listen to network changes
       window.ethereum.on('chainChanged', () => window.location.reload());
     } else {
+      // Ask user to confirm disconnect to avoid accidental disconnects
+      const confirmDisconnect = confirm('Do you want to disconnect your wallet from this site?');
+      if (!confirmDisconnect) return;
+
+      // Perform wallet disconnect but stay on dashboard page
       web3Service.disconnect();
-      walletStatus.innerHTML = `<div class="status-light disconnected-light"></div>Wallet disconnected`;
+      walletStatus.innerHTML = `<div class="status-light disconnected-light"></div>Connect your wallet please`;
       setDisconnectedUI();
+      
+      // Clear all displayed data
       if (ethBalanceEl) ethBalanceEl.textContent = `0.00000 ETH`;
       if (usdcBalanceEl) usdcBalanceEl.textContent = `0.0000 USDC`;
+      if (usdBalanceEl) usdBalanceEl.textContent = `$0.00`;
+      
+      // Clear transaction history
+      recentTxs.length = 0;
+      renderRecentTxs();
+      
+  // Remove persisted wallet address but keep auth (stay signed in to dashboard)
+  try { localStorage.removeItem('fincube_address'); } catch (e) {}
+  try { localStorage.setItem('fincube_user_disconnected', '1'); } catch (e) {}
+      
+      // Stay on dashboard - don't change isSignedIn or call applyAuthUI()
     }
   });
 });
@@ -191,14 +257,63 @@ window.addEventListener('DOMContentLoaded', () => {
     // Directly show the auth modal without loading
     if (authModalEl) authModalEl.style.display = 'flex';
   });
-});
 
+  // Restore provider and UI state on refresh unless the user explicitly disconnected
+  (async () => {
+    try {
+      const explicitlyDisconnected = localStorage.getItem('fincube_user_disconnected') === '1';
+      if (explicitlyDisconnected) return;
+
+      await web3Service.restoreConnection();
+      const acct = web3Service.getCurrentAccount();
+      if (!acct) return;
+
+      const shortAddress = `${acct.slice(0,6)}...${acct.slice(-4)}`;
+      setConnectedUI(shortAddress);
+      connectBtn.style.display = 'inline-flex';
+      walletStatus.style.display = 'inline-flex';
+
+      // Populate balances and history so refresh preserves dashboard data
+      try { await updateBalances(acct); } catch (e) { console.warn('updateBalances failed', e); }
+      try { await fetchTransfersFromGraph(acct); } catch (e) { console.warn('fetchTransfersFromGraph failed', e); }
+
+      const eth = (window as any).ethereum;
+      if (!eth) return;
+      eth.on('accountsChanged', (newAccounts: string[]) => {
+        if (newAccounts && newAccounts.length > 0) {
+          const a = newAccounts[0];
+          try { localStorage.setItem('fincube_address', a); } catch (e) {}
+          setConnectedUI(`${a.slice(0,6)}...${a.slice(-4)}`);
+          safeExecute(async () => { await updateBalances(a); await fetchTransfersFromGraph(a); });
+        } else {
+          try { web3Service.disconnect(); } catch (e) {}
+          walletStatus.innerHTML = `<div class="status-light disconnected-light"></div>Connect your wallet please`;
+          setDisconnectedUI();
+          if (ethBalanceEl) ethBalanceEl.textContent = `0.00000 ETH`;
+          if (usdcBalanceEl) usdcBalanceEl.textContent = `0.0000 USDC`;
+          if (usdBalanceEl) usdBalanceEl.textContent = `$0.00`;
+          recentTxs.length = 0;
+          renderRecentTxs();
+          try { localStorage.removeItem('fincube_address'); } catch (e) {}
+          try { localStorage.setItem('fincube_user_disconnected', '1'); } catch (e) {}
+        }
+      });
+      eth.on('chainChanged', () => window.location.reload());
+    } catch (err) {
+      console.warn('Silent refresh check failed', err);
+    }
+  })();
+
+});
   try {
     if (localStorage.getItem('fincube_auth')) {
       // Use the exposed setter to ensure UI updates correctly
       (window as any).authSetSignedIn && (window as any).authSetSignedIn(true);
     }
   } catch (e) { /* ignore */ }
+
+// Don't auto-restore wallet connection on refresh
+// User should manually click Connect Wallet to see balances and data
 // Simple auth state
 let isSignedIn = false;
 function applyAuthUI() {
@@ -226,6 +341,15 @@ function applyAuthUI() {
     rt.style.display = 'block';
     walletStatus.style.display = 'inline-flex';
     connectBtn.style.display = 'inline-flex';
+    
+    // If wallet is not connected, show empty states
+    if (!web3Service.isConnected()) {
+      if (usdBalanceEl) usdBalanceEl.textContent = `$0.00`;
+      if (ethBalanceEl) ethBalanceEl.textContent = `0.00000 ETH`;
+      if (usdcBalanceEl) usdcBalanceEl.textContent = `0.0000 USDC`;
+      recentTxs.length = 0;
+      renderRecentTxs();
+    }
   } else {
     // Apply sign-in landing page styling
     if (appContainer) {
@@ -285,6 +409,17 @@ signOutBtn.addEventListener('click', () => {
 
       // Clear frontend persistence and switch UI to signed-out
       try { localStorage.removeItem('fincube_auth'); } catch (e) { /* ignore */ }
+      try { localStorage.removeItem('fincube_address'); } catch (e) {}
+      try { localStorage.setItem('fincube_user_disconnected', '1'); } catch (e) {}
+
+      // Clear displayed data and ensure wallet shows as disconnected
+      if (ethBalanceEl) ethBalanceEl.textContent = `0.00000 ETH`;
+      if (usdcBalanceEl) usdcBalanceEl.textContent = `0.0000 USDC`;
+      if (usdBalanceEl) usdBalanceEl.textContent = `$0.00`;
+      recentTxs.length = 0;
+      renderRecentTxs();
+      walletStatus.innerHTML = `<div class="status-light disconnected-light"></div>Connect your wallet please`;
+
       isSignedIn = false;
       applyAuthUI();
 
