@@ -215,3 +215,167 @@ section, .proposal {
     padding: 1rem;
   }
 }
+
+/* Status light indicators */
+.status-light {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 6px;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+/* Balance styling with token logo colors */
+#usd-balance {
+  color: #22c55e !important; /* USD green matching dollar symbol */
+  font-weight: 700 !important;
+  font-size: 1.2em !important;
+  text-shadow: 0 0 1px rgba(34, 197, 94, 0.3);
+}
+
+#eth-balance {
+  color: #627eea !important; /* Ethereum official logo blue */
+  font-weight: 700 !important;
+  font-size: 1.2em !important;
+  text-shadow: 0 0 1px rgba(98, 126, 234, 0.3);
+}
+
+#usdc-balance {
+  color: #2775CA !important; /* USDC official logo blue */
+  font-weight: 700 !important;
+  font-size: 1.2em !important;
+  text-shadow: 0 0 1px rgba(39, 117, 202, 0.3);
+}
+
+/* Transactions Dashboard Styling - No outer container */
+.transactions-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.9rem 1.2rem;
+  background: linear-gradient(90deg, rgba(16, 185, 129, 0.08), rgba(6, 182, 212, 0.08));
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  border-radius: 0.75rem 0.75rem 0 0;
+  margin-bottom: 0;
+}
+
+.transactions-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-weight: 800;
+  color: #334155;
+  letter-spacing: 0.02em;
+}
+
+.transactions-subtitle {
+  font-size: 0.9rem;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.transactions-table {
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  border-top: none;
+  border-radius: 0 0 0.75rem 0.75rem;
+  overflow: hidden;
+  background: #f8fafc;
+}
+
+.transactions-table-header {
+  display: grid;
+  grid-template-columns: 1fr 1fr 0.5fr 0.9fr;
+  gap: 0.5rem;
+  padding: 0.75rem 1.2rem;
+  font-weight: 700;
+  color: #334155;
+  background: #f1f5f9;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.transactions-rows {
+  max-height: 220px;
+  overflow-y: auto;
+  background: #f8fafc;
+}
+
+/* Transaction Row Styling */
+.transaction-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 0.5fr 0.9fr;
+  gap: 0.5rem;
+  padding: 0.7rem 1.2rem;
+  align-items: center;
+  border-top: 1px solid rgba(229, 231, 235, 0.6);
+  background: transparent;
+  transition: background-color 0.2s ease;
+}
+
+.transaction-row:hover {
+  background: rgba(16, 185, 129, 0.05);
+}
+
+.tx-address {
+  font-family: monospace;
+  color: #334155;
+  font-size: 0.9em;
+}
+
+.tx-amount {
+  text-align: right;
+  font-weight: 700;
+  color: #0f766e;
+}
+
+.tx-date {
+  text-align: right;
+  color: #475569;
+  font-family: monospace;
+  font-size: 0.85em;
+}
+
+/* Wallet status styling */
+#wallet-status {
+  display: inline-flex;
+  align-items: center;
+  font-weight: 600;
+  font-size: 1.05em;
+  font-family: monospace;
+  color: #334155;
+}
+
+.connected-light {
+  background: #10b981;
+  box-shadow: 0 0 6px rgba(16, 185, 129, 0.6);
+  animation: pulseGreen 2s infinite;
+}
+
+.disconnected-light {
+  background: #ef4444;
+  box-shadow: 0 0 6px rgba(239, 68, 68, 0.6);
+  animation: pulseRed 2s infinite;
+}
+
+@keyframes pulseGreen {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.1);
+  }
+}
+
+@keyframes pulseRed {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.1);
+  }
+}

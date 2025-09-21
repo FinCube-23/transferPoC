@@ -1,4 +1,5 @@
 import './styles/main.css';
+import './styles/dark-theme.css';
 import { web3Service } from './services/web3Service';
 import { ethers } from 'ethers';
 import { Buffer } from 'buffer';
@@ -29,11 +30,11 @@ function shorten(addr: string): string {
 function renderRecentTxs(): void {
   if (!txRows) return;
   txRows.innerHTML = recentTxs.slice(-10).reverse().map(tx => `
-    <div style="display:grid; grid-template-columns: 1fr 1fr 0.5fr 0.9fr; gap: 0.5rem; padding: 0.7rem 1.2rem; align-items:center; border-top: 1px solid rgba(229,231,235,0.6); background: transparent;">
-      <div style="font-family:monospace; color:#334155;">${shorten(tx.sender)}</div>
-      <div style="font-family:monospace; color:#334155;">${shorten(tx.recipient)}</div>
-      <div style="text-align:right; font-weight:700; color:#0f766e;">${tx.amount}</div>
-      <div style="text-align:right; color:#475569; font-family:monospace;">${new Date(tx.timestamp).toLocaleString()}</div>
+    <div class="transaction-row">
+      <div class="tx-address">${shorten(tx.sender)}</div>
+      <div class="tx-address">${shorten(tx.recipient)}</div>
+      <div class="tx-amount">${tx.amount}</div>
+      <div class="tx-date">${new Date(tx.timestamp).toLocaleString()}</div>
     </div>
   `).join('');
 }
@@ -56,19 +57,21 @@ async function updateBalances(account: string) {
     const randomUsd = (Math.random() * (1000 - 100) + 100).toFixed(2);
     if (usdBalanceEl) usdBalanceEl.textContent = `$${randomUsd}`;
 
-    // Update ETH balance from connected wallet
+    // Update ETH balance from connected wallet with 5 decimal places
     const ethWei = await web3Service.getEthBalance(account);
-    if (ethBalanceEl) ethBalanceEl.textContent = `${ethers.utils.formatEther(ethWei)} ETH`;
+    const ethFormatted = parseFloat(ethers.utils.formatEther(ethWei)).toFixed(5);
+    if (ethBalanceEl) ethBalanceEl.textContent = `${ethFormatted} ETH`;
 
-    // USDC balance from contract - PROPERLY IMPLEMENTED
+    // USDC balance from contract with 4 decimal places
     if (usdcBalanceEl) {
       try {
         const usdcBalance = await web3Service.getUsdcBalance(account);
-        if (usdcBalanceEl) usdcBalanceEl.textContent = `${usdcBalance} USDC`;
+        const usdcFormatted = parseFloat(usdcBalance).toFixed(4);
+        if (usdcBalanceEl) usdcBalanceEl.textContent = `${usdcFormatted} USDC`;
 
       } catch (error) {
         console.error("USDC Balance Error:", error);
-        usdcBalanceEl.textContent = `0.00 USDC`; // Fallback if error
+        usdcBalanceEl.textContent = `0.0000 USDC`; // Fallback if error
       }
     }
   });
@@ -85,7 +88,7 @@ function setConnectedUI(shortAddress: string) {
   connectBtn.textContent = 'Disconnect';
   connectBtn.style.background = '#f87171';
   connectBtn.style.color = '#fff';
-  walletStatus.innerHTML = `<span style="display:inline-flex;align-items:center;background:#e0e7ff;color:#2563eb;padding:0.4em 1em;border-radius:1em;font-weight:600;font-size:1.05em;box-shadow:0 1px 4px rgba(59,130,246,0.08);gap:0.5em;">Connected: <span style='font-family:monospace;'>${shortAddress}</span></span>`;
+  walletStatus.innerHTML = `<div class="status-light connected-light"></div>Connected: ${shortAddress}`;
 }
 
 // Connect / Disconnect toggle - FIXED: No extra provider/signer creation
@@ -107,7 +110,7 @@ connectBtn.addEventListener('click', async () => {
           await updateBalances(addr);
         } else {
           web3Service.disconnect();
-          walletStatus.textContent = 'Wallet disconnected';
+          walletStatus.innerHTML = `<div class="status-light disconnected-light"></div>Wallet disconnected`;
           setDisconnectedUI();
         }
       });
@@ -116,10 +119,10 @@ connectBtn.addEventListener('click', async () => {
       window.ethereum.on('chainChanged', () => window.location.reload());
     } else {
       web3Service.disconnect();
-      walletStatus.textContent = 'Wallet disconnected';
+      walletStatus.innerHTML = `<div class="status-light disconnected-light"></div>Wallet disconnected`;
       setDisconnectedUI();
-      if (ethBalanceEl) ethBalanceEl.textContent = `0 ETH`;
-      if (usdcBalanceEl) usdcBalanceEl.textContent = `0.00 USDC`;
+      if (ethBalanceEl) ethBalanceEl.textContent = `0.00000 ETH`;
+      if (usdcBalanceEl) usdcBalanceEl.textContent = `0.0000 USDC`;
     }
   });
 });
@@ -166,7 +169,7 @@ transferForm?.addEventListener('submit', (e) => {
 
 // Initial UI setup
 window.addEventListener('DOMContentLoaded', () => {
-  walletStatus.innerHTML = `<span style="display:inline-flex;align-items:center;background:#fee2e2;color:#b91c1c;padding:0.7em 1.2em;border-radius:1.2em;font-weight:600;font-size:1.02em;box-shadow:0 2px 8px rgba(239,68,68,0.10);gap:0.6em;letter-spacing:0.01em;"><svg width='20' height='20' viewBox='0 0 24 24' fill='none'><circle cx='12' cy='12' r='10' fill='#ef4444'/><path d='M12 8v4M12 16h.01' stroke='#fff' stroke-width='2' stroke-linecap='round'/></svg><span style='font-family:monospace;'>Connect your wallet please</span></span>`;
+  walletStatus.innerHTML = `<div class="status-light disconnected-light"></div>Connect your wallet please`;
   setDisconnectedUI();
 
   if (signinCenter) signinCenter.style.display = 'flex';
@@ -177,15 +180,41 @@ window.addEventListener('DOMContentLoaded', () => {
   (document.getElementById('transfer-form') as HTMLFormElement).style.display = 'none';
   walletStatus.style.display = 'none';
   connectBtn.style.display = 'none';
-  (document.getElementById('recent-transactions') as HTMLDivElement).style.marginTop = '6rem';
-  (document.getElementById('recent-transactions') as HTMLDivElement).style.display = 'flex';
-  (document.getElementById('recent-transactions') as HTMLDivElement).style.justifyContent = 'center';
+  // Keep recent transactions hidden on sign-in page
+  (document.getElementById('recent-transactions') as HTMLDivElement).style.display = 'none';
+
+  // Setup sign-in button click handler
+  signInBtn.addEventListener('click', async (e) => {
+    console.log('Sign in button clicked');
+    e.preventDefault();
+
+    // Directly show the auth modal without loading
+    if (authModalEl) authModalEl.style.display = 'flex';
+  });
 });
 
+  try {
+    if (localStorage.getItem('fincube_auth')) {
+      // Use the exposed setter to ensure UI updates correctly
+      (window as any).authSetSignedIn && (window as any).authSetSignedIn(true);
+    }
+  } catch (e) { /* ignore */ }
 // Simple auth state
 let isSignedIn = false;
 function applyAuthUI() {
+  const appContainer = document.getElementById('app');
+  const headerElement = document.querySelector('.app-header') as HTMLElement;
+
   if (isSignedIn) {
+    // Apply dark theme with emerald-cyan gradient to inside page
+    if (appContainer) {
+      appContainer.classList.add('dark-theme');
+      appContainer.classList.remove('signin-landing');
+    }
+
+    // Show header when signed in
+    if (headerElement) headerElement.classList.remove('signin-hide');
+
     if (signinCenter) signinCenter.style.display = 'none';
     signInBtn.style.display = 'none';
     if (signInTopBtn) signInTopBtn.style.display = 'none';
@@ -198,6 +227,15 @@ function applyAuthUI() {
     walletStatus.style.display = 'inline-flex';
     connectBtn.style.display = 'inline-flex';
   } else {
+    // Apply sign-in landing page styling
+    if (appContainer) {
+      appContainer.classList.remove('dark-theme');
+      appContainer.classList.add('signin-landing');
+    }
+
+    // Hide header when on sign-in page
+    if (headerElement) headerElement.classList.add('signin-hide');
+
     if (signinCenter) signinCenter.style.display = 'flex';
     signInBtn.style.display = 'inline-flex';
     if (signInTopBtn) signInTopBtn.style.display = 'none';
@@ -205,9 +243,7 @@ function applyAuthUI() {
     authSection.style.display = 'none';
     (document.getElementById('transfer-form') as HTMLFormElement).style.display = 'none';
     const rt = (document.getElementById('recent-transactions') as HTMLDivElement);
-    rt.style.marginTop = '6rem';
-    rt.style.display = 'flex';
-    rt.style.justifyContent = 'center';
+    rt.style.display = 'none'; // Hide recent transactions on sign-in page
     walletStatus.style.display = 'none';
     connectBtn.style.display = 'none';
   }
@@ -220,10 +256,6 @@ function applyAuthUI() {
   applyAuthUI();
 };
 
-// Sign-in modal
-signInBtn.addEventListener('click', async () => {
-  if (authModalEl) authModalEl.style.display = 'flex';
-});
 if (signInTopBtn) {
   signInTopBtn.addEventListener('click', async () => {
     if (authModalEl) authModalEl.style.display = 'flex';
@@ -231,13 +263,39 @@ if (signInTopBtn) {
 }
 
 signOutBtn.addEventListener('click', () => {
-  isSignedIn = false;
-  applyAuthUI();
-  if (web3Service.isConnected()) {
-    web3Service.disconnect();
-    walletStatus.textContent = 'Wallet disconnected';
-    setDisconnectedUI();
-    if (ethBalanceEl) ethBalanceEl.textContent = `0 ETH`;
-    if (usdcBalanceEl) usdcBalanceEl.textContent = `0.00 USDC`;
-  }
+  const authLoadingEl = document.getElementById('auth-loading') as HTMLDivElement | null;
+  const authLoadingText = document.getElementById('auth-loading-text') as HTMLDivElement | null;
+
+  try {
+    if (authLoadingText) authLoadingText.textContent = 'Signing out...';
+    if (authLoadingEl) authLoadingEl.style.display = 'flex';
+  } catch (e) { /* ignore */ }
+
+  // Wait a short moment so the loader is visible first, then perform sign-out actions
+  setTimeout(() => {
+    try {
+      // Disconnect wallet if connected
+      if (web3Service.isConnected()) {
+        web3Service.disconnect();
+        walletStatus.innerHTML = `<div class="status-light disconnected-light"></div>Wallet disconnected`;
+        setDisconnectedUI();
+        if (ethBalanceEl) ethBalanceEl.textContent = `0.00000 ETH`;
+        if (usdcBalanceEl) usdcBalanceEl.textContent = `0.0000 USDC`;
+      }
+
+      // Clear frontend persistence and switch UI to signed-out
+      try { localStorage.removeItem('fincube_auth'); } catch (e) { /* ignore */ }
+      isSignedIn = false;
+      applyAuthUI();
+
+    } catch (err) {
+      console.error('Error during sign-out:', err);
+    } finally {
+      // Hide loader and restore loading text
+      try {
+        if (authLoadingEl) authLoadingEl.style.display = 'none';
+        if (authLoadingText) authLoadingText.textContent = 'Authenticating...';
+      } catch (e) {}
+    }
+  }, 600);
 });
