@@ -20,8 +20,10 @@ const authModalEl = document.getElementById('auth-modal') as HTMLDivElement | nu
 const signOutBtn = document.getElementById('sign-out') as HTMLButtonElement;
 const signinCenter = document.getElementById('signin-center') as HTMLDivElement;
 
-type TxRecord = { sender: string; recipient: string; amount: string; timestamp: number };
+type TxRecord = { sender: string; recipient: string; amount: string; timestamp: number; txHash?: string };
 const recentTxs: TxRecord[] = [];
+let currentPage = 0;
+const ITEMS_PER_PAGE = 10;
 
 function shorten(addr: string): string {
   return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
@@ -29,16 +31,125 @@ function shorten(addr: string): string {
 
 function renderRecentTxs(): void {
   if (!txRows) return;
-  // sort by timestamp descending (newest first) and take up to 10
-  const sorted = recentTxs.slice().sort((a,b) => b.timestamp - a.timestamp).slice(0,10);
-  txRows.innerHTML = sorted.map(tx => `
-    <div class="transaction-row">
-      <div class="tx-address">${shorten(tx.sender)}</div>
-      <div class="tx-address">${shorten(tx.recipient)}</div>
-      <div class="tx-amount">${tx.amount}</div>
-      <div class="tx-date">${new Date(tx.timestamp).toLocaleString()}</div>
-    </div>
-  `).join('');
+  const sorted = recentTxs.slice().sort((a,b) => b.timestamp - a.timestamp);
+  const start = currentPage * ITEMS_PER_PAGE;
+  const page = sorted.slice(start, start + ITEMS_PER_PAGE);
+
+  const etherscanIcon = '<svg width="14" height="14" viewBox="0 0 293.775 293.667" xmlns="http://www.w3.org/2000/svg"><g fill="#21325b"><path d="M146.8 0C65.777 0 0 65.777 0 146.834 0 227.86 65.777 293.667 146.8 293.667c81.056 0 146.833-65.808 146.833-146.833C293.633 65.777 227.856 0 146.8 0zm-3.177 238.832c-22.155 0-40.124-17.969-40.124-40.124s17.969-40.124 40.124-40.124 40.124 17.969 40.124 40.124-17.969 40.124-40.124 40.124zm58.63-82.585c-22.155 0-40.124-17.969-40.124-40.124s17.969-40.124 40.124-40.124 40.124 17.969 40.124 40.124-17.969 40.124-40.124 40.124zm-117.26 0c-22.155 0-40.124-17.969-40.124-40.124s17.969-40.124 40.124-40.124 40.124 17.969 40.124 40.124-17.969 40.124-40.124 40.124z"/></g></svg>';
+
+  txRows.innerHTML = page.map(tx => {
+    const FINCUBE_ADDRESS = '0x8a263DcEfee44B9Abe968C1B18e370f6A0A5F878';
+    const txUrl = tx.txHash ? `https://sepolia.etherscan.io/tx/${tx.txHash}` : `https://sepolia.etherscan.io/address/${FINCUBE_ADDRESS}#events`;
+    return `
+      <div class="transaction-row">
+        <div class="tx-address">${shorten(tx.sender)}</div>
+        <div class="tx-address">${shorten(tx.recipient)}</div>
+        <div class="tx-amount">${tx.amount}</div>
+        <div class="tx-date">${new Date(tx.timestamp).toLocaleString()}</div>
+        <div class="tx-etherscan"><a class="etherscan-link" href="${txUrl}" target="_blank" rel="noopener" title="View on Etherscan">${etherscanIcon}</a></div>
+      </div>
+    `;
+  }).join('');
+
+  updatePaginationControls(sorted.length);
+}
+
+function updatePaginationControls(totalItems: number) {
+  const container = document.getElementById('recent-transactions');
+  if (!container) return;
+  
+  // Remove existing pagination controls
+  const existingControls = document.getElementById('pagination-controls');
+  if (existingControls) existingControls.remove();
+
+  const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
+  const hasPrevious = currentPage > 0;
+  const hasNext = currentPage < totalPages - 1;
+
+  if (totalPages <= 1) return; // No pagination needed for single page
+
+  // Create pagination container
+  const paginationContainer = document.createElement('div');
+  paginationContainer.id = 'pagination-controls';
+  paginationContainer.style.cssText = `
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem 0;
+    margin-top: 1rem;
+  `;
+
+  // Previous arrow-only button (themed, no box)
+  const prevBtn = document.createElement('button');
+  prevBtn.innerHTML = '←';
+  prevBtn.disabled = !hasPrevious;
+  prevBtn.className = 'pagination-arrow';
+  prevBtn.setAttribute('aria-label', 'Previous page');
+  prevBtn.style.cssText = `
+    background: transparent;
+    color: ${hasPrevious ? '#0f172a' : '#9aa3b2'};
+    border: none;
+    padding: 4px 8px;
+    font-size: 1.05rem;
+    font-weight: 700;
+    cursor: ${hasPrevious ? 'pointer' : 'not-allowed'};
+    transition: color 0.12s ease, transform 0.12s ease;
+    border-radius: 4px;
+    box-shadow: none;
+  `;
+  if (hasPrevious) {
+    prevBtn.addEventListener('click', () => {
+      currentPage--;
+      renderRecentTxs();
+    });
+    prevBtn.addEventListener('mouseenter', () => prevBtn.style.transform = 'translateY(-1px)');
+    prevBtn.addEventListener('mouseleave', () => prevBtn.style.transform = 'translateY(0)');
+  }
+
+  // Page indicator
+  const pageIndicator = document.createElement('span');
+  pageIndicator.textContent = `Page ${currentPage + 1} of ${totalPages}`;
+  pageIndicator.style.cssText = `
+    color: #64748b;
+    font-weight: 500;
+    font-size: 0.9rem;
+    margin: 0 0.5rem;
+  `;
+
+  // Next arrow-only button (themed, no box)
+  const nextBtn = document.createElement('button');
+  nextBtn.innerHTML = '→';
+  nextBtn.disabled = !hasNext;
+  nextBtn.className = 'pagination-arrow';
+  nextBtn.setAttribute('aria-label', 'Next page');
+  nextBtn.style.cssText = `
+    background: transparent;
+    color: ${hasNext ? '#0f172a' : '#9aa3b2'};
+    border: none;
+    padding: 4px 8px;
+    font-size: 1.05rem;
+    font-weight: 700;
+    cursor: ${hasNext ? 'pointer' : 'not-allowed'};
+    transition: color 0.12s ease, transform 0.12s ease;
+    border-radius: 4px;
+    box-shadow: none;
+  `;
+  if (hasNext) {
+    nextBtn.addEventListener('click', () => {
+      currentPage++;
+      renderRecentTxs();
+    });
+    nextBtn.addEventListener('mouseenter', () => nextBtn.style.transform = 'translateY(-1px)');
+    nextBtn.addEventListener('mouseleave', () => nextBtn.style.transform = 'translateY(0)');
+  }
+
+  paginationContainer.appendChild(prevBtn);
+  paginationContainer.appendChild(pageIndicator);
+  paginationContainer.appendChild(nextBtn);
+  
+  container.style.position = 'relative';
+  container.appendChild(paginationContainer);
 }
 
 // Helpers
@@ -108,12 +219,13 @@ async function fetchTransfersFromGraph(account: string): Promise<void> {
     const json = await res.json();
     const items = json.data?.stablecoinTransfers || [];
 
-    // Replace recentTxs with results
-    recentTxs.length = 0;
-    for (const it of items) {
-      recentTxs.push({ sender: it.from, recipient: it.to, amount: `${parseInt(it.amount) / 1e6} USDC`, timestamp: parseInt(it.timestamp) * 1000 });
-    }
-    renderRecentTxs();
+      // Replace recentTxs with results and reset pagination
+      recentTxs.length = 0;
+      currentPage = 0;
+      for (const it of items) {
+        recentTxs.push({ sender: it.from, recipient: it.to, amount: `${parseInt(it.amount) / 1e6} USDC`, timestamp: parseInt(it.timestamp) * 1000, txHash: it.txHash });
+      }
+      renderRecentTxs();
   } catch (e) {
     console.error('Graph fetch error', e);
   }
@@ -257,6 +369,57 @@ window.addEventListener('DOMContentLoaded', () => {
     // Directly show the auth modal without loading
     if (authModalEl) authModalEl.style.display = 'flex';
   });
+
+  // Insert a compact 'View on Etherscan' button and group it with the 'Latest 10' subtitle at the far right
+  (function insertEtherscanButtonRight() {
+  const FINCUBE_ADDRESS = '0x8a263DcEfee44B9Abe968C1B18e370f6A0A5F878';
+
+    const header = document.querySelector('#recent-transactions .transactions-header') as HTMLElement | null;
+    if (!header) return;
+
+    // ensure header arranges left (title) and right (subtitle+actions)
+    header.style.display = 'flex';
+    header.style.alignItems = 'center';
+    header.style.justifyContent = 'space-between';
+
+    // Create/get right group container
+    let rightGroup = header.querySelector('.transactions-right') as HTMLElement | null;
+    if (!rightGroup) {
+      rightGroup = document.createElement('div');
+      rightGroup.className = 'transactions-right';
+      rightGroup.style.cssText = 'display:flex; align-items:center; gap:6px;';
+    }
+
+    // Find subtitle element and move it into rightGroup
+    const subtitle = header.querySelector('.transactions-subtitle') as HTMLElement | null;
+    if (subtitle && subtitle.parentElement !== rightGroup) {
+      rightGroup.appendChild(subtitle);
+    }
+
+    // Create compact button
+    // If button already exists, reuse
+    let smallBtn = rightGroup.querySelector('#view-on-etherscan') as HTMLButtonElement | null;
+    if (!smallBtn) {
+      smallBtn = document.createElement('button');
+      smallBtn.id = 'view-on-etherscan';
+      smallBtn.type = 'button';
+      // Etherscan logo SVG (brand color)
+      smallBtn.innerHTML = '<svg width="18" height="18" viewBox="0 0 293.775 293.667" xmlns="http://www.w3.org/2000/svg"><g fill="#21325b"><path d="M146.8 0C65.777 0 0 65.777 0 146.834 0 227.86 65.777 293.667 146.8 293.667c81.056 0 146.833-65.808 146.833-146.833C293.633 65.777 227.856 0 146.8 0zm-3.177 238.832c-22.155 0-40.124-17.969-40.124-40.124s17.969-40.124 40.124-40.124 40.124 17.969 40.124 40.124-17.969 40.124-40.124 40.124zm58.63-82.585c-22.155 0-40.124-17.969-40.124-40.124s17.969-40.124 40.124-40.124 40.124 17.969 40.124 40.124-17.969 40.124-40.124 40.124zm-117.26 0c-22.155 0-40.124-17.969-40.124-40.124s17.969-40.124 40.124-40.124 40.124 17.969 40.124 40.124-17.969 40.124-40.124 40.124z"/></g></svg>';
+      smallBtn.title = 'View latest transaction on Etherscan (Sepolia)';
+      smallBtn.style.cssText = 'background:transparent;color:#21325b;border:none;padding:2px;margin-right:4px;cursor:pointer;border-radius:4px;display:inline-flex;align-items:center;justify-content:center;';
+      // Header logo should always link to the contract address page (showing all transactions)
+      smallBtn.addEventListener('click', (e) => { 
+        e.preventDefault();
+        const url = `https://sepolia.etherscan.io/address/${FINCUBE_ADDRESS}`;
+        window.open(url, '_blank', 'noopener');
+      });
+      // Insert button before subtitle in the group so order is [button][subtitle]
+      rightGroup.insertBefore(smallBtn, rightGroup.firstChild);
+    }
+
+    // Attach rightGroup to header (if not already)
+    if (!header.querySelector('.transactions-right')) header.appendChild(rightGroup);
+  })();
 
   // Restore provider and UI state on refresh unless the user explicitly disconnected
   (async () => {

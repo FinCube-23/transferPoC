@@ -286,13 +286,26 @@ section, .proposal {
 
 .transactions-table-header {
   display: grid;
-  grid-template-columns: 1fr 1fr 0.5fr 0.9fr;
+  /* Sender | Recipient | Amount | Date (min) | Etherscan (fixed) */
+  /* keep a small fixed width for etherscan so Date column doesn't shift when icons present */
+  grid-template-columns: 1fr 1fr 0.6fr minmax(200px, 1fr) 48px;
   gap: 0.5rem;
   padding: 0.75rem 1.2rem;
+  align-items: center;
   font-weight: 700;
   color: #334155;
   background: #f1f5f9;
   border-bottom: 1px solid #e2e8f0;
+}
+
+/* Make the Date header cell a flex container and right-justify its content so it lines up
+   exactly with the per-row timestamps (small right padding applied for pixel match) */
+.transactions-table-header > div:nth-child(4) {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 12px; /* nudge header label further right to match increased Date column */
+  text-align: right;
 }
 
 .transactions-rows {
@@ -304,9 +317,10 @@ section, .proposal {
 /* Transaction Row Styling */
 .transaction-row {
   display: grid;
-  grid-template-columns: 1fr 1fr 0.5fr 0.9fr;
+  /* match header columns exactly so cells line up */
+  grid-template-columns: 1fr 1fr 0.6fr minmax(160px, 1fr) 36px;
   gap: 0.5rem;
-  padding: 0.7rem 1.2rem;
+  padding: 0.75rem 1.2rem;
   align-items: center;
   border-top: 1px solid rgba(229, 231, 235, 0.6);
   background: transparent;
@@ -330,10 +344,53 @@ section, .proposal {
 }
 
 .tx-date {
-  text-align: right;
+  /* keep dates right-aligned and prevent wrapping; show ellipsis if too long */
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
   color: #475569;
   font-family: monospace;
   font-size: 0.85em;
+  line-height: 1;
+  padding-right: 4px; /* reduce padding so dates sit closer to the logo */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tx-etherscan {
+  display: flex;
+  justify-content: flex-start; /* place icon at the left of the fixed cell to sit next to the date */
+  align-items: center;
+  width: 48px; /* match the grid column fixed width */
+  padding-left: 6px; /* small inner offset so icon isn't flush to the cell edge */
+}
+
+.etherscan-link {
+  display: inline-flex;
+  width: 20px;
+  height: 20px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  text-decoration: none;
+}
+
+.etherscan-link svg {
+  width: 18px;
+  height: 18px;
+}
+
+.load-more-btn {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  padding: 8px 12px;
+  background: #1e90ff;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
 }
 
 /* Wallet status styling */
