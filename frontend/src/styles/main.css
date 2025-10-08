@@ -255,14 +255,13 @@ button,
 @media (max-width: 1200px) {
     .transactions-table-header,
     .transaction-row {
-        grid-template-columns: 1fr 1fr 0.7fr 1fr 0.8fr minmax(140px, 1fr) 40px;
-        gap: 0.4rem;
+        grid-template-columns: 1fr 1fr 0.9fr 1fr 1.2fr 40px;
+        gap: 1rem;
         padding: 0.65rem 1rem;
     }
 
-    .tx-purpose,
-    .tx-nullifier {
-        max-width: 100px;
+    .tx-memo {
+        max-width: 120px;
     }
 }
 
@@ -275,15 +274,14 @@ button,
 
     .transactions-table-header,
     .transaction-row {
-        grid-template-columns: 1fr 1fr 0.6fr 0.8fr 0.7fr minmax(120px, 1fr) 36px;
-        gap: 0.3rem;
+        grid-template-columns: 1fr 1fr 0.8fr 1fr 1.2fr 36px;
+        gap: 0.75rem;
         padding: 0.6rem 0.8rem;
         font-size: 0.9rem;
     }
 
-    .tx-purpose,
-    .tx-nullifier {
-        max-width: 80px;
+    .tx-memo {
+        max-width: 100px;
         font-size: 0.8rem;
     }
 
@@ -515,26 +513,15 @@ button,
 
 .transactions-table-header {
     display: grid;
-    /* Sender | Recipient | Amount | Date | Etherscan (fixed) */
-    /* Removed Purpose and Nullifier columns */
-    grid-template-columns: 1fr 1fr 1fr 1fr 48px;
-    gap: 1rem;
-    padding: 0.75rem 1.2rem;
+    /* Sender | Recipient | Amount | Memo | Date | Etherscan (fixed) */
+    grid-template-columns: 150px 150px 140px 150px 200px 48px;
+    column-gap: 3.0rem;
+    padding: 0.75rem 1.5rem;
     align-items: center;
     font-weight: 700;
     color: #334155;
     background: #f1f5f9;
     border-bottom: 1px solid #e2e8f0;
-}
-
-/* Make the Date header cell a flex container and right-justify its content so it lines up
-   exactly with the per-row timestamps (small right padding applied for pixel match) */
-.transactions-table-header > div:nth-child(4) {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    padding-right: 12px; /* nudge header label further right to match increased Date column */
-    text-align: right;
 }
 
 .transactions-rows {
@@ -546,10 +533,10 @@ button,
 /* Transaction Row Styling */
 .transaction-row {
     display: grid;
-    /* match header columns exactly - removed Purpose and Nullifier */
-    grid-template-columns: 1fr 1fr 1fr 1fr 48px;
-    gap: 1rem;
-    padding: 0.75rem 1.2rem;
+    /* match header columns exactly - Sender | Recipient | Amount | Memo | Date | Etherscan */
+    grid-template-columns: 150px 150px 140px 180px 200px 48px;
+    gap: 3rem;
+    padding: 0.75rem 1.5rem;
     align-items: center;
     border-top: 1px solid rgba(229, 231, 235, 0.6);
     background: transparent;
@@ -570,6 +557,37 @@ button,
     text-align: right;
     font-weight: 700;
     color: #0f766e;
+    padding-right: 2rem; /* increased to create gap between Amount and Memo */
+}
+
+.tx-memo {
+    color: #4b5563;
+    font-size: 0.9em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 180px;
+    padding-left: 2.5rem;
+}
+
+    /* Force memo label color to green */
+    .tx-memo .label-green {
+        color: #10b981 !important;
+        font-weight: 600;
+    }
+
+/* Small vertical gap between the memo lines */
+.tx-memo > div > div {
+    margin-bottom: 0.25rem;
+}
+.tx-memo > div > div:last-child {
+    margin-bottom: 0;
+}
+
+/* Ensure header's Amount column also has the same right padding so header aligns visually */
+.transactions-table-header > div:nth-child(3),
+.transaction-row > div:nth-child(3) {
+    padding-right: 2rem;
 }
 
 .tx-purpose {
@@ -592,15 +610,10 @@ button,
 }
 
 .tx-date {
-    /* keep dates right-aligned and prevent wrapping; show ellipsis if too long */
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
+    text-align: right;
     color: #475569;
     font-family: monospace;
     font-size: 0.85em;
-    line-height: 1;
-    padding-right: 12px; /* match header padding for perfect alignment */
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -685,4 +698,42 @@ button,
         opacity: 0.7;
         transform: scale(1.1);
     }
+}
+
+/* Final override: translate only the Memo header (4th cell) slightly right */
+.transactions-table-header > div:nth-child(4) {
+    transform: translateX(42px) !important;
+}
+
+/* Clean auth button styles */
+#connect-wallet,
+#sign-out {
+    padding: 0.25rem 0.6rem !important;
+    font-size: 0.9rem !important;
+    font-weight: 600 !important;
+    border-radius: 0.5rem !important;
+    text-align: center !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    line-height: 1 !important;
+    min-width: auto !important;
+    white-space: nowrap !important;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+    transition: all 0.2s ease !important;
+}
+
+#connect-wallet:hover,
+#sign-out:hover {
+    transform: translateY(-1px) !important;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15) !important;
+}
+
+/* Make auth modal panel shorter and scroll internally when content is tall.
+   Targets the white modal panel (direct child of #auth-modal) so tabs and
+   everything inside remain visible and functional. */
+#auth-modal > div {
+    max-height: 80vh !important; /* keep modal shorter than viewport */
+    overflow-y: auto !important; /* allow inner scrolling if content exceeds */
+    box-sizing: border-box !important;
 }

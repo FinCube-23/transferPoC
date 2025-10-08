@@ -43,6 +43,29 @@ function shorten(addr: string): string {
     return `${addr.slice(0, 6)}...${addr.slice(-4)}`
 }
 
+/**
+ * Normalize a candidate string to a valid transaction hash if possible.
+ * Handles Graph ids like "0xabc...-0" by extracting the 0x-prefixed 64-hex value.
+ */
+function normalizeHash(candidate?: string | null): string | undefined {
+    if (!candidate) return undefined
+    const s = String(candidate).trim()
+    // try to find a 0x + 64 hex string anywhere in the candidate
+    const m = s.match(/0x[a-fA-F0-9]{64}/)
+    if (m) return m[0]
+    // if candidate contains a dash (common id format: txHash-logIndex), take the left part
+    if (s.includes("-")) {
+        const left = s.split("-")[0]
+        if (/^0x[a-fA-F0-9]{64}$/.test(left)) return left
+        const mm = left.match(/0x[a-fA-F0-9]{64}/)
+        if (mm) return mm[0]
+    }
+    // if it's already a plausible tx hash length, return trimmed-first-66
+    if (s.startsWith("0x") && s.length >= 66) return s.slice(0, 66)
+    // fallback to undefined so caller can decide
+    return undefined
+}
+
 function renderRecentTxs(): void {
     if (!txRows) return
     const sorted = recentTxs.slice().sort((a, b) => b.timestamp - a.timestamp)
@@ -52,23 +75,47 @@ function renderRecentTxs(): void {
     const etherscanIcon =
         '<svg width="14" height="14" viewBox="0 0 293.775 293.667" xmlns="http://www.w3.org/2000/svg"><g fill="#21325b"><path d="M146.8 0C65.777 0 0 65.777 0 146.834 0 227.86 65.777 293.667 146.8 293.667c81.056 0 146.833-65.808 146.833-146.833C293.633 65.777 227.856 0 146.8 0zm-3.177 238.832c-22.155 0-40.124-17.969-40.124-40.124s17.969-40.124 40.124-40.124 40.124 17.969 40.124 40.124-17.969 40.124-40.124 40.124zm58.63-82.585c-22.155 0-40.124-17.969-40.124-40.124s17.969-40.124 40.124-40.124 40.124 17.969 40.124 40.124-17.969 40.124-40.124 40.124zm-117.26 0c-22.155 0-40.124-17.969-40.124-40.124s17.969-40.124 40.124-40.124 40.124 17.969 40.124 40.124-17.969 40.124-40.124 40.124z"/></g></svg>'
 
-    txRows.innerHTML = page
-        .map((tx) => {
-            const FINCUBE_ADDRESS = "0x8a263DcEfee44B9Abe968C1B18e370f6A0A5F878"
-            const txUrl = tx.txHash
-                ? `https://sepolia.etherscan.io/tx/${tx.txHash}`
-                : `https://sepolia.etherscan.io/address/${FINCUBE_ADDRESS}#events`
-            return `
-      <div class="transaction-row">
-        <div class="tx-address">${shorten(tx.sender)}</div>
-        <div class="tx-address">${shorten(tx.recipient)}</div>
-        <div class="tx-amount">${tx.amount}</div>
-        <div class="tx-date">${new Date(tx.timestamp).toLocaleString()}</div>
-        <div class="tx-etherscan"><a class="etherscan-link" href="${txUrl}" target="_blank" rel="noopener" title="View on Etherscan">${etherscanIcon}</a></div>
-      </div>
-    `
-        })
-        .join("")
+        txRows.innerHTML = page
+                .map((tx) => {
+                        // compute displayedPurpose with simple fallback to 'Refund'
+                        let displayedPurpose = ''
+                        try {
+                                if (tx.purpose && tx.purpose.trim()) {
+                                        const parsed = JSON.parse(tx.purpose)
+                                        if (parsed && typeof parsed === 'object' && parsed.purpose) displayedPurpose = String(parsed.purpose).trim()
+                                        else displayedPurpose = String(tx.purpose).trim()
+                                }
+                        } catch (e) {
+                                displayedPurpose = String(tx.purpose || '').trim()
+                        }
+                        if (!displayedPurpose) displayedPurpose = 'Refund'
+
+                        const FINCUBE_ADDRESS = "0x8a263DcEfee44B9Abe968C1B18e370f6A0A5F878"
+                        // Try to extract a valid 0x-prefixed 64-hex transaction hash
+                        const rawCandidate = tx.txHash || ""
+                        const match = String(rawCandidate).match(/0x[a-fA-F0-9]{64}/)
+                        const txHashForUrl = match ? match[0] : undefined
+                        const txUrl = txHashForUrl
+                            ? `https://sepolia.etherscan.io/tx/${txHashForUrl}`
+                            : `https://sepolia.etherscan.io/address/${FINCUBE_ADDRESS}#events`
+                        return `
+            <div class="transaction-row">
+                <div class="tx-address">${shorten(tx.sender)}</div>
+                <div class="tx-address">${shorten(tx.recipient)}</div>
+                <div class="tx-amount">${tx.amount}</div>
+                        <div class="tx-memo">
+          <div style="font-size: 0.75em; line-height: 1.2; color: #6b7280;">
+            <div><span class="label-green" style="color:#10b981 !important;">Reference</span>: ${shorten(FINCUBE_ADDRESS)}</div>
+            <div><span class="label-green" style="color:#10b981 !important;">Purpose</span>: ${displayedPurpose}</div>
+            <div><span class="label-green" style="color:#10b981 !important;">Description</span>: Transferred</div>
+          </div>
+        </div>
+                <div class="tx-date">${new Date(tx.timestamp).toLocaleString()}</div>
+                <div class="tx-etherscan"><a class="etherscan-link" href="${txUrl}" target="_blank" rel="noopener" title="View on Etherscan">${etherscanIcon}</a></div>
+            </div>
+        `
+                })
+                .join("")
 
     updatePaginationControls(sorted.length)
 }
@@ -94,7 +141,7 @@ function updatePaginationControls(totalItems: number) {
     display: flex;
     justify-content: center;
     align-items: center;
-    gap: 1rem;
+    gap: 4rem;
     padding: 1rem 0;
     margin-top: 1rem;
   `
@@ -257,13 +304,29 @@ async function fetchTransfersFromGraph(account: string): Promise<void> {
         recentTxs.length = 0
         currentPage = 0
         for (const it of items) {
+            // Parse memo JSON to extract the actual purpose
+            let actualPurpose = ""
+            if (it.memo) {
+                try {
+                    const memoData = JSON.parse(it.memo)
+                    if (memoData && memoData.PaymentInformation && memoData.PaymentInformation.Purpose) {
+                        actualPurpose = memoData.PaymentInformation.Purpose
+                    }
+                } catch (e) {
+                    // If parsing fails, use the raw memo
+                    actualPurpose = it.memo
+                }
+            }
+            
+            const rawCandidate = it.txHash || it.id
+            const candidateHash = normalizeHash(rawCandidate) || rawCandidate
             recentTxs.push({
                 sender: it.from,
                 recipient: it.to,
                 amount: `${parseInt(it.amount) / 1e6} USDC`,
-                purpose: it.memo || "Legacy transfer", // Use memo as purpose or default
+                purpose: actualPurpose || "", // use extracted purpose or empty for 'Refund' fallback
                 timestamp: parseInt(it.timestamp) * 1000,
-                txHash: it.txHash,
+                txHash: candidateHash,
             })
         }
         renderRecentTxs()
@@ -461,6 +524,8 @@ transferForm?.addEventListener("submit", (e) => {
         alert("Transfer successful!")
 
         if (accounts.length > 0) {
+            // store the transaction hash so the Etherscan link points to the tx page
+            const recordedHash = normalizeHash(tx && (tx as any).hash) || (tx && (tx as any).hash)
             recentTxs.push({
                 sender: accounts[0],
                 recipient: to,
@@ -468,6 +533,7 @@ transferForm?.addEventListener("submit", (e) => {
                 purpose: purpose.trim(),
                 nullifier: nullifier,
                 timestamp: Date.now(),
+                txHash: recordedHash,
             })
             renderRecentTxs()
         }
