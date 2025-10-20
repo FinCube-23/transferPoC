@@ -1,6 +1,7 @@
 import "./styles/main.css"
 import "./styles/dark-theme.css"
 import { web3Service } from "./services/web3Service"
+import { fetchTransfersFromGraph, type ParsedTransfer } from "./services/graphService"
 import { ethers } from "ethers"
 import { Buffer } from "buffer"
 window.Buffer = Buffer
@@ -77,18 +78,9 @@ function renderRecentTxs(): void {
 
         txRows.innerHTML = page
                 .map((tx) => {
-                        // compute displayedPurpose with simple fallback to 'Refund'
-                        let displayedPurpose = ''
-                        try {
-                                if (tx.purpose && tx.purpose.trim()) {
-                                        const parsed = JSON.parse(tx.purpose)
-                                        if (parsed && typeof parsed === 'object' && parsed.purpose) displayedPurpose = String(parsed.purpose).trim()
-                                        else displayedPurpose = String(tx.purpose).trim()
-                                }
-                        } catch (e) {
-                                displayedPurpose = String(tx.purpose || '').trim()
-                        }
-                        if (!displayedPurpose) displayedPurpose = 'Refund'
+                        // tx.purpose is already extracted from JSON in fetchTransfersFromGraph
+                        // Just use it directly, fallback to 'Refund' only if truly empty
+                        const displayedPurpose = (tx.purpose && tx.purpose.trim()) ? tx.purpose.trim() : 'Refund'
 
                         const FINCUBE_ADDRESS = "0x8a263DcEfee44B9Abe968C1B18e370f6A0A5F878"
                         // Try to extract a valid 0x-prefixed 64-hex transaction hash
@@ -271,67 +263,17 @@ async function updateBalances(account: string) {
 }
 
 // Fetch transfers for an account from The Graph
-async function fetchTransfersFromGraph(account: string): Promise<void> {
-    const endpoint =
-        "https://api.studio.thegraph.com/query/112514/fincube-transfer-token/version/latest"
-    const query = `
-    query($addr: Bytes!) {
-      stablecoinTransfers(where: { from: $addr }, first: 50, orderBy: blockNumber, orderDirection: desc) {
-        id
-        from
-        to
-        amount
-        memo
-        memoHash
-        nullifier
-        txHash
-        blockNumber
-        timestamp
-      }
-    }
-  `
-
+async function loadTransfersFromGraph(account: string): Promise<void> {
     try {
-        const res = await fetch(endpoint, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ query, variables: { addr: account } }),
-        })
-        const json = await res.json()
-        const items = json.data?.stablecoinTransfers || []
-
+        const transfers = await fetchTransfersFromGraph(account)
+        
         // Replace recentTxs with results and reset pagination
         recentTxs.length = 0
+        recentTxs.push(...transfers)
         currentPage = 0
-        for (const it of items) {
-            // Parse memo JSON to extract the actual purpose
-            let actualPurpose = ""
-            if (it.memo) {
-                try {
-                    const memoData = JSON.parse(it.memo)
-                    if (memoData && memoData.PaymentInformation && memoData.PaymentInformation.Purpose) {
-                        actualPurpose = memoData.PaymentInformation.Purpose
-                    }
-                } catch (e) {
-                    // If parsing fails, use the raw memo
-                    actualPurpose = it.memo
-                }
-            }
-            
-            const rawCandidate = it.txHash || it.id
-            const candidateHash = normalizeHash(rawCandidate) || rawCandidate
-            recentTxs.push({
-                sender: it.from,
-                recipient: it.to,
-                amount: `${parseInt(it.amount) / 1e6} USDC`,
-                purpose: actualPurpose || "", // use extracted purpose or empty for 'Refund' fallback
-                timestamp: parseInt(it.timestamp) * 1000,
-                txHash: candidateHash,
-            })
-        }
         renderRecentTxs()
     } catch (e) {
-        console.error("Graph fetch error", e)
+        console.error("Failed to load transfers from Graph", e)
     }
 }
 
@@ -367,7 +309,7 @@ connectBtn.addEventListener("click", async () => {
             setConnectedUI(shortAddress)
             await updateBalances(address)
             // Fetch from graph for this account
-            await fetchTransfersFromGraph(address)
+            await loadTransfersFromGraph(address)
 
             // Listen to account changes
             window.ethereum.on(
@@ -379,7 +321,7 @@ connectBtn.addEventListener("click", async () => {
                             localStorage.setItem("fincube_address", addr)
                         } catch (e) {}
                         await updateBalances(addr)
-                        await fetchTransfersFromGraph(addr)
+                        await loadTransfersFromGraph(addr)
                     } else {
                         web3Service.disconnect()
                         walletStatus.innerHTML = `<div class="status-light disconnected-light"></div>Wallet disconnected`
@@ -655,9 +597,9 @@ window.addEventListener("DOMContentLoaded", () => {
                 console.warn("updateBalances failed", e)
             }
             try {
-                await fetchTransfersFromGraph(acct)
+                await loadTransfersFromGraph(acct)
             } catch (e) {
-                console.warn("fetchTransfersFromGraph failed", e)
+                console.warn("loadTransfersFromGraph failed", e)
             }
 
             const eth = (window as any).ethereum
@@ -671,7 +613,7 @@ window.addEventListener("DOMContentLoaded", () => {
                     setConnectedUI(`${a.slice(0, 6)}...${a.slice(-4)}`)
                     safeExecute(async () => {
                         await updateBalances(a)
-                        await fetchTransfersFromGraph(a)
+                        await loadTransfersFromGraph(a)
                     })
                 } else {
                     try {
