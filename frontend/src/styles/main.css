@@ -450,6 +450,16 @@ button,
     flex-shrink: 0;
 }
 
+.connected-light {
+    background-color: #10b981;
+    box-shadow: 0 0 8px rgba(16, 185, 129, 0.6);
+}
+
+.disconnected-light {
+    background-color: #ef4444;
+    box-shadow: 0 0 8px rgba(239, 68, 68, 0.6);
+}
+
 /* Balance styling with token logo colors */
 #usd-balance {
     color: #22c55e !important; /* USD green matching dollar symbol */
