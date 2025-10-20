@@ -1,55 +1,20 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import StarsBackground from './components/StarsBackground.tsx';
 import Header from './components/Header.tsx';
 import SignInLanding from './components/SignInLanding.tsx';
 import AuthModal from './components/AuthModal.tsx';
 import Dashboard from './components/Dashboard.tsx';
 import AuthLoadingOverlay from './components/AuthLoadingOverlay.tsx';
+import { AuthProvider, useAuthContext } from './contexts';
+import { WalletProvider } from './contexts';
 import './styles/main.css';
 import './styles/dark-theme.css';
 import './styles/stars.css';
 import './styles/temp-stars.css';
 
-const App: React.FC = () => {
-  const [isSignedIn, setIsSignedIn] = useState(false);
-  const [authLoading, setAuthLoading] = useState(false);
-  const [authLoadingText, setAuthLoadingText] = useState('Authenticating...');
+const AppContent: React.FC = () => {
+  const { isSignedIn, loading: authLoading, loadingText: authLoadingText, signIn, signOut } = useAuthContext();
   const [showAuthModal, setShowAuthModal] = useState(false);
-
-  // Check for existing auth on mount
-  useEffect(() => {
-    try {
-      if (localStorage.getItem('fincube_auth')) {
-        setIsSignedIn(true);
-      }
-    } catch (e) {
-      // ignore
-    }
-
-    // Expose auth setter for backwards compatibility with inline scripts
-    (window as any).authSetSignedIn = (value: boolean) => {
-      setIsSignedIn(value);
-    };
-  }, []);
-
-  const handleSignOut = () => {
-    setAuthLoadingText('Signing out...');
-    setAuthLoading(true);
-
-    setTimeout(() => {
-      try {
-        localStorage.removeItem('fincube_auth');
-        localStorage.removeItem('fincube_address');
-        localStorage.setItem('fincube_user_disconnected', '1');
-        setIsSignedIn(false);
-      } catch (e) {
-        console.error('Error during sign-out:', e);
-      } finally {
-        setAuthLoading(false);
-        setAuthLoadingText('Authenticating...');
-      }
-    }, 600);
-  };
 
   return (
     <div
@@ -58,7 +23,6 @@ const App: React.FC = () => {
       style={{
         fontFamily: "'Inter', system-ui, sans-serif",
         minHeight: '100vh',
-        width: '100vw',
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'flex-start',
@@ -74,7 +38,7 @@ const App: React.FC = () => {
       <Header
         isSignedIn={isSignedIn}
         onSignInClick={() => setShowAuthModal(true)}
-        onSignOutClick={handleSignOut}
+        onSignOutClick={signOut}
       />
 
       {!isSignedIn ? (
@@ -87,7 +51,7 @@ const App: React.FC = () => {
         <AuthModal
           onClose={() => setShowAuthModal(false)}
           onAuthSuccess={() => {
-            setIsSignedIn(true);
+            signIn();
             setShowAuthModal(false);
           }}
         />
@@ -97,6 +61,16 @@ const App: React.FC = () => {
         <AuthLoadingOverlay text={authLoadingText} />
       )}
     </div>
+  );
+};
+
+const App: React.FC = () => {
+  return (
+    <AuthProvider>
+      <WalletProvider>
+        <AppContent />
+      </WalletProvider>
+    </AuthProvider>
   );
 };
 

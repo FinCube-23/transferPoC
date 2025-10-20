@@ -6,7 +6,7 @@ import { Buffer } from 'buffer';
 // Polyfill for Buffer (required for ethers.js)
 window.Buffer = Buffer;
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
+ReactDOM.createRoot(document.getElementById('app')!).render(
   <React.StrictMode>
     <App />
   </React.StrictMode>

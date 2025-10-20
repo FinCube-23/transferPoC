@@ -1,4 +1,5 @@
 import React from 'react';
+import { useWalletContext } from '../contexts/WalletContext';
 
 interface HeaderProps {
   isSignedIn: boolean;
@@ -7,6 +8,23 @@ interface HeaderProps {
 }
 
 const Header: React.FC<HeaderProps> = ({ isSignedIn, onSignInClick, onSignOutClick }) => {
+  const { isConnected, currentAccount, connect, disconnect } = useWalletContext();
+
+  const handleWalletClick = async () => {
+    if (isConnected) {
+      disconnect();
+    } else {
+      try {
+        await connect();
+      } catch (error) {
+        // Error already handled in useWallet hook
+      }
+    }
+  };
+
+  const shortenAddress = (address: string) => {
+    return `${address.slice(0, 6)}...${address.slice(-4)}`;
+  };
   return (
     <header
       className={`app-header ${!isSignedIn ? 'signin-hide' : ''}`}
@@ -120,23 +138,26 @@ const Header: React.FC<HeaderProps> = ({ isSignedIn, onSignInClick, onSignOutCli
                 fontWeight: 500,
               }}
             >
-              <div className="status-light disconnected-light"></div>
-              <span style={{ fontFamily: 'monospace' }}>Connect your wallet please</span>
+              <div className={`status-light ${isConnected ? 'connected-light' : 'disconnected-light'}`}></div>
+              <span style={{ fontFamily: 'monospace' }}>
+                {isConnected && currentAccount ? `Connected: ${shortenAddress(currentAccount)}` : 'Connect your wallet please'}
+              </span>
             </div>
             <button
               id="connect-wallet"
+              onClick={handleWalletClick}
               style={{
                 padding: '0.25rem 0.6rem',
-                background: 'linear-gradient(135deg, #10b981 0%, #06b6d4 100%)',
+                background: isConnected ? '#f87171' : 'linear-gradient(135deg, #10b981 0%, #06b6d4 100%)',
                 color: '#fff',
                 border: 'none',
                 borderRadius: '0.6rem',
                 fontWeight: 600,
                 cursor: 'pointer',
-                boxShadow: '0 4px 12px rgba(16, 185, 129, 0.25)',
+                boxShadow: isConnected ? '0 4px 12px rgba(248, 113, 113, 0.25)' : '0 4px 12px rgba(16, 185, 129, 0.25)',
               }}
             >
-              Connect Wallet
+              {isConnected ? 'Disconnect' : 'Connect Wallet'}
             </button>
           </div>
         )}

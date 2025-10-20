@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 
+import { useAuthContext } from '../contexts';
+
 interface AuthModalProps {
   onClose: () => void;
   onAuthSuccess: () => void;
@@ -7,6 +9,7 @@ interface AuthModalProps {
 
 const AuthModal: React.FC<AuthModalProps> = ({ onClose, onAuthSuccess }) => {
   const [activeTab, setActiveTab] = useState<'login' | 'register'>('login');
+  const { setLoading } = useAuthContext();
 
   const handleBackdropClick = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget) {
@@ -14,15 +17,22 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onAuthSuccess }) => {
     }
   };
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    // This will use the inline script logic from index.html
-    // For now, just simulate success
+    
+    // Show loading overlay
+    setLoading(true, 'Authenticating...');
+    
+    // Simulate authentication delay
+    await new Promise(resolve => setTimeout(resolve, 600));
+    
     try {
       localStorage.setItem('fincube_auth', 'true');
       onAuthSuccess();
     } catch (err) {
       console.error('Login failed', err);
+    } finally {
+      setLoading(false);
     }
   };
 
