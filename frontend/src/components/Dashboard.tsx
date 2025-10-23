@@ -1,12 +1,16 @@
 import React, { useEffect, useState } from 'react';
-import { useWalletContext } from '../contexts/WalletContext';
+import { useWalletStore } from '../stores/walletStore';
 import { useTransactions } from '../hooks/useTransactions';
 import { web3Service } from '../services/web3Service';
 import { ethers } from 'ethers';
 import type { ParsedTransfer } from '../services/graphService';
 
 const Dashboard: React.FC = () => {
-  const { isConnected, currentAccount, balances, updateBalances } = useWalletContext();
+  // Selective subscriptions to wallet store
+  const isConnected = useWalletStore((state) => state.isConnected);
+  const currentAccount = useWalletStore((state) => state.currentAccount);
+  const balances = useWalletStore((state) => state.balances);
+  const updateBalances = useWalletStore((state) => state.updateBalances);
   const {
     transactions,
     currentPage,
@@ -28,7 +32,7 @@ const Dashboard: React.FC = () => {
   useEffect(() => {
     if (isConnected && currentAccount) {
       loadTransactions(currentAccount);
-    } else {
+      updateBalances(); 
       clearTransactions();
     }
   }, [isConnected, currentAccount, loadTransactions, clearTransactions]);
