@@ -1,5 +1,5 @@
 import React from 'react';
-import { useWalletContext } from '../contexts/WalletContext';
+import { useWalletStore } from '../stores/walletStore';
 
 interface HeaderProps {
   isSignedIn: boolean;
@@ -8,7 +8,13 @@ interface HeaderProps {
 }
 
 const Header: React.FC<HeaderProps> = ({ isSignedIn, onSignInClick, onSignOutClick }) => {
-  const { isConnected, currentAccount, connect, disconnect } = useWalletContext();
+  // Selective subscription for state - use separate subscriptions to avoid object creation
+  const isConnected = useWalletStore((state) => state.isConnected);
+  const currentAccount = useWalletStore((state) => state.currentAccount);
+  
+  // Selective subscription for actions (won't cause re-renders)
+  const connect = useWalletStore((state) => state.connect);
+  const disconnect = useWalletStore((state) => state.disconnect);
 
   const handleWalletClick = async () => {
     if (isConnected) {

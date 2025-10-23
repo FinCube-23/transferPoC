@@ -5,15 +5,23 @@ import SignInLanding from './components/SignInLanding.tsx';
 import AuthModal from './components/AuthModal.tsx';
 import Dashboard from './components/Dashboard.tsx';
 import AuthLoadingOverlay from './components/AuthLoadingOverlay.tsx';
-import { AuthProvider, useAuthContext } from './contexts';
-import { WalletProvider } from './contexts';
+import { useAuthStore } from './stores/authStore';
+import { useWalletStore } from './stores/walletStore';
 import './styles/main.css';
 import './styles/dark-theme.css';
 import './styles/stars.css';
 import './styles/temp-stars.css';
 
 const AppContent: React.FC = () => {
-  const { isSignedIn, loading: authLoading, loadingText: authLoadingText, signIn, signOut } = useAuthContext();
+  // Use selective subscriptions for state
+  const isSignedIn = useAuthStore((state) => state.isSignedIn);
+  const loading = useAuthStore((state) => state.loading);
+  const loadingText = useAuthStore((state) => state.loadingText);
+  
+  // Use selective subscriptions for actions
+  const signIn = useAuthStore((state) => state.signIn);
+  const signOut = useAuthStore((state) => state.signOut);
+  
   const [showAuthModal, setShowAuthModal] = useState(false);
 
   return (
@@ -57,21 +65,30 @@ const AppContent: React.FC = () => {
         />
       )}
 
-      {authLoading && (
-        <AuthLoadingOverlay text={authLoadingText} />
+      {loading && (
+        <AuthLoadingOverlay text={loadingText} />
       )}
     </div>
   );
 };
 
 const App: React.FC = () => {
-  return (
-    <AuthProvider>
-      <WalletProvider>
-        <AppContent />
-      </WalletProvider>
-    </AuthProvider>
-  );
+  // Initialize stores on app mount
+  React.useEffect(() => {
+    // Initialize auth store (restore sign-in state from localStorage)
+    useAuthStore.getState().initialize();
+
+    // Initialize wallet store (restore connection from localStorage)
+    useWalletStore.getState().initialize();
+
+    // Setup wallet event listeners for MetaMask events
+    const cleanup = useWalletStore.getState().setupEventListeners();
+
+    // Return cleanup function to remove event listeners on unmount
+    return cleanup;
+  }, []);
+  
+  return <AppContent />;
 };
 
 export default App;
