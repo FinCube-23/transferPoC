@@ -44,6 +44,15 @@ export const useAuthStore = create<AuthState>((set) => {
             localStorage.removeItem('fincube_address');
             localStorage.setItem('fincube_user_disconnected', 'true');
 
+            // Disconnect wallet by triggering wallet store disconnect (skip confirmation)
+            const walletStore = (window as any).__walletStore;
+            if (walletStore && typeof walletStore.getState === 'function') {
+              const disconnect = walletStore.getState().disconnect;
+              if (typeof disconnect === 'function') {
+                disconnect(true); // Pass true to skip confirmation dialog
+              }
+            }
+
             // Update state
             set({
               isSignedIn: false,
