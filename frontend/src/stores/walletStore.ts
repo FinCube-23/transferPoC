@@ -16,7 +16,7 @@ interface WalletState {
 
   // Actions
   connect: () => Promise<void>;
-  disconnect: () => void;
+  disconnect: (skipConfirmation?: boolean) => void;
   updateBalances: () => Promise<void>;
   setAccount: (account: string | null) => void;
   setConnected: (connected: boolean) => void;
@@ -25,7 +25,8 @@ interface WalletState {
   setupEventListeners: () => () => void;
 }
 
-export const useWalletStore = create<WalletState>((set, get) => ({
+export const useWalletStore = create<WalletState>((set, get) => {
+  const store = {
   // Initial state
   isConnected: false,
   currentAccount: null,
@@ -64,13 +65,15 @@ export const useWalletStore = create<WalletState>((set, get) => ({
     }
   },
 
-  // Disconnect action with confirmation dialog
-  disconnect: () => {
-    const confirmDisconnect = confirm(
-      'Do you want to disconnect your wallet from this site?'
-    );
+  // Disconnect action with optional confirmation dialog
+  disconnect: (skipConfirmation: boolean = false) => {
+    if (!skipConfirmation) {
+      const confirmDisconnect = confirm(
+        'Do you want to disconnect your wallet from this site?'
+      );
 
-    if (!confirmDisconnect) return;
+      if (!confirmDisconnect) return;
+    }
 
     web3Service.disconnect();
     set({
@@ -219,4 +222,12 @@ export const useWalletStore = create<WalletState>((set, get) => ({
       }
     };
   },
-}));
+  };
+
+  // Expose store globally for cross-store access
+  if (typeof window !== 'undefined') {
+    (window as any).__walletStore = { getState: () => store };
+  }
+
+  return store;
+});

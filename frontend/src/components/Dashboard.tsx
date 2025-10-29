@@ -32,7 +32,7 @@ const Dashboard: React.FC = () => {
   useEffect(() => {
     if (isConnected && currentAccount) {
       loadTransactions(currentAccount);
-      updateBalances(); 
+      updateBalances();
       clearTransactions();
     }
   }, [isConnected, currentAccount, loadTransactions, clearTransactions]);
@@ -103,7 +103,7 @@ const Dashboard: React.FC = () => {
           style={{
             display: 'flex',
             justifyContent: 'center',
-            gap: '0.3rem',
+            gap: '1rem',
             flexWrap: 'wrap',
             width: '100%',
             marginTop: '0.2rem',
@@ -116,20 +116,20 @@ const Dashboard: React.FC = () => {
               flex: '1 1 180px',
               maxWidth: '220px',
               background: '#f8fafc',
-              border: '1px solid rgba(16, 185, 129, 0.3)',
+              border: '0',
+              outline: 'none',
               borderRadius: '1rem',
               textAlign: 'center',
-              padding: '0.7rem',
-              boxShadow: '0 4px 14px rgba(6, 182, 212, 0.15)',
+              padding: '1.2rem 0.7rem',
+              boxShadow: '0 4px 14px rgba(0, 0, 0, 0.08)',
               transition: 'transform 0.2s',
             }}
           >
             <div
               style={{
-                background: 'rgba(16, 185, 129, 0.1)',
+                background: 'transparent',
                 width: '40px',
                 height: '40px',
-                borderRadius: '50%',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -167,20 +167,20 @@ const Dashboard: React.FC = () => {
               flex: '1 1 180px',
               maxWidth: '220px',
               background: '#f8fafc',
-              border: '1px solid rgba(16, 185, 129, 0.3)',
+              border: '0',
+              outline: 'none',
               borderRadius: '1rem',
               textAlign: 'center',
-              padding: '0.7rem',
-              boxShadow: '0 4px 14px rgba(6, 182, 212, 0.15)',
+              padding: '1.2rem 0.7rem',
+              boxShadow: '0 4px 14px rgba(0, 0, 0, 0.08)',
               transition: 'transform 0.2s',
             }}
           >
             <div
               style={{
-                background: 'rgba(98, 126, 234, 0.1)',
+                background: 'transparent',
                 width: '40px',
                 height: '40px',
-                borderRadius: '50%',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -214,20 +214,20 @@ const Dashboard: React.FC = () => {
               flex: '1 1 180px',
               maxWidth: '220px',
               background: '#f8fafc',
-              border: '1px solid rgba(16, 185, 129, 0.3)',
+              border: '0',
+              outline: 'none',
               borderRadius: '1rem',
               textAlign: 'center',
-              padding: '0.7rem',
-              boxShadow: '0 4px 14px rgba(6, 182, 212, 0.15)',
+              padding: '1.2rem 0.7rem',
+              boxShadow: '0 4px 14px rgba(0, 0, 0, 0.08)',
               transition: 'transform 0.2s',
             }}
           >
             <div
               style={{
-                background: 'rgba(39, 117, 202, 0.1)',
+                background: 'transparent',
                 width: '40px',
                 height: '40px',
-                borderRadius: '50%',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -266,7 +266,7 @@ const Dashboard: React.FC = () => {
         id="transfer-form"
         onSubmit={async (e) => {
           e.preventDefault();
-          
+
           try {
             const toInput = transferForm.address.trim().replace(/\s+/g, '');
             const amount = transferForm.amount;
@@ -377,7 +377,7 @@ const Dashboard: React.FC = () => {
             };
 
             const recordedHash = normalizeHash(tx && (tx as any).hash) || (tx && (tx as any).hash);
-            
+
             const newTx: ParsedTransfer = {
               sender: currentAccount || '',
               recipient: toInput,
@@ -403,7 +403,7 @@ const Dashboard: React.FC = () => {
         }}
         style={{
           display: 'flex',
-          marginTop: '0.75rem',
+          marginTop: '2.5rem',
           marginLeft: 'auto',
           marginRight: 'auto',
           flexDirection: 'column',
@@ -606,7 +606,7 @@ const Dashboard: React.FC = () => {
             >
               <svg width="18" height="18" viewBox="0 0 293.775 293.667" xmlns="http://www.w3.org/2000/svg">
                 <g fill="#21325b">
-                  <path d="M146.8 0C65.777 0 0 65.777 0 146.834 0 227.86 65.777 293.667 146.8 293.667c81.056 0 146.833-65.808 146.833-146.833C293.633 65.777 227.856 0 146.8 0zm-3.177 238.832c-22.155 0-40.124-17.969-40.124-40.124s17.969-40.124 40.124-40.124 40.124 17.969 40.124 40.124-17.969 40.124-40.124 40.124zm58.63-82.585c-22.155 0-40.124-17.969-40.124-40.124s17.969-40.124 40.124-40.124 40.124 17.969 40.124 40.124-17.969 40.124-40.124 40.124zm-117.26 0c-22.155 0-40.124-17.969-40.124-40.124s17.969-40.124 40.124-40.124 40.124 17.969 40.124 40.124-17.969 40.124-40.124 40.124z"/>
+                  <path d="M146.8 0C65.777 0 0 65.777 0 146.834 0 227.86 65.777 293.667 146.8 293.667c81.056 0 146.833-65.808 146.833-146.833C293.633 65.777 227.856 0 146.8 0zm-3.177 238.832c-22.155 0-40.124-17.969-40.124-40.124s17.969-40.124 40.124-40.124 40.124 17.969 40.124 40.124-17.969 40.124-40.124 40.124zm58.63-82.585c-22.155 0-40.124-17.969-40.124-40.124s17.969-40.124 40.124-40.124 40.124 17.969 40.124 40.124-17.969 40.124-40.124 40.124zm-117.26 0c-22.155 0-40.124-17.969-40.124-40.124s17.969-40.124 40.124-40.124 40.124 17.969 40.124 40.124-17.969 40.124-40.124 40.124z" />
                 </g>
               </svg>
             </button>
@@ -648,7 +648,7 @@ const Dashboard: React.FC = () => {
     return page.map((tx, index) => {
       const displayedPurpose = (tx.purpose && tx.purpose.trim()) ? tx.purpose.trim() : 'Refund';
       const FINCUBE_ADDRESS = '0x8a263DcEfee44B9Abe968C1B18e370f6A0A5F878';
-      
+
       const rawCandidate = tx.txHash || '';
       const match = String(rawCandidate).match(/0x[a-fA-F0-9]{64}/);
       const txHashForUrl = match ? match[0] : undefined;
@@ -670,11 +670,11 @@ const Dashboard: React.FC = () => {
           </div>
           <div className="tx-date">{new Date(tx.timestamp).toLocaleString()}</div>
           <div className="tx-etherscan">
-            <a 
-              className="etherscan-link" 
-              href={txUrl} 
-              target="_blank" 
-              rel="noopener" 
+            <a
+              className="etherscan-link"
+              href={txUrl}
+              target="_blank"
+              rel="noopener"
               title="View on Etherscan"
               dangerouslySetInnerHTML={{ __html: etherscanIcon }}
             />
