@@ -1,4 +1,4 @@
-# Ethereum Fraud Detection Service
+# Ethereum Fraud Detection Service.
 
 RAG-based fraud detection service using K-NN similarity search and Gemini AI for Ethereum addresses.
 
