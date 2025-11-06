@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  opensearch:
+    image: opensearchproject/opensearch:2.11.0
+    container_name: fraud-detection-opensearch
+    environment:
+      - discovery.type=single-node
+      - OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m
+      - DISABLE_SECURITY_PLUGIN=true
+      - "OPENSEARCH_INITIAL_ADMIN_PASSWORD=Admin@123"
+    ports:
+      - "9200:9200"
+      - "9600:9600"
+    volumes:
+      - opensearch-data:/usr/share/opensearch/data
+    networks:
+      - fraud-detection-net
+
+  api:
+    build: .
+    container_name: fraud-detection-api
+    ports:
+      - "8000:8000"
+    environment:
+      - OPENSEARCH_HOST=opensearch
+      - OPENSEARCH_PORT=9200
+    env_file:
+      - .env
+    depends_on:
+      - opensearch
+    networks:
+      - fraud-detection-net
+    volumes:
+      - ./app:/app/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+volumes:
+  opensearch-data:
+
+networks:
+  fraud-detection-net:
+    driver: bridge
