@@ -2,118 +2,11 @@
 
 Complete setup instructions for the Ethereum Fraud Detection Service.
 
-## System Requirements
 
-### Minimum
-- **OS**: Linux, macOS, or Windows with WSL2
-- **RAM**: 2GB available
-- **Disk**: 5GB free space
-- **Docker**: 20.10+
-- **Docker Compose**: 2.0+
 
-### Recommended
-- **RAM**: 4GB available
-- **Disk**: 10GB free space
-- **CPU**: 2+ cores
 
-## Installation Steps
 
-### 1. Install Docker
 
-#### Linux (Ubuntu/Debian)
-```bash
-# Update package index
-sudo apt-get update
-
-# Install Docker
-curl -fsSL https://get.docker.com -o get-docker.sh
-sudo sh get-docker.sh
-
-# Add user to docker group
-sudo usermod -aG docker $USER
-
-# Install Docker Compose
-sudo apt-get install docker-compose-plugin
-
-# Verify installation
-docker --version
-docker compose version
-```
-
-#### macOS
-```bash
-# Install Docker Desktop
-# Download from: https://www.docker.com/products/docker-desktop
-
-# Or use Homebrew
-brew install --cask docker
-
-# Start Docker Desktop
-open -a Docker
-
-# Verify installation
-docker --version
-docker compose version
-```
-
-#### Windows (WSL2)
-```bash
-# Install Docker Desktop for Windows
-# Download from: https://www.docker.com/products/docker-desktop
-
-# Enable WSL2 backend in Docker Desktop settings
-
-# In WSL2 terminal, verify:
-docker --version
-docker compose version
-```
-
-### 2. Get API Keys
-
-#### Alchemy API Key
-
-1. Go to [https://www.alchemy.com/](https://www.alchemy.com/)
-2. Sign up for free account
-3. Create new app:
-   - Chain: Ethereum
-   - Network: Mainnet
-4. Copy API key from dashboard
-
-**Free Tier**: 300M compute units/month (enough for ~1.28M address checks)
-
-#### Google API Key (Gemini)
-
-1. Go to [https://makersuite.google.com/app/apikey](https://makersuite.google.com/app/apikey)
-2. Sign in with Google account
-3. Click "Create API Key"
-4. Copy the generated key
-
-**Free Tier**: 60 requests/minute
-
-#### Kaggle Credentials (Optional)
-
-1. Go to [https://www.kaggle.com/](https://www.kaggle.com/)
-2. Sign up/login
-3. Go to Account settings
-4. Scroll to "API" section
-5. Click "Create New API Token"
-6. Download `kaggle.json`
-7. Extract username and key from file
-
-### 3. Clone/Setup Project
-
-```bash
-# Create project directory
-mkdir fraud-detection-service
-cd fraud-detection-service
-
-# Copy all project files here
-# (or clone from git repository)
-
-# Verify files
-ls -la
-# Should see: docker-compose.yml, Dockerfile, requirements.txt, app/, etc.
-```
 
 ### 4. Configure Environment
 
@@ -129,32 +22,7 @@ vim .env
 code .env
 ```
 
-**Required variables**:
-```env
-ALCHEMY_API_KEY=your_alchemy_api_key_here
-GOOGLE_API_KEY=your_google_api_key_here
-```
 
-**Optional variables** (for data scraping):
-```env
-KAGGLE_USERNAME=your_kaggle_username
-KAGGLE_KEY=your_kaggle_api_key
-```
-
-**Advanced configuration**:
-```env
-# OpenSearch settings
-OPENSEARCH_HOST=opensearch
-OPENSEARCH_PORT=9200
-INDEX_NAME=fraud_detection_vectors
-
-# K-NN parameters
-KNN_NEIGHBORS=10
-CONFIDENCE_THRESHOLD=0.7
-
-# Feature dimensions
-FEATURE_DIM=44
-```
 
 ### 5. Increase System Limits (Linux only)
 
@@ -169,27 +37,6 @@ echo "vm.max_map_count=262144" | sudo tee -a /etc/sysctl.conf
 sudo sysctl -p
 ```
 
-### 6. Start Services
-
-```bash
-# Pull images and start services
-docker-compose up -d
-
-# Check status
-docker-compose ps
-
-# Expected output:
-# NAME                          STATUS
-# fraud-detection-api           Up
-# fraud-detection-opensearch    Up
-
-# View logs
-docker-compose logs -f
-```
-
-**Wait for services to be ready**:
-- OpenSearch: "Node started" in logs
-- API: "Application startup complete" in logs
 
 ### 7. Initialize Database
 
@@ -238,139 +85,8 @@ curl -X POST "http://localhost:8000/score" \
   | jq .
 ```
 
-## Troubleshooting
 
-### Issue: Docker daemon not running
 
-**Error**: `Cannot connect to the Docker daemon`
-
-**Solution**:
-```bash
-# Linux
-sudo systemctl start docker
-
-# macOS/Windows
-# Start Docker Desktop application
-```
-
-### Issue: Port already in use
-
-**Error**: `Bind for 0.0.0.0:8000 failed: port is already allocated`
-
-**Solution**:
-```bash
-# Find process using port
-sudo lsof -i :8000
-# or
-sudo netstat -tulpn | grep 8000
-
-# Kill process
-sudo kill -9 <PID>
-
-# Or change port in docker-compose.yml
-# ports:
-#   - "8001:8000"  # Use 8001 instead
-```
-
-### Issue: OpenSearch won't start
-
-**Error**: `max virtual memory areas vm.max_map_count [65530] is too low`
-
-**Solution**:
-```bash
-# Increase limit
-sudo sysctl -w vm.max_map_count=262144
-
-# Make permanent
-echo "vm.max_map_count=262144" | sudo tee -a /etc/sysctl.conf
-```
-
-### Issue: Out of memory
-
-**Error**: `OpenSearch killed` or `Container exited with code 137`
-
-**Solution**:
-```bash
-# Reduce OpenSearch memory in docker-compose.yml
-# Change:
-# OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m
-# To:
-# OPENSEARCH_JAVA_OPTS=-Xms256m -Xmx256m
-
-# Restart
-docker-compose restart opensearch
-```
-
-### Issue: Kaggle authentication failed
-
-**Error**: `401 Unauthorized` when scraping
-
-**Solution**:
-1. Verify credentials in `.env`
-2. Check kaggle.json format:
-   ```json
-   {"username":"your_username","key":"your_key"}
-   ```
-3. Ensure Kaggle account is verified (phone number)
-
-### Issue: Alchemy API errors
-
-**Error**: `Invalid API key` or `Rate limit exceeded`
-
-**Solution**:
-```bash
-# Verify API key
-echo $ALCHEMY_API_KEY
-
-# Check dashboard
-# https://dashboard.alchemy.com/
-
-# For rate limits, wait or upgrade plan
-```
-
-### Issue: Gemini API errors
-
-**Error**: `API key not valid` or `Quota exceeded`
-
-**Solution**:
-```bash
-# Verify API key
-echo $GOOGLE_API_KEY
-
-# Check quota
-# https://makersuite.google.com/app/apikey
-
-# Ensure gemini-pro model is enabled
-```
-
-### Issue: Database initialization fails
-
-**Error**: Various errors during `init_db.py`
-
-**Solution**:
-```bash
-# Check OpenSearch is running
-curl http://localhost:9200/_cluster/health
-
-# Delete and recreate index
-curl -X DELETE http://localhost:8000/index
-
-# Try again
-docker-compose exec api python scripts/init_db.py
-
-# Check logs for specific errors
-docker-compose logs api
-```
-
-## Verification Checklist
-
-- [ ] Docker and Docker Compose installed
-- [ ] API keys obtained and configured in `.env`
-- [ ] Services started: `docker-compose ps` shows "Up"
-- [ ] OpenSearch healthy: `curl http://localhost:9200/_cluster/health`
-- [ ] API healthy: `curl http://localhost:8000/`
-- [ ] Database initialized: `curl http://localhost:8000/stats` shows documents
-- [ ] Test request works: `POST /score` returns valid response
 
 ## Next Steps
 

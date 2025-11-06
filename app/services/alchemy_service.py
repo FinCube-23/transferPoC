@@ -11,7 +11,7 @@ class AlchemyService:
     
     def __init__(self, api_key: str):
         self.api_key = api_key
-        self.base_url = f"https://eth-mainnet.g.alchemy.com/v2/{api_key}"
+        self.base_url = f"https://eth-sepolia.g.alchemy.com/v2/{api_key}"
         self.client = httpx.AsyncClient(timeout=30.0)
     
     async def close(self):

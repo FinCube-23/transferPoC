@@ -123,7 +123,7 @@ Provide a brief analysis of what these patterns suggest.""")
         
         edge_cases = []
         
-        # Check for suspicious patterns
+        # Check for suspicious patterns in below fields.
         sent_tx = features.get("Sent tnx", 0)
         received_tx = features.get("Received Tnx", 0)
         balance = features.get("total ether balance", 0)
