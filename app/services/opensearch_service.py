@@ -75,15 +75,29 @@ class OpenSearchService:
                     "_source": record
                 }
         
-        success, failed = helpers.bulk(
+        success_count = 0
+        failed_items = []
+        
+        for ok, item in helpers.streaming_bulk(
             self.client,
             generate_actions(),
             chunk_size=batch_size,
             raise_on_error=False
-        )
+        ):
+            if ok:
+                success_count += 1
+            else:
+                failed_items.append(item)
+                # Log first 3 errors for debugging
+                if len(failed_items) <= 3:
+                    logger.error(f"Failed to insert document: {item}")
         
-        logger.info(f"Bulk insert: {success} succeeded, {len(failed)} failed")
-        return success, failed
+        logger.info(f"Bulk insert: {success_count} succeeded, {len(failed_items)} failed")
+        
+        if failed_items:
+            logger.error(f"Sample failure reasons from first error: {failed_items[0] if failed_items else 'none'}")
+        
+        return success_count, failed_items
     
     def knn_search(self, query_vector: List[float], k: int = 10) -> List[Dict[str, Any]]:
         """

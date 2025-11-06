@@ -4,8 +4,8 @@ from enum import Enum
 
 
 class FraudResult(str, Enum):
-    FRAUD = "True"
-    NOT_FRAUD = "False"
+    FRAUD = "Fraud"
+    NOT_FRAUD = "Not_Fraud"
     UNDECIDED = "Undecided"
 
 

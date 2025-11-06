@@ -34,7 +34,7 @@ class RAGService:
     
     def __init__(self, api_key: str):
         self.llm = ChatGoogleGenerativeAI(
-            model="gemini-pro",
+            model="gemini-2.5-pro",
             google_api_key=api_key,
             temperature=0.1,
             convert_system_message_to_human=True
@@ -171,13 +171,14 @@ Provide a brief analysis of what these patterns suggest.""")
 make a final fraud determination. Be conservative - only mark as fraud if there's strong evidence.
 
 Respond in JSON format:
-{
-  "final_decision": "True|False|Undecided",
+{{
+  "final_decision": "Fraud|Not_Fraud|Undecided",
   "reasoning": "detailed explanation",
   "confidence": 0.0-1.0,
   "edge_cases_detected": ["list of edge cases"],
   "risk_factors": ["specific risk factors"]
-}"""),
+}}
+"""),
             ("human", """Make final fraud determination:
 
 Address: {address}
