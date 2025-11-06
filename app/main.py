@@ -1,8 +1,3 @@
-"""
-Ethereum Fraud Detection Service
-
-Main application entry point with service initialization and routing
-"""
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
 import logging

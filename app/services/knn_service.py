@@ -36,10 +36,11 @@ class KNNService:
         distances = [n.get("distance", 1) for n in neighbors]
         flags = [n.get("flag", 0) for n in neighbors]
         
-        # Inverse distance weighting
+        # Inverse distance weighting(a closer neighbor gets more importance than distant neighbors)
         weights = [1 / (d + 1e-6) for d in distances]
         total_weight = sum(weights)
         
+        # ref: Dudani (1976) "The Distance-Weighted k-Nearest-Neighbor Rule"
         weighted_fraud_prob = sum(
             w * flag for w, flag in zip(weights, flags)
         ) / total_weight if total_weight > 0 else 0
@@ -68,27 +69,4 @@ class KNNService:
             "nearest_neighbors": neighbors
         }
     
-    @staticmethod
-    def get_decision(fraud_probability: float, confidence: float, threshold: float = 0.5) -> str:
-        """
-        Make fraud decision based on probability and confidence
-        
-        Args:
-            fraud_probability: Probability of fraud (0-1)
-            confidence: Confidence in the prediction (0-1)
-            threshold: Decision threshold
-        
-        Returns:
-            "True" (fraud), "False" (not fraud), or "Undecided"
-        """
-        # If confidence is too low, return undecided
-        if confidence < 0.4:
-            return "Undecided"
-        
-        # Make decision based on probability
-        if fraud_probability >= threshold:
-            return "True"
-        elif fraud_probability < (1 - threshold):
-            return "False"
-        else:
-            return "Undecided"
+    

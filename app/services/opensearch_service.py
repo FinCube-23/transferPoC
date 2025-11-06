@@ -26,6 +26,7 @@ class OpenSearchService:
             logger.info(f"Index {self.index_name} already exists")
             return
         
+        # Create the index with the K-NN configuration
         index_body = {
             "settings": {
                 "index": {
@@ -121,7 +122,8 @@ class OpenSearchService:
                 }
             }
         }
-        
+        # This will perform the k-NN similarity search and return the nearest neighbors
+        # Vector DB have K-NN Search built in, so we can use it to search for the nearest neighbors.
         response = self.client.search(index=self.index_name, body=query)
         
         results = []
