@@ -3,7 +3,6 @@ Dependency injection for FastAPI routes
 
 Provides access to global services
 """
-from typing import Generator
 from app.services.alchemy_service import AlchemyService
 from app.services.opensearch_service import OpenSearchService
 from app.services.rag_service import RAGService
