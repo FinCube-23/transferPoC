@@ -55,6 +55,13 @@ class FeatureExtractor:
         "Unique Sent To Addresses",
         "Unique Received From Addresses"
     ]
+
+    @staticmethod
+    def _safe_float(value: float) -> float:
+        """Convert value to safe float, replacing NaN/inf with 0"""
+        if value != value or value == float('inf') or value == float('-inf'):
+            return 0.0
+        return float(value)
     
     @staticmethod
     def extract_features(account_data: Dict[str, Any]) -> Dict[str, float]:
@@ -93,14 +100,16 @@ class FeatureExtractor:
         sent_values = [float(t.get("value", 0)) for t in sent_external if t.get("value")]
         features["min val sent"] = min(sent_values) if sent_values else 0
         features["max val sent"] = max(sent_values) if sent_values else 0
-        features["avg val sent"] = np.mean(sent_values) if sent_values else 0
+        avg_sent = np.mean(sent_values) if sent_values else 0
+        features["avg val sent"] = 0.0 if (avg_sent != avg_sent) else float(avg_sent)
         features["total Ether sent"] = sum(sent_values)
         
         # Value features - received
         received_values = [float(t.get("value", 0)) for t in received_external if t.get("value")]
         features["min value received"] = min(received_values) if received_values else 0
         features["max value received"] = max(received_values) if received_values else 0
-        features["avg val received"] = np.mean(received_values) if received_values else 0
+        avg_received = np.mean(received_values) if received_values else 0
+        features["avg val received"] = 0.0 if (avg_received != avg_received) else float(avg_received)
         features["total ether received"] = sum(received_values)
         
         # Contract interactions
@@ -109,7 +118,8 @@ class FeatureExtractor:
         features["Number of Created Contracts"] = len([t for t in sent if t.get("category") == "internal"])
         features["min value sent to contract"] = min(contract_values) if contract_values else 0
         features["max val sent to contract"] = max(contract_values) if contract_values else 0
-        features["avg value sent to contract"] = np.mean(contract_values) if contract_values else 0
+        avg_contract = np.mean(contract_values) if contract_values else 0
+        features["avg value sent to contract"] = FeatureExtractor._safe_float(avg_contract)
         features["total ether sent contracts"] = sum(contract_values)
         
         # Unique addresses
@@ -129,10 +139,12 @@ class FeatureExtractor:
         features[" ERC20 total Ether received"] = sum(erc20_received_values)
         features[" ERC20 min val sent"] = min(erc20_sent_values) if erc20_sent_values else 0
         features[" ERC20 max val sent"] = max(erc20_sent_values) if erc20_sent_values else 0
-        features[" ERC20 avg val sent"] = np.mean(erc20_sent_values) if erc20_sent_values else 0
+        avg_erc20_sent = np.mean(erc20_sent_values) if erc20_sent_values else 0
+        features[" ERC20 avg val sent"] = FeatureExtractor._safe_float(avg_erc20_sent)
         features[" ERC20 min val rec"] = min(erc20_received_values) if erc20_received_values else 0
         features[" ERC20 max val rec"] = max(erc20_received_values) if erc20_received_values else 0
-        features[" ERC20 avg val rec"] = np.mean(erc20_received_values) if erc20_received_values else 0
+        avg_erc20_rec = np.mean(erc20_received_values) if erc20_received_values else 0
+        features[" ERC20 avg val rec"] = FeatureExtractor._safe_float(avg_erc20_rec)
         
         # ERC20 unique addresses
         features[" ERC20 uniq sent addr"] = len(set([t.get("to", "") for t in sent_erc20 if t.get("to")]))
@@ -165,49 +177,62 @@ class FeatureExtractor:
     @staticmethod
     def _calc_avg_time_diff(transactions: List[Dict]) -> float:
         """Calculate average time difference between transactions in minutes"""
-        if len(transactions) < 2:
-            return 0
-        
+        if not transactions or len(transactions) < 2:
+            return 0.0
+
         timestamps = []
         for tx in transactions:
-            metadata = tx.get("metadata", {})
+            if not isinstance(tx, dict):
+                continue
+            metadata = tx.get("metadata") or {}
+            if not isinstance(metadata, dict):
+                continue
             block_timestamp = metadata.get("blockTimestamp")
-            if block_timestamp:
-                try:
-                    dt = datetime.fromisoformat(block_timestamp.replace("Z", "+00:00"))
-                    timestamps.append(dt.timestamp())
-                except:
-                    continue
-        
+            if not block_timestamp:
+                continue
+            try:
+                dt = datetime.fromisoformat(block_timestamp.replace("Z", "+00:00"))
+                timestamps.append(dt.timestamp())
+            except Exception:
+                continue
+
         if len(timestamps) < 2:
-            return 0
-        
+            return 0.0
+
         timestamps.sort()
-        diffs = [timestamps[i+1] - timestamps[i] for i in range(len(timestamps)-1)]
+        diffs = [timestamps[i + 1] - timestamps[i] for i in range(len(timestamps) - 1)]
+        if not diffs:
+            return 0.0
+
         avg_seconds = np.mean(diffs)
-        return avg_seconds / 60  # Convert to minutes
+        return FeatureExtractor._safe_float(avg_seconds / 60)
     
     @staticmethod
     def _calc_time_range(transactions: List[Dict]) -> float:
         """Calculate time difference between first and last transaction in minutes"""
-        if len(transactions) < 2:
-            return 0
-        
+        if not transactions or len(transactions) < 2:
+            return 0.0
+
         timestamps = []
         for tx in transactions:
-            metadata = tx.get("metadata", {})
+            if not isinstance(tx, dict):
+                continue
+            metadata = tx.get("metadata") or {}
+            if not isinstance(metadata, dict):
+                continue
             block_timestamp = metadata.get("blockTimestamp")
-            if block_timestamp:
-                try:
-                    dt = datetime.fromisoformat(block_timestamp.replace("Z", "+00:00"))
-                    timestamps.append(dt.timestamp())
-                except:
-                    continue
-        
+            if not block_timestamp:
+                continue
+            try:
+                dt = datetime.fromisoformat(block_timestamp.replace("Z", "+00:00"))
+                timestamps.append(dt.timestamp())
+            except Exception:
+                continue
+
         if len(timestamps) < 2:
-            return 0
-        
-        return (max(timestamps) - min(timestamps)) / 60  # Minutes
+            return 0.0
+
+        return FeatureExtractor._safe_float((max(timestamps) - min(timestamps)) / 60)
     
     @staticmethod
     def _is_contract_tx(tx: Dict) -> bool:
@@ -230,5 +255,6 @@ class FeatureExtractor:
         # Use a consistent ordering based on FEATURE_NAMES
         vector = []
         for name in FeatureExtractor.FEATURE_NAMES:
-            vector.append(features.get(name, 0))
+            value = features.get(name, 0)
+            vector.append(FeatureExtractor._safe_float(value))
         return vector
