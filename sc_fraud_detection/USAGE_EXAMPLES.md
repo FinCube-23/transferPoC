@@ -210,7 +210,7 @@ curl http://localhost:8000/stats | jq .
 # }
 ```
 
-### Reset Database
+### Reset / Delete Database
 
 ```bash
 # Delete index

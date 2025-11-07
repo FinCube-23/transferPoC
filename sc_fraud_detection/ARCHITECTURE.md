@@ -6,7 +6,11 @@
 ┌─────────────────────────────────────────────────────────────────┐
 │                     Fraud Detection Service                      │
 └─────────────────────────────────────────────────────────────────┘
-
+┌─────────────┐
+│   Client    │
+└──────┬──────┘
+       │
+       ▼
 ┌──────────────┐         ┌──────────────┐         ┌──────────────┐
 │   External   │         │   FastAPI    │         │  OpenSearch  │
 │   Sources    │────────▶│     API      │◀───────▶│  Vector DB   │
@@ -322,7 +326,7 @@ confidence = (distance_confidence + agreement) / 2
 
 ```json
 {
-  "result": "True|False|Undecided",
+  "result": "Fraud|Not_Fraud|Undecided",
   "address": "0x...",
   "fraud_probability": 0.0-1.0,
   "confidence": 0.0-1.0,

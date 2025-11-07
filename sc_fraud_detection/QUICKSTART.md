@@ -35,13 +35,13 @@ KAGGLE_KEY=your_kaggle_key
 
 ```bash
 # Start OpenSearch and API
-docker-compose up -d
+docker compose up -d --build
 
 # Check if services are running
-docker-compose ps
+docker compose ps
 
 # View logs
-docker-compose logs -f api
+docker compose logs -f api
 ```
 
 Wait for: `INFO: Application startup complete`
@@ -49,21 +49,12 @@ Wait for: `INFO: Application startup complete`
 ## Step 3: Load Training Data (2-3 min)
 
 ```bash
-# Initialize database with Kaggle dataset
-docker-compose exec api python scripts/init_db.py
-```
-
-This will:
-- Download the Ethereum fraud detection dataset
-- Process ~10,000 records
-- Load into OpenSearch vector database
-
-Expected output:
-```
-✓ Database initialization complete!
-  - Successfully inserted: 9841
-  - Failed: 0
-  - Total documents: 9841
+curl -X POST "http://localhost:8000/scrape" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "source_url": "vagifa/ethereum-frauddetection-dataset",
+    "source_type": "kaggle"
+  }'
 ```
 
 ## Step 4: Test the API (30 sec)
