@@ -19,9 +19,9 @@ graph TB
     Kaggle --> API
     API <--> OS
     
-    API --> Alchemy
-    API --> RAG
-    API --> KNN
+    API <--> Alchemy
+    API <--> RAG
+    API <--> KNN
     
     style API fill:#4CAF50,stroke:#333,stroke-width:2px
     style OS fill:#2196F3,stroke:#333,stroke-width:2px
