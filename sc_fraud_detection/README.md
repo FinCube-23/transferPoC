@@ -17,144 +17,23 @@ User Request → Alchemy API → Feature Extraction → K-NN Search (OpenSearch)
 5. **K-NN Service**: Analyzes nearest neighbors for fraud probability
 6. **RAG Service**: LangChain/LangGraph workflow with Gemini for edge case detection
 
-## Quick Start
 
-### 1. Prerequisites
+## 📚 Documentation
 
-- Docker and Docker Compose
-- Alchemy API key
-- Google API key (for Gemini)
-- Kaggle credentials (optional, for data scraping)
+### For Users
+- **QUICKSTART.md**: Get started in 5 minutes
+- **USAGE_EXAMPLES.md**: Code examples in Python, JS, curl
+- **README.md**: Complete user guide
 
-### 2. Setup
+### For Developers
+- **ARCHITECTURE.md**: System design & components
+- **PROJECT_STRUCTURE.md**: Project structure.
 
-```bash
-# Clone repository
-cd fraud-detection-service
+### For Operations
+- **docker-compose.yml**: Service configuration
+- **README.md**: Monitoring & troubleshooting
 
-# Create .env file
-cp .env.example .env
 
-# Edit .env with your API keys
-nano .env
-```
-
-Required environment variables:
-```env
-ALCHEMY_API_KEY=your_alchemy_key
-GOOGLE_API_KEY=your_google_key
-KAGGLE_USERNAME=your_kaggle_username
-KAGGLE_KEY=your_kaggle_key
-```
-
-### 3. Start Services
-
-```bash
-# Start OpenSearch and API
-docker-compose up -d
-
-# Check logs
-docker-compose logs -f api
-```
-
-The API will be available at `http://localhost:8000`
-
-### 4. Load Training Data
-
-Option A: Using the API endpoint
-```bash
-curl -X POST "http://localhost:8000/scrape" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "source_url": "vagifa/ethereum-frauddetection-dataset",
-    "source_type": "kaggle"
-  }'
-```
-
-Option B: Using the initialization script
-```bash
-docker-compose exec api python scripts/init_db.py
-```
-
-### 5. Check Status
-
-```bash
-curl http://localhost:8000/stats
-```
-
-## API Endpoints
-
-### POST /score
-
-Score an Ethereum address for fraud probability.
-
-**Request:**
-```json
-{
-  "address": "0x1234567890abcdef1234567890abcdef12345678"
-}
-```
-
-**Response:**
-```json
-{
-  "result": "True|False|Undecided",
-  "address": "0x1234...",
-  "fraud_probability": 0.85,
-  "confidence": 0.92,
-  "knn_analysis": {
-    "fraud_probability": 0.85,
-    "nearest_neighbors": [...],
-    "avg_distance": 0.23
-  },
-  "rag_analysis": {
-    "reasoning": "Account shows patterns consistent with...",
-    "confidence": 0.92,
-    "edge_cases_detected": [
-      "High transaction volume with minimal balance"
-    ]
-  },
-  "features_extracted": {
-    "Sent tnx": 150,
-    "Received Tnx": 45,
-    ...
-  }
-}
-```
-
-### POST /scrape
-
-Load data from external source into vector database.
-
-**Request:**
-```json
-{
-  "source_url": "vagifa/ethereum-frauddetection-dataset",
-  "source_type": "kaggle"
-}
-```
-
-Supported source types:
-- `kaggle`: Kaggle dataset identifier
-- `csv_url`: Direct CSV file URL
-- `json_url`: Direct JSON API URL
-
-### GET /stats
-
-Get database statistics.
-
-**Response:**
-```json
-{
-  "exists": true,
-  "document_count": 9841,
-  "size_in_bytes": 2456789
-}
-```
-
-### DELETE /index
-
-Delete the vector database index (use with caution).
 
 ## How It Works
 
@@ -225,34 +104,8 @@ OPENSEARCH_PORT=9200
 INDEX_NAME=fraud_detection_vectors
 ```
 
-## Development
 
-### Local Development (without Docker)
 
-```bash
-# Install dependencies
-pip install -r requirements.txt
-
-# Start OpenSearch
-docker-compose up opensearch -d
-
-# Set environment variables
-export OPENSEARCH_HOST=localhost
-export ALCHEMY_API_KEY=your_key
-export GOOGLE_API_KEY=your_key
-
-# Run API
-uvicorn app.main:app --reload
-```
-
-### Testing
-
-```bash
-# Test with a known address
-curl -X POST "http://localhost:8000/score" \
-  -H "Content-Type: application/json" \
-  -d '{"address": "0x..."}'
-```
 
 ## Performance
 
@@ -310,3 +163,102 @@ Pull requests welcome! Please ensure:
 - Code follows existing style
 - Tests pass
 - Documentation updated
+
+
+## 🔍 What Makes This Special
+
+### 1. Hybrid Approach
+- **K-NN**: Fast, data-driven similarity search
+- **RAG**: Intelligent edge case handling
+- **Best of both**: Accuracy + explainability
+
+### 2. Edge Case Detection
+Identifies 6 types of unusual patterns:
+1. High volume + low balance (mixers/tumblers)
+2. Imbalanced transaction ratios
+3. Large value movements
+4. Rapid activity bursts (bots)
+5. Low K-NN confidence (novel patterns)
+6. Heavy ERC20 usage (DeFi/traders)
+
+### 3. Explainable Results
+- Not just "fraud" or "not fraud"
+- Detailed reasoning from Gemini
+- Confidence scores
+- Nearest neighbor analysis
+- Feature breakdown
+
+### 4. Production Ready
+- Docker deployment
+- Error handling
+- Logging
+- Health checks
+- Background tasks
+- Async operations
+
+### 5. Extensible Design
+- Generic scraper (easy to add sources)
+- Modular services
+- Clear separation of concerns
+- Well-documented code
+
+
+
+## 📈 Accuracy & Reliability
+
+### K-NN Baseline
+- Depends on training data quality
+- Kaggle dataset: ~10,000 labeled addresses
+- Weighted probability for better accuracy
+
+### RAG Enhancement
+- Catches edge cases K-NN misses
+- Provides reasoning for decisions
+- Adjusts confidence based on patterns
+
+### Confidence Scoring
+- **High (>0.8)**: Strong pattern match
+- **Medium (0.5-0.8)**: Moderate confidence
+- **Low (<0.5)**: Uncertain, returns "Undecided"
+
+### Honest Uncertainty
+- Returns "Undecided" when not confident
+- Better than false positives/negatives
+- Allows human review of edge cases
+
+---
+
+## 🛠️ Technology Stack
+
+### Backend
+- **FastAPI**: Modern async Python framework
+- **Pydantic**: Data validation
+- **httpx**: Async HTTP client
+
+### AI/ML
+- **LangChain**: LLM framework
+- **LangGraph**: Workflow orchestration
+- **Gemini**: Google's LLM
+- **scikit-learn**: ML utilities
+
+### Database
+- **OpenSearch**: Vector database
+- **HNSW**: K-NN algorithm
+
+### Infrastructure
+- **Docker**: Containerization
+- **Docker Compose**: Orchestration
+
+---
+
+
+## Test it out
+```
+Non-fraud (well-known/public EOAs with benign usage)
+0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045 (Vitalik)
+
+Fraud-like behavior (mixers/sanctioned infra; contracts, but good for anomaly patterns)
+0x910Cbd523D972eb0a6f4cae4618aD62622b39DbF (Tornado Cash router)
+0xD90e2f925DA726b50C4Ed8D0Fb90Ad053324F31b (Tornado Cash 0.1 ETH pool)
+0xA160cdAB225685dA1d56aa342Ad8841c3b53f291 (Contract deployer used by many tokens; unusual flows)
+```
