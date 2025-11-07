@@ -1,0 +1,1129 @@
+/* Dark Mode Theme with Beautiful Emerald-Cyan Gradients */
+
+/* Apply to the main app container when signed in */
+#app.dark-theme {
+    background: linear-gradient(
+        135deg,
+        #0f172a 0%,
+        #164e63 25%,
+        #155e75 50%,
+        #0e7490 75%,
+        #0891b2 100%
+    ) !important;
+    background-size: 400% 400% !important;
+    animation: gradientFlow 20s ease infinite;
+    min-height: 100vh;
+    position: relative;
+}
+
+/* Add animated overlay for extra depth */
+#app.dark-theme::before {
+    content: "";
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: radial-gradient(
+            circle at 20% 80%,
+            rgba(16, 185, 129, 0.3) 0%,
+            transparent 50%
+        ),
+        radial-gradient(
+            circle at 80% 20%,
+            rgba(6, 182, 212, 0.3) 0%,
+            transparent 50%
+        ),
+        radial-gradient(
+            circle at 40% 40%,
+            rgba(14, 116, 144, 0.2) 0%,
+            transparent 50%
+        );
+    pointer-events: none;
+    z-index: -1;
+}
+
+@keyframes gradientFlow {
+    0% {
+        background-position: 0% 50%;
+        filter: hue-rotate(0deg);
+    }
+    25% {
+        background-position: 100% 50%;
+        filter: hue-rotate(5deg);
+    }
+    50% {
+        background-position: 100% 100%;
+        filter: hue-rotate(10deg);
+    }
+    75% {
+        background-position: 50% 100%;
+        filter: hue-rotate(5deg);
+    }
+    100% {
+        background-position: 0% 50%;
+        filter: hue-rotate(0deg);
+    }
+}
+
+/* Header styling with glass morphism */
+#app.dark-theme .app-header {
+    background: rgba(15, 23, 42, 0.6) !important;
+    backdrop-filter: blur(20px) saturate(180%);
+    border-bottom: 1px solid rgba(16, 185, 129, 0.3) !important;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3) !important;
+}
+
+/* Transfer form styling - beautiful glass effect with gradients */
+#app.dark-theme #transfer-form {
+    background: linear-gradient(
+        135deg,
+        rgba(15, 23, 42, 0.8) 0%,
+        rgba(30, 41, 59, 0.8) 100%
+    ) !important;
+    backdrop-filter: blur(20px) saturate(180%);
+    border: none !important;
+    border-radius: 20px !important;
+    box-shadow: 0 25px 50px rgba(0, 0, 0, 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
+    position: relative;
+    overflow: hidden;
+}
+
+#app.dark-theme #transfer-form::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(
+        135deg,
+        rgba(16, 185, 129, 0.1) 0%,
+        rgba(6, 182, 212, 0.1) 100%
+    );
+    pointer-events: none;
+    border-radius: 18px;
+}
+
+/* Input fields with emerald-cyan glow effects */
+#app.dark-theme input[type="text"],
+#app.dark-theme input[type="number"] {
+    background: linear-gradient(
+        135deg,
+        rgba(15, 23, 42, 0.9) 0%,
+        rgba(30, 41, 59, 0.9) 100%
+    ) !important;
+    border: 2px solid rgba(16, 185, 129, 0.3) !important;
+    border-radius: 16px !important;
+    color: #f0fdf4 !important;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+#app.dark-theme input[type="text"]:focus,
+#app.dark-theme input[type="number"]:focus {
+    border: 2px solid transparent !important;
+    background: linear-gradient(
+        135deg,
+        rgba(15, 23, 42, 0.95) 0%,
+        rgba(30, 41, 59, 0.95) 100%
+    ) !important;
+    box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.6),
+        0 0 30px rgba(6, 182, 212, 0.4), 0 8px 25px rgba(0, 0, 0, 0.4) !important;
+    transform: translateY(-2px);
+}
+
+#app.dark-theme input::placeholder {
+    color: rgba(240, 253, 244, 0.6) !important;
+}
+
+/* Button styling - stunning emerald-cyan gradient buttons */
+#app.dark-theme button {
+    background: linear-gradient(
+        135deg,
+        #10b981 0%,
+        #059669 25%,
+        #0891b2 75%,
+        #06b6d4 100%
+    ) !important;
+    border: none !important;
+    color: #f0fdf4 !important;
+    font-weight: 700;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    cursor: pointer;
+    border-radius: 16px !important;
+    box-shadow: 0 8px 25px rgba(16, 185, 129, 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
+    position: relative;
+    overflow: hidden;
+}
+
+#app.dark-theme button::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(255, 255, 255, 0.2),
+        transparent
+    );
+    transition: left 0.6s;
+}
+
+#app.dark-theme button:hover {
+    transform: translateY(-3px) scale(1.02);
+    box-shadow: 0 15px 40px rgba(16, 185, 129, 0.6),
+        0 5px 15px rgba(6, 182, 212, 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
+}
+
+#app.dark-theme button:hover::before {
+    left: 100%;
+}
+
+#app.dark-theme button:active {
+    transform: translateY(-1px) scale(1.01);
+}
+
+/* Sign out button styling */
+#app.dark-theme #sign-out {
+    background: linear-gradient(135deg, #ef4444, #dc2626) !important;
+    color: #fef2f2 !important;
+}
+
+#app.dark-theme #sign-out:hover {
+    box-shadow: 0 8px 20px rgba(239, 68, 68, 0.4) !important;
+}
+
+/* Wallet status styling - override default styles */
+#app.dark-theme #wallet-status {
+    color: #f0fdf4 !important;
+    font-weight: 600;
+}
+
+/* Recent transactions section - remove white background */
+#app.dark-theme #recent-transactions {
+    background: transparent !important;
+}
+
+/* Recent transactions styling - Beautiful glass morphism */
+#app.dark-theme .transactions-header {
+    background: linear-gradient(
+        135deg,
+        rgba(15, 23, 42, 0.9) 0%,
+        rgba(30, 41, 59, 0.9) 100%
+    ) !important;
+    border: none !important;
+    backdrop-filter: blur(20px) saturate(180%);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    border-radius: 20px 20px 0 0 !important;
+}
+
+#app.dark-theme .transactions-table {
+    background: linear-gradient(
+        135deg,
+        rgba(15, 23, 42, 0.85) 0%,
+        rgba(30, 41, 59, 0.85) 100%
+    ) !important;
+    border: none !important;
+    backdrop-filter: blur(20px) saturate(180%);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+    border-radius: 0 0 20px 20px !important;
+}
+
+#app.dark-theme .transactions-table-header {
+    background: linear-gradient(
+        135deg,
+        rgba(15, 23, 42, 0.9) 0%,
+        rgba(16, 185, 129, 0.1) 100%
+    ) !important;
+    color: #f0fdf4 !important;
+    border-bottom: 1px solid rgba(16, 185, 129, 0.3) !important;
+}
+
+#app.dark-theme .transactions-rows {
+    background: transparent !important;
+}
+
+/* Transaction Row Dark Theme with hover effects */
+#app.dark-theme .transaction-row {
+    border-top: 1px solid rgba(16, 185, 129, 0.2) !important;
+    background: transparent !important;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+#app.dark-theme .transaction-row:hover {
+    background: linear-gradient(
+        135deg,
+        rgba(16, 185, 129, 0.1) 0%,
+        rgba(6, 182, 212, 0.1) 100%
+    ) !important;
+    transform: translateX(5px);
+    border-left: 3px solid rgba(16, 185, 129, 0.6);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+}
+
+#app.dark-theme .tx-address {
+    color: #cbd5e1 !important;
+    text-shadow: 0 0 5px rgba(203, 213, 225, 0.3);
+}
+
+#app.dark-theme .tx-amount {
+    color: #10b981 !important;
+    text-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
+    font-weight: 800;
+}
+
+#app.dark-theme .tx-purpose {
+    color: #94a3b8 !important;
+    text-shadow: 0 0 5px rgba(148, 163, 184, 0.3);
+}
+
+#app.dark-theme .tx-nullifier {
+    color: #94a3b8 !important;
+    text-shadow: 0 0 5px rgba(148, 163, 184, 0.3);
+}
+
+#app.dark-theme .tx-date {
+    color: #94a3b8 !important;
+}
+
+/* Transaction item styling */
+#app.dark-theme #tx-rows > div,
+#app.dark-theme .transaction-item {
+    background: rgba(15, 23, 42, 0.5) !important;
+    border: 1px solid rgba(6, 182, 212, 0.2) !important;
+    border-radius: 8px !important;
+    transition: all 0.3s ease;
+    color: #f0fdf4 !important;
+}
+
+#app.dark-theme #tx-rows > div:hover,
+#app.dark-theme .transaction-item:hover {
+    background: rgba(15, 23, 42, 0.7) !important;
+    border-color: rgba(6, 182, 212, 0.4) !important;
+    transform: translateY(-2px);
+}
+
+/* Text styling */
+#app.dark-theme h1,
+#app.dark-theme h2,
+#app.dark-theme h3,
+#app.dark-theme p,
+#app.dark-theme div,
+#app.dark-theme span {
+    color: #f0fdf4 !important;
+}
+
+/* Scrollbar styling */
+#app.dark-theme ::-webkit-scrollbar {
+    width: 8px;
+}
+
+#app.dark-theme ::-webkit-scrollbar-track {
+    background: rgba(15, 23, 42, 0.3);
+}
+
+#app.dark-theme ::-webkit-scrollbar-thumb {
+    background: linear-gradient(135deg, #10b981, #06b6d4);
+    border-radius: 4px;
+}
+
+/* Icons */
+#app.dark-theme svg {
+    filter: brightness(1.2);
+}
+
+/* Specific text highlights */
+#app.dark-theme .highlight {
+    background: linear-gradient(135deg, #10b981, #06b6d4);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+/* Ensure Recent Transactions title shows correctly in dark theme (no white box) */
+#app.dark-theme .transactions-title {
+    color: #f0fdf4 !important;
+    background: transparent !important;
+    padding: 0 !important;
+}
+
+/* Balance Cards Styling - Token logo colors */
+#app.dark-theme #usd-balance {
+    color: #22c55e !important; /* USD green matching dollar logo */
+    font-weight: 700 !important;
+    text-shadow: 0 0 8px rgba(34, 197, 94, 0.4);
+}
+
+#app.dark-theme #eth-balance {
+    color: #627eea !important; /* Ethereum official logo blue */
+    font-weight: 700 !important;
+    text-shadow: 0 0 8px rgba(98, 126, 234, 0.4);
+}
+
+#app.dark-theme #usdc-balance {
+    color: #2775ca !important; /* USDC official logo blue */
+    font-weight: 700 !important;
+    text-shadow: 0 0 8px rgba(39, 117, 202, 0.4);
+}
+
+/* Balance Cards with stunning glass morphism and gradients */
+#app.dark-theme .wallets-container > div,
+#app.dark-theme div[style*="flex: 1 1 180px"][style*="background: #f8fafc"] {
+    background: linear-gradient(
+        135deg,
+        rgba(15, 23, 42, 0.8) 0%,
+        rgba(30, 41, 59, 0.8) 100%
+    ) !important;
+    border: 2px solid transparent !important;
+    border-image: linear-gradient(
+            135deg,
+            rgba(16, 185, 129, 0.4),
+            rgba(6, 182, 212, 0.4)
+        )
+        1 !important;
+    backdrop-filter: blur(20px) saturate(180%);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
+    border-radius: 20px !important;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+#app.dark-theme .wallets-container > div::before,
+#app.dark-theme
+    div[style*="flex: 1 1 180px"][style*="background: #f8fafc"]::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(
+        135deg,
+        rgba(16, 185, 129, 0.1) 0%,
+        rgba(6, 182, 212, 0.1) 100%
+    );
+    pointer-events: none;
+    border-radius: 18px;
+}
+
+/* Transaction label keys (Reference, Purpose, Description) should be green in dark theme */
+#app.dark-theme .tx-memo .label-green {
+    color: #10b981 !important;
+    font-weight: 600 !important;
+}
+
+#app.dark-theme .wallets-container > div:hover,
+#app.dark-theme
+    div[style*="flex: 1 1 180px"][style*="background: #f8fafc"]:hover {
+    transform: translateY(-5px) scale(1.02);
+    box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5),
+        0 10px 30px rgba(16, 185, 129, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
+}
+
+/* Balance card labels */
+#app.dark-theme .wallets-container span {
+    color: #cbd5e1 !important;
+}
+#app.dark-theme div[style*="flex: 1 1 180px"][style*="background: #f8fafc"] {
+    background: rgba(15, 23, 42, 0.8) !important;
+    border: 1px solid rgba(6, 182, 212, 0.3) !important;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3) !important;
+    backdrop-filter: blur(10px);
+}
+
+/* Balance card labels (USD Balance, ETH Balance, etc.) */
+#app.dark-theme div[style*="font-weight: 700; color: #111827"] {
+    color: #e2e8f0 !important;
+}
+
+/* Balance cards with class */
+#app.dark-theme .balance-card-item {
+    background: linear-gradient(
+        135deg,
+        rgba(15, 23, 42, 0.8) 0%,
+        rgba(30, 41, 59, 0.8) 100%
+    ) !important;
+    border: none !important;
+    backdrop-filter: blur(20px) saturate(180%);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
+    border-radius: 20px !important;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+#app.dark-theme .balance-card-item::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(
+        135deg,
+        rgba(16, 185, 129, 0.1) 0%,
+        rgba(6, 182, 212, 0.1) 100%
+    );
+    pointer-events: none;
+    border-radius: 18px;
+}
+
+#app.dark-theme .balance-card-item:hover {
+    transform: translateY(-5px) scale(1.02);
+    box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5),
+        0 10px 30px rgba(16, 185, 129, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
+}
+
+/* Wallets section header */
+#app.dark-theme
+    div[style*="background: linear-gradient(90deg,#0f172a 0%, #10b981 50%, #06b6d4 100%)"] {
+    background: linear-gradient(
+        90deg,
+        #10b981 0%,
+        #06b6d4 50%,
+        #0891b2 100%
+    ) !important;
+    -webkit-background-clip: text !important;
+    background-clip: text !important;
+    color: transparent !important;
+    text-shadow: 0 0 15px rgba(6, 182, 212, 0.4) !important;
+}
+
+/* Connected Status with Green Light */
+#app.dark-theme #wallet-status span {
+    background: transparent !important;
+    color: #e2e8f0 !important;
+    border: none !important;
+    position: relative;
+    padding-left: 0.6rem !important;
+    box-shadow: none !important;
+}
+
+#app.dark-theme #wallet-status span[style*="Connected:"]::before {
+    content: "";
+    position: absolute;
+    left: 0.8rem;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 8px;
+    height: 8px;
+    background: #10b981;
+    border-radius: 50%;
+    animation: pulseGreen 2s infinite;
+    box-shadow: 0 0 6px #10b981;
+}
+
+/* Wallet status inner span (address) */
+#app.dark-theme #wallet-status span span {
+    color: #06b6d4 !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+}
+
+@keyframes pulseGreen {
+    0% {
+        opacity: 1;
+        transform: translateY(-50%) scale(1);
+    }
+    50% {
+        opacity: 0.7;
+        transform: translateY(-50%) scale(1.1);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(-50%) scale(1);
+    }
+}
+
+/* Sign-in page styling with starry sky */
+.signin-landing {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    background: #000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.signin-landing::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(
+            circle at 20% 20%,
+            rgba(16, 185, 129, 0.2) 0%,
+            transparent 50%
+        ),
+        radial-gradient(
+            circle at 80% 80%,
+            rgba(6, 182, 212, 0.2) 0%,
+            transparent 50%
+        ),
+        radial-gradient(
+            circle at 40% 60%,
+            rgba(16, 185, 129, 0.1) 0%,
+            transparent 50%
+        );
+    animation: aurora 20s ease-in-out infinite;
+}
+
+@keyframes aurora {
+    0%,
+    100% {
+        opacity: 0.8;
+        transform: scale(1) rotate(0deg);
+    }
+    33% {
+        opacity: 0.6;
+        transform: scale(1.1) rotate(2deg);
+    }
+    66% {
+        opacity: 0.9;
+        transform: scale(0.9) rotate(-1deg);
+    }
+}
+
+/* Starry background */
+.signin-landing::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-image: radial-gradient(1px 1px at 20px 30px, #fff, transparent),
+        radial-gradient(
+            1px 1px at 40px 70px,
+            rgba(255, 255, 255, 0.8),
+            transparent
+        ),
+        radial-gradient(
+            1px 1px at 90px 40px,
+            rgba(255, 255, 255, 0.6),
+            transparent
+        ),
+        radial-gradient(
+            1px 1px at 130px 80px,
+            rgba(255, 255, 255, 0.4),
+            transparent
+        ),
+        radial-gradient(
+            1px 1px at 160px 30px,
+            rgba(255, 255, 255, 0.8),
+            transparent
+        ),
+        radial-gradient(
+            2px 2px at 200px 100px,
+            rgba(16, 185, 129, 0.8),
+            transparent
+        ),
+        radial-gradient(
+            1px 1px at 250px 50px,
+            rgba(255, 255, 255, 0.6),
+            transparent
+        ),
+        radial-gradient(
+            1px 1px at 300px 90px,
+            rgba(6, 182, 212, 0.7),
+            transparent
+        );
+    background-repeat: repeat;
+    background-size: 350px 150px;
+    animation: stars 30s linear infinite;
+}
+
+@keyframes stars {
+    0% {
+        transform: translateY(0);
+    }
+    100% {
+        transform: translateY(-150px);
+    }
+}
+
+.signin-content {
+    position: relative;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2.5rem;
+    padding: 3rem;
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 32px;
+    box-shadow: 0 40px 80px rgba(0, 0, 0, 0.3),
+        0 0 0 1px rgba(255, 255, 255, 0.05),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    min-width: 400px;
+    text-align: center;
+}
+
+/* Seamless design without box */
+.signin-content-seamless {
+    position: relative;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3rem;
+    padding: 2rem;
+    text-align: center;
+}
+
+/* FINCUBE branding with feature icons */
+.fincube-branding {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+}
+
+.feature-icons {
+    display: flex;
+    gap: 2rem;
+    align-items: center;
+    justify-content: center;
+}
+
+.feature-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.8rem;
+    text-align: center;
+}
+
+.feature-icon {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+    cursor: pointer;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+}
+
+.seamless-icon {
+    background: rgba(16, 185, 129, 0.2);
+    border: 2px solid rgba(16, 185, 129, 0.4);
+    color: #10b981;
+}
+
+.lightning-icon {
+    background: rgba(6, 182, 212, 0.2);
+    border: 2px solid rgba(6, 182, 212, 0.4);
+    color: #06b6d4;
+}
+
+.transfer-icon {
+    background: rgba(139, 92, 246, 0.2);
+    border: 2px solid rgba(139, 92, 246, 0.4);
+    color: #8b5cf6;
+}
+
+.feature-icon:hover {
+    transform: translateY(-3px) scale(1.05);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+}
+
+.seamless-icon:hover {
+    background: rgba(16, 185, 129, 0.3);
+    border-color: rgba(16, 185, 129, 0.6);
+    box-shadow: 0 8px 25px rgba(16, 185, 129, 0.4);
+}
+
+.lightning-icon:hover {
+    background: rgba(6, 182, 212, 0.3);
+    border-color: rgba(6, 182, 212, 0.6);
+    box-shadow: 0 8px 25px rgba(6, 182, 212, 0.4);
+}
+
+.transfer-icon:hover {
+    background: rgba(139, 92, 246, 0.3);
+    border-color: rgba(139, 92, 246, 0.6);
+    box-shadow: 0 8px 25px rgba(139, 92, 246, 0.4);
+}
+
+.feature-text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+
+.feature-title {
+    font-size: 0.9rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+
+.seamless-text {
+    color: #10b981;
+    text-shadow: 0 0 10px rgba(16, 185, 129, 0.3);
+}
+
+.lightning-text {
+    color: #06b6d4;
+    text-shadow: 0 0 10px rgba(6, 182, 212, 0.3);
+}
+
+.transfer-text {
+    color: #8b5cf6;
+    text-shadow: 0 0 10px rgba(139, 92, 246, 0.3);
+}
+
+.feature-description {
+    font-size: 0.7rem;
+    color: rgba(255, 255, 255, 0.7);
+    font-weight: 400;
+    letter-spacing: 0.3px;
+}
+
+.signin-logo {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.5rem;
+}
+
+.signin-logo-icon {
+    width: 80px;
+    height: 80px;
+    background: linear-gradient(135deg, #10b981 0%, #06b6d4 100%);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 20px 40px rgba(16, 185, 129, 0.4),
+        0 0 60px rgba(6, 182, 212, 0.2);
+    animation: logoFloat 6s ease-in-out infinite;
+}
+
+@keyframes logoFloat {
+    0%,
+    100% {
+        transform: translateY(0) rotate(0deg);
+    }
+    50% {
+        transform: translateY(-10px) rotate(2deg);
+    }
+}
+
+.signin-title {
+    font-size: 3.5rem;
+    font-weight: 900;
+    margin: 0;
+    background: linear-gradient(135deg, #10b981 0%, #06b6d4 50%, #8b5cf6 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    letter-spacing: -0.03em;
+    text-shadow: 0 0 30px rgba(16, 185, 129, 0.3);
+    animation: titleGlow 4s ease-in-out infinite;
+}
+
+@keyframes titleGlow {
+    0%,
+    100% {
+        filter: brightness(1);
+    }
+    50% {
+        filter: brightness(1.2);
+    }
+}
+
+.signin-button {
+    padding: 1rem 2.5rem;
+    background: linear-gradient(135deg, #10b981 0%, #06b6d4 100%);
+    color: white;
+    border: none;
+    border-radius: 16px;
+    font-size: 1.1rem;
+    font-weight: 700;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 12px 24px rgba(16, 185, 129, 0.3),
+        0 0 0 1px rgba(255, 255, 255, 0.1);
+    min-width: 200px;
+}
+
+/* Seamless sign-in button with perfect center alignment */
+.signin-button-seamless {
+    padding: 1.2rem 3rem;
+    background: linear-gradient(135deg, #10b981 0%, #06b6d4 100%);
+    color: white;
+    border: none;
+    border-radius: 20px;
+    font-size: 1.2rem;
+    font-weight: 700;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 15px 30px rgba(16, 185, 129, 0.4),
+        0 0 0 1px rgba(255, 255, 255, 0.1);
+    min-width: 250px;
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(10px);
+}
+
+.signin-button::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(255, 255, 255, 0.3),
+        transparent
+    );
+    transition: left 0.6s;
+}
+
+.signin-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 20px 40px rgba(16, 185, 129, 0.4),
+        0 0 0 1px rgba(255, 255, 255, 0.2);
+}
+
+.signin-button:hover::before {
+    left: 100%;
+}
+
+.signin-button:active {
+    transform: translateY(0);
+}
+
+/* Seamless button hover effects */
+.signin-button-seamless::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(255, 255, 255, 0.3),
+        transparent
+    );
+    transition: left 0.6s;
+}
+
+.signin-button-seamless:hover {
+    transform: translateY(-3px) scale(1.02);
+    box-shadow: 0 25px 50px rgba(16, 185, 129, 0.5),
+        0 10px 30px rgba(6, 182, 212, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.2);
+}
+
+.signin-button-seamless:hover::before {
+    left: 100%;
+}
+
+.signin-button-seamless:active {
+    transform: translateY(-1px) scale(1.01);
+}
+
+/* Hide elements on sign-in page */
+.signin-hide {
+    display: none !important;
+}
+
+/* Loading spinner overlay */
+.auth-loading {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+.auth-loading-content {
+    background: rgba(15, 23, 42, 0.95);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    border-radius: 24px;
+    padding: 2.5rem 3rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.5rem;
+    box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5),
+        0 0 0 1px rgba(255, 255, 255, 0.05),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    animation: slideUp 0.4s ease-out;
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.auth-spinner {
+    width: 48px;
+    height: 48px;
+    border: 4px solid rgba(16, 185, 129, 0.2);
+    border-top: 4px solid #10b981;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% {
+        transform: rotate(0deg);
+    }
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+.auth-loading-text {
+    color: #e2e8f0;
+    font-size: 1.1rem;
+    font-weight: 600;
+    text-align: center;
+    animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%,
+    100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.7;
+    }
+}
+
+/* Dark Theme Responsive Design */
+@media (max-width: 900px) {
+    #app.dark-theme .app-header {
+        flex-direction: column;
+        gap: 1rem;
+    }
+}
+
+@media (max-width: 768px) {
+    #app.dark-theme .transactions-table-header,
+    #app.dark-theme .transaction-row {
+        grid-template-columns: 1fr 1fr 0.7fr minmax(100px, 1fr) 32px;
+    }
+
+    /* Hide Purpose and Nullifier columns on mobile in dark theme */
+    #app.dark-theme .transactions-table-header > div:nth-child(4),
+    #app.dark-theme .transactions-table-header > div:nth-child(5),
+    #app.dark-theme .transaction-row > div:nth-child(4),
+    #app.dark-theme .transaction-row > div:nth-child(5) {
+        display: none;
+    }
+
+    #app.dark-theme .transactions-table-header > div:nth-child(6),
+    #app.dark-theme .transaction-row > div:nth-child(6) {
+        grid-column: 4;
+    }
+
+    #app.dark-theme .transactions-table-header > div:nth-child(7),
+    #app.dark-theme .transaction-row > div:nth-child(7) {
+        grid-column: 5;
+    }
+}
+
+@media (max-width: 600px) {
+    #app.dark-theme .transactions-table-header,
+    #app.dark-theme .transaction-row {
+        grid-template-columns: 1fr 1fr minmax(80px, 1fr) 28px;
+    }
+
+    #app.dark-theme .transactions-table-header > div:nth-child(3),
+    #app.dark-theme .transaction-row > div:nth-child(3) {
+        display: none;
+    }
+
+    #app.dark-theme .transactions-table-header > div:nth-child(6),
+    #app.dark-theme .transaction-row > div:nth-child(6) {
+        grid-column: 3;
+    }
+
+    #app.dark-theme .transactions-table-header > div:nth-child(7),
+    #app.dark-theme .transaction-row > div:nth-child(7) {
+        grid-column: 4;
+    }
+}
+
+@media (max-width: 480px) {
+    #app.dark-theme .transactions-table-header,
+    #app.dark-theme .transaction-row {
+        grid-template-columns: 1fr minmax(60px, 0.8fr) 24px;
+    }
+
+    #app.dark-theme .transactions-table-header > div:nth-child(2),
+    #app.dark-theme .transaction-row > div:nth-child(2) {
+        display: none;
+    }
+
+    #app.dark-theme .transactions-table-header > div:nth-child(6),
+    #app.dark-theme .transaction-row > div:nth-child(6) {
+        grid-column: 2;
+    }
+
+    #app.dark-theme .transactions-table-header > div:nth-child(7),
+    #app.dark-theme .transaction-row > div:nth-child(7) {
+        grid-column: 3;
+    }
+}
