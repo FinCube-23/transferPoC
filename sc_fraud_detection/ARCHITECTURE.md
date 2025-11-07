@@ -1,32 +1,34 @@
 # Architecture Documentation
 
+
 ## System Overview
 
+```mermaid
+graph TB
+    Client[Client]
+    
+    Kaggle[External Sources<br/>Kaggle]
+    API[FastAPI API]
+    OS[OpenSearch<br/>Vector DB K-NN]
+    
+    Alchemy[Alchemy API]
+    RAG[RAG Service<br/>Gemini]
+    KNN[K-NN Service]
+    
+    Client --> API
+    Kaggle --> API
+    API <--> OS
+    
+    API --> Alchemy
+    API --> RAG
+    API --> KNN
+    
+    style API fill:#4CAF50,stroke:#333,stroke-width:2px
+    style OS fill:#2196F3,stroke:#333,stroke-width:2px
+    style RAG fill:#FF9800,stroke:#333,stroke-width:2px
+    style KNN fill:#9C27B0,stroke:#333,stroke-width:2px
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                     Fraud Detection Service                      │
-└─────────────────────────────────────────────────────────────────┘
-┌─────────────┐
-│   Client    │
-└──────┬──────┘
-       │
-       ▼
-┌──────────────┐         ┌──────────────┐         ┌──────────────┐
-│   External   │         │   FastAPI    │         │  OpenSearch  │
-│   Sources    │────────▶│     API      │◀───────▶│  Vector DB   │
-│  (Kaggle)    │         │              │         │   (K-NN)     │
-└──────────────┘         └──────┬───────┘         └──────────────┘
-                                │
-                                │
-                    ┌───────────┼───────────┐
-                    │           │           │
-                    ▼           ▼           ▼
-            ┌──────────┐ ┌──────────┐ ┌──────────┐
-            │ Alchemy  │ │   RAG    │ │   K-NN   │
-            │   API    │ │ Service  │ │ Service  │
-            │          │ │ (Gemini) │ │          │
-            └──────────┘ └──────────┘ └──────────┘
-```
+
 
 ## Request Flow
 
