@@ -6,10 +6,10 @@
 
 ```bash
 # Start all services
-docker-compose up -d
+docker compose up -d
 
 # View logs
-docker-compose logs -f api
+docker compose logs -f api
 
 # Wait for services to be ready (check health)
 curl http://localhost:8000/
@@ -310,15 +310,6 @@ docker stats
 
 ## Troubleshooting Examples
 
-### Issue: "No data in vector database"
-
-```bash
-# Check if data exists
-curl http://localhost:8000/stats
-
-# If document_count is 0, load data
-docker-compose exec api python scripts/init_db.py
-```
 
 ### Issue: Slow responses
 
