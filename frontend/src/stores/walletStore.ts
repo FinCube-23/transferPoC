@@ -58,6 +58,9 @@ export const useWalletStore = create<WalletState>((set, get) => {
       } catch (e) {
         console.error('Error saving to localStorage:', e);
       }
+
+      // Immediately fetch balances after connecting
+      await get().updateBalances();
     } catch (error: any) {
       console.error('Wallet connection failed:', error);
       alert(error.message);

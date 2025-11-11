@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useWalletStore } from '../stores/walletStore';
 import { useTransactions } from '../hooks/useTransactions';
 import { web3Service } from '../services/web3Service';
+import { fraudDetectionService } from '../services/fraudDetectionService';
 import { ethers } from 'ethers';
 import type { ParsedTransfer } from '../services/graphService';
 
@@ -36,30 +37,8 @@ const Dashboard: React.FC = () => {
     error: boolean;
   }>>({});
 
-  // Fetch fraud detection for an address
-  const fetchFraudDetection = async (address: string) => {
-    // Check cache first
-    const cacheKey = `fraud_cache_${address}`;
-    try {
-      const cached = localStorage.getItem(cacheKey);
-      if (cached) {
-        const cachedData = JSON.parse(cached);
-        setFraudResults(prev => ({
-          ...prev,
-          [address]: {
-            result: cachedData.result,
-            probability: cachedData.fraud_probability,
-            confidence: cachedData.confidence,
-            loading: false,
-            error: false,
-          }
-        }));
-        return;
-      }
-    } catch (e) {
-      console.error('Cache read error:', e);
-    }
-
+  // Fetch fraud detection for an address using the service
+  const fetchFraudDetection = async (address: string, fromAddress?: string) => {
     // Set loading state
     setFraudResults(prev => ({
       ...prev,
@@ -73,26 +52,7 @@ const Dashboard: React.FC = () => {
     }));
 
     try {
-      const response = await fetch('http://localhost:8000/fraud/score', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ address }),
-      });
-
-      if (!response.ok) {
-        throw new Error('API request failed');
-      }
-
-      const data = await response.json();
-
-      // Cache the result
-      try {
-        localStorage.setItem(cacheKey, JSON.stringify(data));
-      } catch (e) {
-        console.error('Cache write error:', e);
-      }
+      const data = await fraudDetectionService.getFraudScore(address, fromAddress);
 
       setFraudResults(prev => ({
         ...prev,
@@ -104,8 +64,9 @@ const Dashboard: React.FC = () => {
           error: false,
         }
       }));
-    } catch (error) {
+    } catch (error: any) {
       console.error('Fraud detection error:', error);
+
       setFraudResults(prev => ({
         ...prev,
         [address]: {
@@ -119,18 +80,20 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  // Fetch fraud detection for all visible transactions
+  // Fetch fraud detection for all visible transactions in parallel
   useEffect(() => {
     const ITEMS_PER_PAGE = 10;
     const sorted = [...transactions].sort((a, b) => b.timestamp - a.timestamp);
     const start = currentPage * ITEMS_PER_PAGE;
     const page = sorted.slice(start, start + ITEMS_PER_PAGE);
 
-    page.forEach(tx => {
-      if (!fraudResults[tx.sender] && tx.sender) {
-        fetchFraudDetection(tx.sender);
-      }
-    });
+    // Fetch fraud detection for each transaction with from address
+    const fetchPromises = page
+      .filter(tx => !fraudResults[tx.sender] && tx.sender)
+      .map(tx => fetchFraudDetection(tx.sender, tx.sender));
+
+    // Fetch all in parallel for faster loading
+    Promise.all(fetchPromises);
   }, [transactions, currentPage]);
 
   // Load transactions when wallet connects
@@ -763,7 +726,7 @@ const Dashboard: React.FC = () => {
         : `https://sepolia.etherscan.io/address/${FINCUBE_ADDRESS}#events`;
 
       const fraudData = fraudResults[tx.sender];
-      
+
       return (
         <div key={`${tx.txHash || ''}-${index}`} className="transaction-row">
           <div className="tx-address">{shorten(tx.sender)}</div>
@@ -776,25 +739,36 @@ const Dashboard: React.FC = () => {
               <div><span className="label-green" style={{ color: '#10b981' }}>Description</span>: Transferred</div>
             </div>
           </div>
-          <div className={`tx-fraud ${
-            fraudData?.loading ? 'loading' : 
-            fraudData?.error ? 'error' : 
-            fraudData?.result === 'Fraud' ? 'fraud' : 
-            fraudData?.result === 'Not_Fraud' ? 'not-fraud' : 
-            fraudData?.result === 'Undecided' ? 'undecided' : 'loading'
-          }`}>
+          <div className={`tx-fraud ${fraudData?.loading ? 'loading' :
+            fraudData?.error ? 'error' :
+              fraudData?.result === 'Fraud' ? 'fraud' :
+                fraudData?.result === 'Not_Fraud' ? 'not-fraud' :
+                  fraudData?.result === 'Undecided' ? 'undecided' : 'loading'
+            }`}>
             {fraudData?.loading ? (
-              <span>Loading...</span>
+              <span>🔍 Analyzing...</span>
             ) : fraudData?.error ? (
-              <span>Error</span>
+              <div title="Fraud detection service is offline. Please start the service." style={{ cursor: 'help' }}>
+                <div>⚠️ Offline</div>
+                <div style={{ fontSize: '0.7em', opacity: 0.8 }}>Service Down</div>
+              </div>
             ) : fraudData?.result ? (
               <>
-                <div>{fraudData.result.replace('_', ' ')}</div>
-                <div className="fraud-probability">{Math.round(fraudData.probability * 100)}%</div>
-                <div className="fraud-confidence">Conf: {Math.round(fraudData.confidence * 100)}%</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', justifyContent: 'center' }}>
+                  {fraudData.result === 'Fraud' && '🚨'}
+                  {fraudData.result === 'Not_Fraud' && '✅'}
+                  {fraudData.result === 'Undecided' && '⚠️'}
+                  <span>{fraudData.result.replace('_', ' ')}</span>
+                </div>
+                <div className="fraud-probability">
+                  {Math.round(fraudData.probability * 100)}%
+                </div>
+                <div className="fraud-confidence">
+                  Confidence: {Math.round(fraudData.confidence * 100)}%
+                </div>
               </>
             ) : (
-              <span>Loading...</span>
+              <span>🔍 Analyzing...</span>
             )}
           </div>
           <div className="tx-date">{new Date(tx.timestamp).toLocaleString()}</div>
