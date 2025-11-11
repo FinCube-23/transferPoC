@@ -28,6 +28,111 @@ const Dashboard: React.FC = () => {
     purpose: '',
   });
 
+  const [fraudResults, setFraudResults] = useState<Record<string, {
+    result: string;
+    probability: number;
+    confidence: number;
+    loading: boolean;
+    error: boolean;
+  }>>({});
+
+  // Fetch fraud detection for an address
+  const fetchFraudDetection = async (address: string) => {
+    // Check cache first
+    const cacheKey = `fraud_cache_${address}`;
+    try {
+      const cached = localStorage.getItem(cacheKey);
+      if (cached) {
+        const cachedData = JSON.parse(cached);
+        setFraudResults(prev => ({
+          ...prev,
+          [address]: {
+            result: cachedData.result,
+            probability: cachedData.fraud_probability,
+            confidence: cachedData.confidence,
+            loading: false,
+            error: false,
+          }
+        }));
+        return;
+      }
+    } catch (e) {
+      console.error('Cache read error:', e);
+    }
+
+    // Set loading state
+    setFraudResults(prev => ({
+      ...prev,
+      [address]: {
+        result: '',
+        probability: 0,
+        confidence: 0,
+        loading: true,
+        error: false,
+      }
+    }));
+
+    try {
+      const response = await fetch('http://localhost:8000/fraud/score', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ address }),
+      });
+
+      if (!response.ok) {
+        throw new Error('API request failed');
+      }
+
+      const data = await response.json();
+
+      // Cache the result
+      try {
+        localStorage.setItem(cacheKey, JSON.stringify(data));
+      } catch (e) {
+        console.error('Cache write error:', e);
+      }
+
+      setFraudResults(prev => ({
+        ...prev,
+        [address]: {
+          result: data.result,
+          probability: data.fraud_probability,
+          confidence: data.confidence,
+          loading: false,
+          error: false,
+        }
+      }));
+    } catch (error) {
+      console.error('Fraud detection error:', error);
+      setFraudResults(prev => ({
+        ...prev,
+        [address]: {
+          result: '',
+          probability: 0,
+          confidence: 0,
+          loading: false,
+          error: true,
+        }
+      }));
+    }
+  };
+
+  // Fetch fraud detection for all visible transactions
+  useEffect(() => {
+    const ITEMS_PER_PAGE = 10;
+    const sorted = [...transactions].sort((a, b) => b.timestamp - a.timestamp);
+    const start = currentPage * ITEMS_PER_PAGE;
+    const page = sorted.slice(start, start + ITEMS_PER_PAGE);
+
+    page.forEach(tx => {
+      if (!fraudResults[tx.sender] && tx.sender) {
+        fetchFraudDetection(tx.sender);
+      }
+    });
+  }, [transactions, currentPage]);
+
   // Load transactions when wallet connects
   useEffect(() => {
     if (isConnected && currentAccount) {
@@ -574,7 +679,7 @@ const Dashboard: React.FC = () => {
       <section
         id="recent-transactions"
         style={{
-          maxWidth: '1200px',
+          maxWidth: '1400px',
           width: 'calc(100% - 2rem)',
           padding: '1rem 1.5rem',
           boxSizing: 'border-box',
@@ -621,6 +726,7 @@ const Dashboard: React.FC = () => {
             <div>Recipient</div>
             <div style={{ textAlign: 'right' }}>Amount</div>
             <div>Memo</div>
+            <div style={{ textAlign: 'center' }}>Fraud Detection</div>
             <div style={{ textAlign: 'right' }}>Date</div>
             <div style={{ textAlign: 'right' }}></div>
           </div>
@@ -656,6 +762,8 @@ const Dashboard: React.FC = () => {
         ? `https://sepolia.etherscan.io/tx/${txHashForUrl}`
         : `https://sepolia.etherscan.io/address/${FINCUBE_ADDRESS}#events`;
 
+      const fraudData = fraudResults[tx.sender];
+      
       return (
         <div key={`${tx.txHash || ''}-${index}`} className="transaction-row">
           <div className="tx-address">{shorten(tx.sender)}</div>
@@ -667,6 +775,27 @@ const Dashboard: React.FC = () => {
               <div><span className="label-green" style={{ color: '#10b981' }}>Purpose</span>: {displayedPurpose}</div>
               <div><span className="label-green" style={{ color: '#10b981' }}>Description</span>: Transferred</div>
             </div>
+          </div>
+          <div className={`tx-fraud ${
+            fraudData?.loading ? 'loading' : 
+            fraudData?.error ? 'error' : 
+            fraudData?.result === 'Fraud' ? 'fraud' : 
+            fraudData?.result === 'Not_Fraud' ? 'not-fraud' : 
+            fraudData?.result === 'Undecided' ? 'undecided' : 'loading'
+          }`}>
+            {fraudData?.loading ? (
+              <span>Loading...</span>
+            ) : fraudData?.error ? (
+              <span>Error</span>
+            ) : fraudData?.result ? (
+              <>
+                <div>{fraudData.result.replace('_', ' ')}</div>
+                <div className="fraud-probability">{Math.round(fraudData.probability * 100)}%</div>
+                <div className="fraud-confidence">Conf: {Math.round(fraudData.confidence * 100)}%</div>
+              </>
+            ) : (
+              <span>Loading...</span>
+            )}
           </div>
           <div className="tx-date">{new Date(tx.timestamp).toLocaleString()}</div>
           <div className="tx-etherscan">

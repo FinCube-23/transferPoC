@@ -21,6 +21,9 @@ export interface ParsedTransfer {
     nullifier?: string
     timestamp: number
     txHash?: string
+    fraudResult?: string
+    fraudProbability?: number
+    fraudConfidence?: number
 }
 
 /**

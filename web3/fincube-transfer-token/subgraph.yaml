@@ -1,0 +1,30 @@
+specVersion: 1.3.0
+indexerHints:
+  prune: auto
+schema:
+  file: ./schema.graphql
+dataSources:
+  - kind: ethereum
+    name: Fincube
+    network: sepolia
+    source:
+      address: "0x8a263DcEfee44B9Abe968C1B18e370f6A0A5F878"
+      abi: Fincube
+      startBlock: 9227957
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      entities:
+        - Upgraded
+        - StablecoinTransfer
+      abis:
+        - name: Fincube
+          file: ./abis/Fincube.json
+      eventHandlers:
+        - event: Upgraded(indexed address)
+          handler: handleUpgraded
+        - event: StablecoinTransfer(indexed address,indexed address,indexed string,string,uint256,bytes32)
+          handler: handleStablecoinTransfer
+
+      file: ./src/fincube.ts
