@@ -6,11 +6,8 @@ My initial plan is:
 3. For the determiniation it will use the below alchemy api endpoint to get the account info.
 
 
-
 4. After getting the data using these alchemy api endpoints , I will use K-NN to dertermine the possibility fraud account. I will do this comparison by using the data stored in vector-db.
 Then I want to use gemini model for furter perfection and handle response and unconventional pattern that are not available in the vector-db.
-
-
 
 
 

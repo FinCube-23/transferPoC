@@ -10,6 +10,7 @@ html,
 body {
     height: 100%;
 }
+
 body {
     margin: 0;
     font-family: system-ui, -apple-system, sans-serif;
@@ -167,6 +168,7 @@ input:focus {
     background: #f8fafc;
     z-index: 9999;
 }
+
 .spinner {
     border: 6px solid #e2e8f0;
     border-top: 6px solid #3b82f6;
@@ -176,10 +178,12 @@ input:focus {
     animation: spin 1s linear infinite;
     margin-bottom: 1rem;
 }
+
 @keyframes spin {
     0% {
         transform: rotate(0deg);
     }
+
     100% {
         transform: rotate(360deg);
     }
@@ -196,6 +200,7 @@ section,
         opacity: 0;
         transform: translateY(20px);
     }
+
     to {
         opacity: 1;
         transform: translateY(0);
@@ -214,6 +219,7 @@ section,
     margin-top: 2rem;
     box-shadow: 0 -2px 8px rgba(59, 130, 246, 0.06);
 }
+
 .footer-content {
     display: flex;
     flex-direction: column;
@@ -238,7 +244,8 @@ body {
 input[type="text"],
 input[type="email"],
 input[type="password"] {
-    font-size: 16px; /* Prevents zoom on iOS */
+    font-size: 16px;
+    /* Prevents zoom on iOS */
     -webkit-appearance: none;
     appearance: none;
     max-width: 100%;
@@ -247,12 +254,14 @@ input[type="password"] {
 /* Touch-friendly buttons */
 button,
 .etherscan-link {
-    min-height: 44px; /* iOS accessibility guidelines */
+    min-height: 44px;
+    /* iOS accessibility guidelines */
     min-width: 44px;
 }
 
 /* Responsive Design */
 @media (max-width: 1200px) {
+
     .transactions-table-header,
     .transaction-row {
         grid-template-columns: 1fr 1fr 0.9fr 1fr 1.2fr 40px;
@@ -302,12 +311,12 @@ button,
     }
 
     /* Stack header elements vertically on mobile */
-    .app-header > div:first-child {
+    .app-header>div:first-child {
         text-align: center;
         width: 100%;
     }
 
-    .app-header > div:last-child {
+    .app-header>div:last-child {
         width: 100%;
         justify-content: center;
         flex-wrap: wrap;
@@ -329,21 +338,21 @@ button,
     }
 
     /* Hide Purpose and Nullifier columns on mobile */
-    .transactions-table-header > div:nth-child(4),
-    .transactions-table-header > div:nth-child(5),
-    .transaction-row > div:nth-child(4),
-    .transaction-row > div:nth-child(5) {
+    .transactions-table-header>div:nth-child(4),
+    .transactions-table-header>div:nth-child(5),
+    .transaction-row>div:nth-child(4),
+    .transaction-row>div:nth-child(5) {
         display: none;
     }
 
     /* Adjust remaining columns */
-    .transactions-table-header > div:nth-child(6),
-    .transaction-row > div:nth-child(6) {
+    .transactions-table-header>div:nth-child(6),
+    .transaction-row>div:nth-child(6) {
         grid-column: 4;
     }
 
-    .transactions-table-header > div:nth-child(7),
-    .transaction-row > div:nth-child(7) {
+    .transactions-table-header>div:nth-child(7),
+    .transaction-row>div:nth-child(7) {
         grid-column: 5;
     }
 }
@@ -368,26 +377,29 @@ button,
         font-size: 0.8rem;
     }
 
-    /* Hide amount column on very small screens, keep only addresses and date */
-    .transactions-table-header > div:nth-child(3),
-    .transaction-row > div:nth-child(3) {
+    /* Hide amount and fraud detection columns on very small screens, keep only addresses and date */
+    .transactions-table-header>div:nth-child(3),
+    .transaction-row>div:nth-child(3),
+    .transactions-table-header>div:nth-child(5),
+    .transaction-row>div:nth-child(5) {
         display: none;
     }
 
-    .transactions-table-header > div:nth-child(6),
-    .transaction-row > div:nth-child(6) {
+    .transactions-table-header>div:nth-child(6),
+    .transaction-row>div:nth-child(6) {
         grid-column: 3;
     }
 
-    .transactions-table-header > div:nth-child(7),
-    .transaction-row > div:nth-child(7) {
+    .transactions-table-header>div:nth-child(7),
+    .transaction-row>div:nth-child(7) {
         grid-column: 4;
     }
 
     /* Mobile form improvements */
     #transfer-form input {
         padding: 0.875rem 1rem !important;
-        font-size: 16px !important; /* Prevents zoom on iOS */
+        font-size: 16px !important;
+        /* Prevents zoom on iOS */
     }
 
     /* Mobile button sizing */
@@ -422,19 +434,19 @@ button,
     }
 
     /* Show only sender and date on ultra-small screens */
-    .transactions-table-header > div:nth-child(2),
-    .transaction-row > div:nth-child(2) {
+    .transactions-table-header>div:nth-child(2),
+    .transaction-row>div:nth-child(2) {
         display: none;
     }
 
-    .transactions-table-header > div:nth-child(6),
-    .transaction-row > div:nth-child(6) {
+    .transactions-table-header>div:nth-child(6),
+    .transaction-row>div:nth-child(6) {
         grid-column: 2;
         font-size: 0.7rem;
     }
 
-    .transactions-table-header > div:nth-child(7),
-    .transaction-row > div:nth-child(7) {
+    .transactions-table-header>div:nth-child(7),
+    .transaction-row>div:nth-child(7) {
         grid-column: 3;
     }
 }
@@ -462,21 +474,24 @@ button,
 
 /* Balance styling with token logo colors */
 #usd-balance {
-    color: #22c55e !important; /* USD green matching dollar symbol */
+    color: #22c55e !important;
+    /* USD green matching dollar symbol */
     font-weight: 700 !important;
     font-size: 1.2em !important;
     text-shadow: 0 0 1px rgba(34, 197, 94, 0.3);
 }
 
 #eth-balance {
-    color: #627eea !important; /* Ethereum official logo blue */
+    color: #627eea !important;
+    /* Ethereum official logo blue */
     font-weight: 700 !important;
     font-size: 1.2em !important;
     text-shadow: 0 0 1px rgba(98, 126, 234, 0.3);
 }
 
 #usdc-balance {
-    color: #2775ca !important; /* USDC official logo blue */
+    color: #2775ca !important;
+    /* USDC official logo blue */
     font-weight: 700 !important;
     font-size: 1.2em !important;
     text-shadow: 0 0 1px rgba(39, 117, 202, 0.3);
@@ -488,11 +503,9 @@ button,
     align-items: center;
     justify-content: space-between;
     padding: 0.9rem 1.2rem;
-    background: linear-gradient(
-        90deg,
-        rgba(16, 185, 129, 0.08),
-        rgba(6, 182, 212, 0.08)
-    );
+    background: linear-gradient(90deg,
+            rgba(16, 185, 129, 0.08),
+            rgba(6, 182, 212, 0.08));
     border: 1px solid rgba(16, 185, 129, 0.2);
     border-radius: 0.75rem 0.75rem 0 0;
     margin-bottom: 0;
@@ -523,15 +536,20 @@ button,
 
 .transactions-table-header {
     display: grid;
-    /* Sender | Recipient | Amount | Memo | Date | Etherscan (fixed) */
-    grid-template-columns: 150px 150px 140px 150px 200px 48px;
-    column-gap: 3.0rem;
+    /* Sender | Recipient | Amount | Memo | Fraud Detection | Date | Etherscan (fixed) */
+    grid-template-columns: 1fr 1fr 1fr 1.5fr 1fr 1.2fr 48px;
+    column-gap: 2rem;
     padding: 0.75rem 1.5rem;
     align-items: center;
     font-weight: 700;
     color: #334155;
     background: #f1f5f9;
     border-bottom: 1px solid #e2e8f0;
+}
+
+.transactions-table-header > div:nth-child(3) {
+    justify-self: start;
+    padding-left: 0;
 }
 
 .transactions-rows {
@@ -543,9 +561,9 @@ button,
 /* Transaction Row Styling */
 .transaction-row {
     display: grid;
-    /* match header columns exactly - Sender | Recipient | Amount | Memo | Date | Etherscan */
-    grid-template-columns: 150px 150px 140px 180px 200px 48px;
-    gap: 3rem;
+    /* match header columns exactly - Sender | Recipient | Amount | Memo | Fraud Detection | Date | Etherscan */
+    grid-template-columns: 1fr 1fr 1fr 1.5fr 1fr 1.2fr 48px;
+    gap: 2rem;
     padding: 0.75rem 1.5rem;
     align-items: center;
     border-top: 1px solid rgba(229, 231, 235, 0.6);
@@ -564,10 +582,10 @@ button,
 }
 
 .tx-amount {
-    text-align: right;
+    text-align: left;
     font-weight: 700;
     color: #0f766e;
-    padding-right: 2rem; /* increased to create gap between Amount and Memo */
+    justify-self: start;
 }
 
 .tx-memo {
@@ -577,28 +595,24 @@ button,
     overflow: hidden;
     text-overflow: ellipsis;
     max-width: 180px;
-    padding-left: 2.5rem;
 }
 
-    /* Force memo label color to green */
-    .tx-memo .label-green {
-        color: #10b981 !important;
-        font-weight: 600;
-    }
+/* Force memo label color to green */
+.tx-memo .label-green {
+    color: #10b981 !important;
+    font-weight: 600;
+}
 
 /* Small vertical gap between the memo lines */
-.tx-memo > div > div {
+.tx-memo>div>div {
     margin-bottom: 0.25rem;
 }
-.tx-memo > div > div:last-child {
+
+.tx-memo>div>div:last-child {
     margin-bottom: 0;
 }
 
-/* Ensure header's Amount column also has the same right padding so header aligns visually */
-.transactions-table-header > div:nth-child(3),
-.transaction-row > div:nth-child(3) {
-    padding-right: 2rem;
-}
+
 
 .tx-purpose {
     color: #4b5563;
@@ -631,10 +645,13 @@ button,
 
 .tx-etherscan {
     display: flex;
-    justify-content: flex-start; /* place icon at the left of the fixed cell to sit next to the date */
+    justify-content: flex-start;
+    /* place icon at the left of the fixed cell to sit next to the date */
     align-items: center;
-    width: 48px; /* match the grid column fixed width */
-    padding-left: 6px; /* small inner offset so icon isn't flush to the cell edge */
+    width: 48px;
+    /* match the grid column fixed width */
+    padding-left: 6px;
+    /* small inner offset so icon isn't flush to the cell edge */
 }
 
 .etherscan-link {
@@ -687,11 +704,13 @@ button,
 }
 
 @keyframes pulseGreen {
+
     0%,
     100% {
         opacity: 1;
         transform: scale(1);
     }
+
     50% {
         opacity: 0.7;
         transform: scale(1.1);
@@ -699,20 +718,87 @@ button,
 }
 
 @keyframes pulseRed {
+
     0%,
     100% {
         opacity: 1;
         transform: scale(1);
     }
+
     50% {
         opacity: 0.7;
         transform: scale(1.1);
     }
 }
 
-/* Final override: translate only the Memo header (4th cell) slightly right */
-.transactions-table-header > div:nth-child(4) {
-    transform: translateX(42px) !important;
+/* Fraud Detection Cell Styling */
+.tx-fraud {
+    padding: 0.4rem 0.5rem;
+    border-radius: 0.5rem;
+    font-size: 0.7em;
+    text-align: center;
+    font-weight: 700;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    align-items: center;
+    justify-content: center;
+    min-height: 50px;
+}
+
+.tx-fraud.fraud {
+    background-color: #ef4444;
+    color: white;
+}
+
+.tx-fraud.not-fraud {
+    background-color: #10b981;
+    color: white;
+}
+
+.tx-fraud.undecided {
+    background-color: #f59e0b;
+    color: #1f2937;
+}
+
+.tx-fraud.loading {
+    background-color: #e5e7eb;
+    color: #6b7280;
+    font-size: 0.65em;
+}
+
+.tx-fraud.error {
+    background-color: #9ca3af;
+    color: white;
+    font-size: 0.65em;
+}
+
+.fraud-probability {
+    font-size: 1em;
+    font-weight: 600;
+}
+
+.fraud-confidence {
+    font-size: 0.85em;
+    font-weight: 400;
+    opacity: 0.85;
+}
+
+/* Loading spinner for fraud detection */
+@keyframes fraudPulse {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.5;
+    }
+}
+
+.tx-fraud.loading {
+    animation: fraudPulse 1.5s ease-in-out infinite;
 }
 
 /* Clean auth button styles */
@@ -742,8 +828,10 @@ button,
 /* Make auth modal panel shorter and scroll internally when content is tall.
    Targets the white modal panel (direct child of #auth-modal) so tabs and
    everything inside remain visible and functional. */
-#auth-modal > div {
-    max-height: 80vh !important; /* keep modal shorter than viewport */
-    overflow-y: auto !important; /* allow inner scrolling if content exceeds */
+#auth-modal>div {
+    max-height: 80vh !important;
+    /* keep modal shorter than viewport */
+    overflow-y: auto !important;
+    /* allow inner scrolling if content exceeds */
     box-sizing: border-box !important;
 }
