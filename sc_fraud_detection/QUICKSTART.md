@@ -118,9 +118,14 @@ docker-compose logs opensearch
 
 ### Issue: "No data in vector database"
 
-**Solution**: Run the initialization script
+**Solution**: Scrape the dataset
 ```bash
-docker-compose exec api python scripts/init_db.py
+curl -X POST "http://localhost:8000/scrape" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "source_url": "vagifa/ethereum-frauddetection-dataset",
+    "source_type": "kaggle"
+  }'
 ```
 
 ### Issue: Kaggle authentication error
@@ -145,28 +150,6 @@ docker-compose exec api python scripts/init_db.py
 - Check [USAGE_EXAMPLES.md](USAGE_EXAMPLES.md) for more examples
 - Review [IMPLEMENTATION_SUMMARY.md](IMPLEMENTATION_SUMMARY.md) for architecture details
 
-## Useful Commands
-
-```bash
-# Stop services
-docker-compose down
-
-# Restart services
-docker-compose restart
-
-# View logs
-docker-compose logs -f api
-
-# Check OpenSearch health
-curl http://localhost:9200/_cluster/health
-
-# Delete and recreate database
-curl -X DELETE http://localhost:8000/index
-docker-compose exec api python scripts/init_db.py
-
-# Run test script
-./test_api.sh
-```
 
 ## API Endpoints
 
@@ -179,7 +162,7 @@ docker-compose exec api python scripts/init_db.py
 ## Support
 
 For issues or questions:
-1. Check logs: `docker-compose logs -f api`
-2. Verify services: `docker-compose ps`
+1. Check logs: `docker compose logs -f api`
+2. Verify services: `docker compose ps`
 3. Check OpenSearch: `curl http://localhost:9200/_cluster/health`
 4. Review documentation in README.md

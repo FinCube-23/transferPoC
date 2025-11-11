@@ -258,7 +258,5 @@ Non-fraud (well-known/public EOAs with benign usage)
 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045 (Vitalik)
 
 Fraud-like behavior (mixers/sanctioned infra; contracts, but good for anomaly patterns)
-0x910Cbd523D972eb0a6f4cae4618aD62622b39DbF (Tornado Cash router)
-0xD90e2f925DA726b50C4Ed8D0Fb90Ad053324F31b (Tornado Cash 0.1 ETH pool)
-0xA160cdAB225685dA1d56aa342Ad8841c3b53f291 (Contract deployer used by many tokens; unusual flows)
+0x000e001ab444fa8d6dc4a402f8d7cfc88fe8c64d
 ```

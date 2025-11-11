@@ -1,4 +1,4 @@
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, List, Optional
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.prompts import ChatPromptTemplate
 from langgraph.graph import StateGraph
@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 import logging
 import json
 import numpy as np
-from datetime import datetime, timedelta
+from datetime import datetime
 from collections import Counter, defaultdict
 
 logger = logging.getLogger(__name__)
@@ -241,7 +241,7 @@ class AlchemyPatternAnalyzer:
                 risk_level += 0.5
         
         # Pattern 4: Interaction with known service contracts (exchanges, mixers)
-        # These would be common addresses - simplified check
+        # These would be common addresses - simplified check(in future we can maintain a database of suspicious address from where we can fetch these.)
         common_patterns = ["0x00000", "0x11111", "0xdead", "0xaaaa", "0xbbbb"]
         suspicious_interactions = sum(1 for addr in sent_addresses 
                                      if any(pattern in addr for pattern in common_patterns))
@@ -508,49 +508,50 @@ class RAGService:
         
         prompt = ChatPromptTemplate.from_messages([
             ("system", """You are an elite fraud detection analyst specializing in Ethereum blockchain forensics.
-Your analysis must be thorough, evidence-based, and conservative. Focus on identifying concrete fraud indicators."""),
-            ("human", """Analyze this Ethereum account for fraud:
+            Your analysis must be thorough, evidence-based, and conservative. Focus on identifying concrete fraud indicators."""),
+                        ("human", """Analyze this Ethereum account for fraud:
 
-**K-NN Machine Learning Analysis:**
-- Fraud Probability: {fraud_prob:.2%}
-- Model Confidence: {confidence:.2%}
-- Fraudulent Neighbors: {fraud_count}/{total_count}
-- Average Distance to Neighbors: {avg_distance:.4f}
+            **K-NN Machine Learning Analysis:**
+            - Fraud Probability: {fraud_prob:.2%}
+            - Model Confidence: {confidence:.2%}
+            - Fraudulent Neighbors: {fraud_count}/{total_count}
+            - Average Distance to Neighbors: {avg_distance:.4f}
 
-**Account Statistics:**
-- Total Transactions: {total_tx}
-- Sent: {sent_tx} | Received: {received_tx}
-- Total Ether Sent: {ether_sent:.6f} ETH
-- Total Ether Received: {ether_received:.6f} ETH
-- Current Balance: {balance:.6f} ETH
-- Unique Addresses Contacted: {unique_sent}
-- Unique Addresses Received From: {unique_received}
-- ERC20 Token Transactions: {erc20_tx}
+            **Account Statistics:**
+            - Total Transactions: {total_tx}
+            - Sent: {sent_tx} | Received: {received_tx}
+            - Total Ether Sent: {ether_sent:.6f} ETH
+            - Total Ether Received: {ether_received:.6f} ETH
+            - Current Balance: {balance:.6f} ETH
+            - Unique Addresses Contacted: {unique_sent}
+            - Unique Addresses Received From: {unique_received}
+            - ERC20 Token Transactions: {erc20_tx}
 
-**Deep Pattern Analysis Results:**
-- Overall Behavioral Risk Score: {behavioral_risk:.2%}
-- Detected Patterns: {detected_patterns}
+            **Deep Pattern Analysis Results:**
+            - Overall Behavioral Risk Score: {behavioral_risk:.2%}
+            - Detected Patterns: {detected_patterns}
 
-**Temporal Patterns:**
-{temporal_info}
+            **Temporal Patterns:**
+            {temporal_info}
 
-**Value Transfer Patterns:**
-{value_info}
+            **Value Transfer Patterns:**
+            {value_info}
 
-**Network Interaction Patterns:**
-{network_info}
+            **Network Interaction Patterns:**
+            {network_info}
 
-**Token Activity Patterns:**
-{token_info}
+            **Token Activity Patterns:**
+            {token_info}
 
-**Behavioral Flags:**
-{behavioral_info}
+            **Behavioral Flags:**
+            {behavioral_info}
 
-Provide a comprehensive fraud analysis focusing on:
-1. Correlation between K-NN prediction and detected patterns
-2. Specific evidence of fraudulent behavior
-3. Legitimate explanations for unusual patterns
-4. Overall fraud likelihood assessment""")
+            Provide a comprehensive fraud analysis focusing on:
+            1. Correlation between K-NN prediction and detected patterns
+            2. Specific evidence of fraudulent behavior
+            3. Legitimate explanations for unusual patterns
+            4. Overall fraud likelihood assessment
+        """)
         ])
         
         chain = prompt | self.llm
@@ -645,9 +646,7 @@ Provide a comprehensive fraud analysis focusing on:
         logger.info("RAG: Cross-validating all signals")
         
         knn_result = state["knn_result"]
-        features = state["features"]
         deep_patterns = state.get("deep_patterns", {})
-        edge_cases = state.get("edge_cases", [])
         
         validation_checks = {}
         
@@ -713,71 +712,72 @@ Provide a comprehensive fraud analysis focusing on:
         prompt = ChatPromptTemplate.from_messages([
             ("system", """You are an expert fraud detection system optimized for BALANCED ACCURACY and DECISIVENESS.
 
-    **Decision Framework (Relaxed for better coverage):**
+            **Decision Framework (Relaxed for better coverage):**
 
-    **Mark as "Fraud" if ANY of these conditions:**
-    1. K-NN fraud probability > 0.65 AND behavioral risk > 0.5
-    2. K-NN fraud probability > 0.6 AND at least 2 strong fraud patterns detected
-    3. K-NN fraud probability > 0.5 AND behavioral risk > 0.6 AND validation quality is "high"
-    4. Behavioral risk > 0.7 AND at least 3 strong fraud indicators (mixer, wash trading, etc.)
+            **Mark as "Fraud" if ANY of these conditions:**
+            1. K-NN fraud probability > 0.65 AND behavioral risk > 0.5
+            2. K-NN fraud probability > 0.6 AND at least 2 strong fraud patterns detected
+            3. K-NN fraud probability > 0.5 AND behavioral risk > 0.6 AND validation quality is "high"
+            4. Behavioral risk > 0.7 AND at least 3 strong fraud indicators (mixer, wash trading, etc.)
 
-    **Mark as "Not_Fraud" if ANY of these conditions:**
-    1. K-NN fraud probability < 0.35 AND behavioral risk < 0.35
-    2. K-NN fraud probability < 0.4 AND no significant fraud patterns detected
-    3. K-NN fraud probability < 0.3 AND behavioral risk < 0.5
-    4. Clear legitimate DeFi/trading patterns with K-NN < 0.5
+            **Mark as "Not_Fraud" if ANY of these conditions:**
+            1. K-NN fraud probability < 0.35 AND behavioral risk < 0.35
+            2. K-NN fraud probability < 0.4 AND no significant fraud patterns detected
+            3. K-NN fraud probability < 0.3 AND behavioral risk < 0.5
+            4. Clear legitimate DeFi/trading patterns with K-NN < 0.5
 
-    **Mark as "Undecided" ONLY when:**
-    - K-NN probability between 0.4-0.6 AND conflicting signals
-    - Very low K-NN confidence (< 0.3) regardless of score
-    - Validation quality is "low" AND no clear patterns
-    - Exactly balanced evidence for both fraud and legitimate activity
+            **Mark as "Undecided" ONLY when:**
+            - K-NN probability between 0.4-0.6 AND conflicting signals
+            - Very low K-NN confidence (< 0.3) regardless of score
+            - Validation quality is "low" AND no clear patterns
+            - Exactly balanced evidence for both fraud and legitimate activity
 
-    **Confidence Levels:**
-    - High (0.75-1.0): Multiple signals strongly aligned
-    - Medium (0.5-0.75): Good evidence, reasonable alignment
-    - Low (0.3-0.5): Weak or conflicting signals
-    - Very Low (0.0-0.3): Insufficient data or highly ambiguous
+            **Confidence Levels:**
+            - High (0.75-1.0): Multiple signals strongly aligned
+            - Medium (0.5-0.75): Good evidence, reasonable alignment
+            - Low (0.3-0.5): Weak or conflicting signals
+            - Very Low (0.0-0.3): Insufficient data or highly ambiguous
 
-    **Important:** Be decisive when evidence is reasonably clear. "Undecided" should be the exception, not the default.
+            **Important:** Be decisive when evidence is reasonably clear. "Undecided" should be the exception, not the default.
 
-    Respond ONLY in valid JSON format:
-    {{
-    "final_decision": "Fraud|Not_Fraud|Undecided",
-    "reasoning": "detailed explanation with specific evidence",
-    "confidence": 0.0-1.0,
-    "edge_cases_detected": ["list of edge cases"],
-    "risk_factors": ["specific fraud indicators with evidence"],
-    "validation_checks": {{}},
-    "behavioral_score": 0.0-1.0
-    }}"""),
-            ("human", """Make final fraud determination with balanced decisiveness:
+            Respond ONLY in valid JSON format:
+            {{
+            "final_decision": "Fraud|Not_Fraud|Undecided",
+            "reasoning": "detailed explanation with specific evidence",
+            "confidence": 0.0-1.0,
+            "edge_cases_detected": ["list of edge cases"],
+            "risk_factors": ["specific fraud indicators with evidence"],
+            "validation_checks": {{}},
+            "behavioral_score": 0.0-1.0
+            }}"""),
+                    ("human", """Make final fraud determination with balanced decisiveness:
 
-    **Address:** {address}
+            **Address:** {address}
 
-    **K-NN Analysis:**
-    - Fraud Probability: {fraud_prob:.2%}
-    - Model Confidence: {knn_confidence:.2%}
-    - Fraudulent Neighbors: {fraud_count}/{total_count}
+            **K-NN Analysis:**
+            - Fraud Probability: {fraud_prob:.2%}
+            - Model Confidence: {knn_confidence:.2%}
+            - Fraudulent Neighbors: {fraud_count}/{total_count}
 
-    **Behavioral Analysis:**
-    - Overall Risk Score: {behavioral_risk:.2%}
-    - Risk Assessment: {risk_assessment}
+            **Behavioral Analysis:**
+            - Overall Risk Score: {behavioral_risk:.2%}
+            - Risk Assessment: {risk_assessment}
 
-    **LLM Analysis:**
-    {analysis}
+            **LLM Analysis:**
+            {analysis}
 
-    **Edge Cases:**
-    {edge_cases}
+            **Edge Cases:**
+            {edge_cases}
 
-    **Validation Checks:**
-    {validation_checks}
+            **Validation Checks:**
+            {validation_checks}
 
-    **Decision Quality:** {decision_quality}
+            **Decision Quality:** {decision_quality}
 
-    **Critical Instruction:** Make a decisive classification when evidence is reasonably clear (even if not 100% certain). Use "Undecided" sparingly - only when evidence is truly conflicting or insufficient.
+            **Critical Instruction:** Make a decisive classification when evidence is reasonably clear (even if not 100% certain). Use "Undecided" sparingly - only when evidence is truly conflicting or insufficient.
 
-    Provide your final decision in JSON format ONLY.""")
+            Provide your final decision in JSON format ONLY.
+            """)
         ])
         
         chain = prompt | self.llm
@@ -907,18 +907,18 @@ Provide a comprehensive fraud analysis focusing on:
         knn_result: Dict[str, Any],
         features: Dict[str, float],
         account_data: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
+        ) -> Dict[str, Any]:
         """
-        Run enhanced RAG analysis with deep Alchemy data analysis
-        
-        Args:
-            address: Ethereum address
-            knn_result: Results from K-NN analysis
-            features: Extracted features
-            account_data: Raw Alchemy account data (optional but recommended)
-        
-        Returns:
-            Final analysis with decision, validation, and behavioral scoring
+            Run enhanced RAG analysis with deep Alchemy data analysis
+            
+            Args:
+                address: Ethereum address
+                knn_result: Results from K-NN analysis
+                features: Extracted features
+                account_data: Raw Alchemy account data (optional but recommended)
+            
+            Returns:
+                Final analysis with decision, validation, and behavioral scoring
         """
         logger.info(f"Starting enhanced RAG analysis for {address}")
         
