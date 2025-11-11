@@ -31,7 +31,7 @@ services:
       - fraud-detection-net
     volumes:
       - ./app:/app/app
-    command: /wait-for-opensearch.sh opensearch:9200 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
 volumes:
   opensearch-data:

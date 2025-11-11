@@ -1,8 +1,5 @@
 from typing import Dict, List, Any
 import numpy as np
-from sklearn.preprocessing import StandardScaler
-import pickle
-from pathlib import Path
 from datetime import datetime
 import logging
 
@@ -59,45 +56,6 @@ class FeatureExtractor:
         "Unique Received From Addresses"
     ]
 
-    # ... existing code ...
-    
-    _scaler = None
-    _scaler_path = Path("/tmp/feature_scaler.pkl")
-    
-    @classmethod
-    def fit_scaler(cls, feature_vectors: List[List[float]]):
-        """Fit scaler on dataset features"""
-        from sklearn.preprocessing import StandardScaler
-        cls._scaler = StandardScaler()
-        cls._scaler.fit(feature_vectors)
-        
-        # Save scaler
-        with open(cls._scaler_path, 'wb') as f:
-            pickle.dump(cls._scaler, f)
-        logger.info("Fitted and saved feature scaler")
-    
-    @classmethod
-    def load_scaler(cls):
-        """Load scaler from disk"""
-        if cls._scaler is None and cls._scaler_path.exists():
-            with open(cls._scaler_path, 'rb') as f:
-                cls._scaler = pickle.load(f)
-            logger.info("Loaded feature scaler")
-    
-    @classmethod
-    def normalize_vector(cls, vector: List[float]) -> List[float]:
-        """Normalize a feature vector using fitted scaler"""
-        if cls._scaler is None:
-            cls.load_scaler()
-        
-        if cls._scaler is None:
-            logger.warning("No scaler available, returning unnormalized vector")
-            return vector
-        
-        # Reshape for sklearn
-        vector_2d = np.array(vector).reshape(1, -1)
-        normalized = cls._scaler.transform(vector_2d)
-        return normalized[0].tolist()
     @staticmethod
     def _safe_float(value: float) -> float:
         """Convert value to safe float, replacing NaN/inf with 0"""
