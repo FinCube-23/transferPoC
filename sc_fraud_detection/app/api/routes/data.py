@@ -95,54 +95,56 @@ async def _scrape_and_load(
         records = await scraper.scrape(source_url, source_type)
         logger.info(f"Scraped {len(records)} records")
         
-        # Process and load into OpenSearch
+        # Process records and collect feature vectors
         processed_records = []
+        all_feature_vectors = []
+        
         for record in records:
             try:
-                # Clean and convert only numeric columns from FEATURE_NAMES
+                # ... existing feature extraction code ...
                 features_dict = {}
                 for k, v in record.items():
-                    # Skip metadata columns
                     if k in ['Index', 'Address', 'FLAG']:
                         continue
-                    
-                    # Try to convert to float, handling string/empty values
                     try:
-                        # Handle empty strings, spaces, and None
                         if v is None or (isinstance(v, str) and v.strip() == ''):
                             features_dict[k] = 0.0
                         else:
                             val = float(v)
-                            # Check for NaN or infinity
                             if val != val or val == float('inf') or val == float('-inf'):
                                 features_dict[k] = 0.0
                             else:
                                 features_dict[k] = val
                     except (ValueError, TypeError):
-                        # If conversion fails, set to 0
-                        logger.debug(f"Skipping non-numeric column '{k}' with value: {v}")
                         features_dict[k] = 0.0
                 
-                # Only use features that are in the expected FEATURE_NAMES list
                 valid_features = {k: v for k, v in features_dict.items() 
                                 if k in FeatureExtractor.FEATURE_NAMES}
                 
-                # Create feature vector
                 feature_vector = FeatureExtractor.features_to_vector(valid_features)
-                
-                # Final NaN check on the entire vector
                 feature_vector = [0.0 if (x != x or x == float('inf') or x == float('-inf')) else x 
                                 for x in feature_vector]
                 
+                all_feature_vectors.append(feature_vector)
+                
                 processed_records.append({
-                    "address": record.get("Address", ""),
+                    "address": record.get("Address", "").lower(),  # ← Ensure lowercase!
                     "flag": int(record.get("FLAG", 0)) if record.get("FLAG") not in [None, '', ' '] else 0,
-                    "features": feature_vector,
+                    "features": feature_vector,  # Will normalize below
                     "feature_dict": valid_features
                 })
             except Exception as e:
-                logger.warning(f"Error processing record for address {record.get('Address', 'unknown')}: {e}")
+                logger.warning(f"Error processing record: {e}")
                 continue
+        
+        # FIT SCALER on dataset features
+        logger.info("Fitting feature scaler...")
+        FeatureExtractor.fit_scaler(all_feature_vectors)
+        
+        # NORMALIZE all feature vectors
+        logger.info("Normalizing feature vectors...")
+        for record in processed_records:
+            record["features"] = FeatureExtractor.normalize_vector(record["features"])
         
         # Bulk insert
         logger.info(f"Inserting {len(processed_records)} records into OpenSearch")
