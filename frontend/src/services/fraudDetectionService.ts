@@ -39,11 +39,16 @@ class FraudDetectionService {
         address: string,
         fromAddress?: string
     ): Promise<FraudDetectionResult> {
+        console.log('getFraudScore called for:', address);
+
         // Check cache first
         const cached = this.getFromCache(address);
         if (cached) {
+            console.log('Using cached result for:', address);
             return cached;
         }
+
+        console.log('Making API request for:', address);
 
         // Fetch from API with timeout
         const controller = new AbortController();
@@ -83,11 +88,15 @@ class FraudDetectionService {
         } catch (error: any) {
             clearTimeout(timeoutId);
 
-            if (error.name === 'AbortError') {
-                throw new Error('Fraud detection request timed out');
-            }
+            console.error(`Fraud detection failed for ${address}:`, error.message);
 
-            throw new Error(error.message || 'Failed to fetch fraud detection score');
+            // Return "Offline" status instead of throwing error
+            // This prevents UI from showing ugly error messages
+            return {
+                result: 'Offline',
+                fraud_probability: 0,
+                confidence: 0
+            };
         }
     }
 
@@ -113,6 +122,7 @@ class FraudDetectionService {
 
     /**
      * Get cached result if available and not expired
+     * Don't cache errors - only successful results
      */
     private getFromCache(address: string): FraudDetectionResult | null {
         try {
@@ -124,6 +134,13 @@ class FraudDetectionService {
             }
 
             const cachedData: CachedResult = JSON.parse(cached);
+
+            // Don't use cache if it's an error result
+            if (cachedData.result === 'Service Unavailable' || !cachedData.result) {
+                localStorage.removeItem(cacheKey);
+                return null;
+            }
+
             const cacheAge = Date.now() - (cachedData.timestamp || 0);
 
             // Return cached data if less than 1 hour old

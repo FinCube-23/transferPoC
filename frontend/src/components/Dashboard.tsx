@@ -82,28 +82,44 @@ const Dashboard: React.FC = () => {
 
   // Fetch fraud detection for all visible transactions in parallel
   useEffect(() => {
+    if (transactions.length === 0) return;
+
     const ITEMS_PER_PAGE = 10;
     const sorted = [...transactions].sort((a, b) => b.timestamp - a.timestamp);
     const start = currentPage * ITEMS_PER_PAGE;
     const page = sorted.slice(start, start + ITEMS_PER_PAGE);
 
     // Fetch fraud detection for each transaction with from address
+    // Skip if already loading or has valid result (not error)
     const fetchPromises = page
-      .filter(tx => !fraudResults[tx.sender] && tx.sender)
-      .map(tx => fetchFraudDetection(tx.sender, tx.sender));
+      .filter(tx => {
+        const existing = fraudResults[tx.sender];
+        // Refetch if error or doesn't exist
+        return tx.sender && (!existing || existing.error);
+      })
+      .map(tx => {
+        console.log('Fetching fraud detection for:', tx.sender);
+        return fetchFraudDetection(tx.sender, tx.sender);
+      });
+
+    console.log(`Fetching fraud detection for ${fetchPromises.length} addresses`);
 
     // Fetch all in parallel for faster loading
-    Promise.all(fetchPromises);
+    if (fetchPromises.length > 0) {
+      Promise.all(fetchPromises);
+    }
   }, [transactions, currentPage]);
 
-  // Load transactions when wallet connects
+  // Load transactions when wallet connects, clear when disconnects
   useEffect(() => {
     if (isConnected && currentAccount) {
       loadTransactions(currentAccount);
       updateBalances();
+    } else {
+      // Clear transactions when wallet disconnects
       clearTransactions();
     }
-  }, [isConnected, currentAccount, loadTransactions, clearTransactions]);
+  }, [isConnected, currentAccount, loadTransactions, updateBalances, clearTransactions]);
 
   return (
     <>
@@ -739,16 +755,19 @@ const Dashboard: React.FC = () => {
               <div><span className="label-green" style={{ color: '#10b981' }}>Description</span>: Transferred</div>
             </div>
           </div>
-          <div className={`tx-fraud ${fraudData?.loading ? 'loading' :
+          <div className={`tx-fraud ${
+            fraudData?.loading ? 'loading' :
             fraudData?.error ? 'error' :
-              fraudData?.result === 'Fraud' ? 'fraud' :
-                fraudData?.result === 'Not_Fraud' ? 'not-fraud' :
-                  fraudData?.result === 'Undecided' ? 'undecided' : 'loading'
-            }`}>
+            fraudData?.result === 'Fraud' ? 'fraud' :
+            fraudData?.result === 'Not_Fraud' ? 'not-fraud' :
+            fraudData?.result === 'Undecided' ? 'undecided' :
+            fraudData?.result === 'Service Unavailable' ? 'error' :
+            'loading'
+          }`}>
             {fraudData?.loading ? (
               <span>🔍 Analyzing...</span>
-            ) : fraudData?.error ? (
-              <div title="Fraud detection service is offline. Please start the service." style={{ cursor: 'help' }}>
+            ) : fraudData?.error || fraudData?.result === 'Service Unavailable' ? (
+              <div title="Fraud detection service is offline or slow. Please check the service." style={{ cursor: 'help' }}>
                 <div>⚠️ Offline</div>
                 <div style={{ fontSize: '0.7em', opacity: 0.8 }}>Service Down</div>
               </div>
