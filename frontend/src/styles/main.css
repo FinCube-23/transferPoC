@@ -547,7 +547,7 @@ button,
     border-bottom: 1px solid #e2e8f0;
 }
 
-.transactions-table-header > div:nth-child(3) {
+.transactions-table-header>div:nth-child(3) {
     justify-self: start;
     padding-left: 0;
 }
@@ -769,6 +769,9 @@ button,
     background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
     color: white;
     box-shadow: 0 4px 20px rgba(239, 68, 68, 0.4), 0 0 15px rgba(239, 68, 68, 0.3);
+}
+
+.tx-fraud.fraud:hover {
     animation: fraudGlow 2s ease-in-out infinite;
 }
 
@@ -776,6 +779,9 @@ button,
     background: linear-gradient(135deg, #10b981 0%, #059669 100%);
     color: white;
     box-shadow: 0 4px 20px rgba(16, 185, 129, 0.4), 0 0 15px rgba(16, 185, 129, 0.3);
+}
+
+.tx-fraud.not-fraud:hover {
     animation: safeGlow 2s ease-in-out infinite;
 }
 
@@ -783,6 +789,9 @@ button,
     background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
     color: white;
     box-shadow: 0 4px 20px rgba(245, 158, 11, 0.4), 0 0 15px rgba(245, 158, 11, 0.3);
+}
+
+.tx-fraud.undecided:hover {
     animation: warningGlow 2s ease-in-out infinite;
 }
 
@@ -821,37 +830,49 @@ button,
 
 /* Glowing animations for fraud detection */
 @keyframes fraudGlow {
-    0%, 100% {
+
+    0%,
+    100% {
         box-shadow: 0 4px 20px rgba(239, 68, 68, 0.4), 0 0 15px rgba(239, 68, 68, 0.3);
     }
+
     50% {
         box-shadow: 0 4px 30px rgba(239, 68, 68, 0.6), 0 0 25px rgba(239, 68, 68, 0.5);
     }
 }
 
 @keyframes safeGlow {
-    0%, 100% {
+
+    0%,
+    100% {
         box-shadow: 0 4px 20px rgba(16, 185, 129, 0.4), 0 0 15px rgba(16, 185, 129, 0.3);
     }
+
     50% {
         box-shadow: 0 4px 30px rgba(16, 185, 129, 0.6), 0 0 25px rgba(16, 185, 129, 0.5);
     }
 }
 
 @keyframes warningGlow {
-    0%, 100% {
+
+    0%,
+    100% {
         box-shadow: 0 4px 20px rgba(245, 158, 11, 0.4), 0 0 15px rgba(245, 158, 11, 0.3);
     }
+
     50% {
         box-shadow: 0 4px 30px rgba(245, 158, 11, 0.6), 0 0 25px rgba(245, 158, 11, 0.5);
     }
 }
 
 @keyframes fraudPulse {
-    0%, 100% {
+
+    0%,
+    100% {
         opacity: 1;
         transform: scale(1);
     }
+
     50% {
         opacity: 0.7;
         transform: scale(0.98);
