@@ -32,7 +32,7 @@ sequenceDiagram
 ```
 
 ## SC Fraud Detection Service Diagram.
-```
+```mermaid
 sequenceDiagram
     participant User as User/Client
     participant API as FastAPI API
