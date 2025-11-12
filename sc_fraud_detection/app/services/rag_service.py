@@ -438,7 +438,7 @@ class RAGService:
     
     def __init__(self, api_key: str):
         self.llm = ChatGoogleGenerativeAI(
-            model="gemini-2.5-pro",
+            model="gemini-2.0-flash",
             google_api_key=api_key,
             temperature=0.1,
             convert_system_message_to_human=True
