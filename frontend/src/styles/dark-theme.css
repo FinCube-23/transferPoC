@@ -1051,6 +1051,46 @@
     }
 }
 
+/* Fraud Detection Cell Dark Theme Styling - Enhanced */
+#app.dark-theme .tx-fraud.fraud {
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.95) 0%, rgba(220, 38, 38, 0.95) 100%);
+    color: white;
+    box-shadow: 0 4px 25px rgba(239, 68, 68, 0.5), 0 0 20px rgba(239, 68, 68, 0.4);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+#app.dark-theme .tx-fraud.not-fraud {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.95) 0%, rgba(5, 150, 105, 0.95) 100%);
+    color: white;
+    box-shadow: 0 4px 25px rgba(16, 185, 129, 0.5), 0 0 20px rgba(16, 185, 129, 0.4);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+#app.dark-theme .tx-fraud.undecided {
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.95) 0%, rgba(217, 119, 6, 0.95) 100%);
+    color: white;
+    box-shadow: 0 4px 25px rgba(245, 158, 11, 0.5), 0 0 20px rgba(245, 158, 11, 0.4);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+#app.dark-theme .tx-fraud.loading {
+    background: linear-gradient(135deg, rgba(55, 65, 81, 0.8) 0%, rgba(75, 85, 99, 0.8) 100%);
+    color: #d1d5db;
+    border: 1px solid rgba(75, 85, 99, 0.4);
+}
+
+#app.dark-theme .tx-fraud.error {
+    background: linear-gradient(135deg, rgba(107, 114, 128, 0.8) 0%, rgba(75, 85, 99, 0.8) 100%);
+    color: #f3f4f6;
+    border: 1px solid rgba(107, 114, 128, 0.4);
+    cursor: pointer;
+}
+
+#app.dark-theme .tx-fraud.error:hover {
+    transform: scale(1.05);
+    box-shadow: 0 6px 30px rgba(107, 114, 128, 0.6);
+}
+
 /* Dark Theme Responsive Design */
 @media (max-width: 900px) {
     #app.dark-theme .app-header {
@@ -1065,7 +1105,7 @@
         grid-template-columns: 1fr 1fr 0.7fr minmax(100px, 1fr) 32px;
     }
 
-    /* Hide Purpose and Nullifier columns on mobile in dark theme */
+    /* Hide Memo and Fraud Detection columns on mobile in dark theme */
     #app.dark-theme .transactions-table-header > div:nth-child(4),
     #app.dark-theme .transactions-table-header > div:nth-child(5),
     #app.dark-theme .transaction-row > div:nth-child(4),
@@ -1090,8 +1130,11 @@
         grid-template-columns: 1fr 1fr minmax(80px, 1fr) 28px;
     }
 
+    /* Hide amount and fraud detection columns */
     #app.dark-theme .transactions-table-header > div:nth-child(3),
-    #app.dark-theme .transaction-row > div:nth-child(3) {
+    #app.dark-theme .transaction-row > div:nth-child(3),
+    #app.dark-theme .transactions-table-header > div:nth-child(5),
+    #app.dark-theme .transaction-row > div:nth-child(5) {
         display: none;
     }
 

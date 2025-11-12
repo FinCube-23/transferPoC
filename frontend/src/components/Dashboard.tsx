@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useWalletStore } from '../stores/walletStore';
 import { useTransactions } from '../hooks/useTransactions';
 import { web3Service } from '../services/web3Service';
+import { fraudDetectionService } from '../services/fraudDetectionService';
 import { ethers } from 'ethers';
 import type { ParsedTransfer } from '../services/graphService';
 
@@ -28,14 +29,97 @@ const Dashboard: React.FC = () => {
     purpose: '',
   });
 
-  // Load transactions when wallet connects
+  const [fraudResults, setFraudResults] = useState<Record<string, {
+    result: string;
+    probability: number;
+    confidence: number;
+    loading: boolean;
+    error: boolean;
+  }>>({});
+
+  // Fetch fraud detection for an address using the service
+  const fetchFraudDetection = async (address: string, fromAddress?: string) => {
+    // Set loading state
+    setFraudResults(prev => ({
+      ...prev,
+      [address]: {
+        result: '',
+        probability: 0,
+        confidence: 0,
+        loading: true,
+        error: false,
+      }
+    }));
+
+    try {
+      const data = await fraudDetectionService.getFraudScore(address, fromAddress);
+
+      setFraudResults(prev => ({
+        ...prev,
+        [address]: {
+          result: data.result,
+          probability: data.fraud_probability,
+          confidence: data.confidence,
+          loading: false,
+          error: false,
+        }
+      }));
+    } catch (error: any) {
+      console.error('Fraud detection error:', error);
+
+      setFraudResults(prev => ({
+        ...prev,
+        [address]: {
+          result: '',
+          probability: 0,
+          confidence: 0,
+          loading: false,
+          error: true,
+        }
+      }));
+    }
+  };
+
+  // Fetch fraud detection for all visible transactions in parallel
+  useEffect(() => {
+    if (transactions.length === 0) return;
+
+    const ITEMS_PER_PAGE = 10;
+    const sorted = [...transactions].sort((a, b) => b.timestamp - a.timestamp);
+    const start = currentPage * ITEMS_PER_PAGE;
+    const page = sorted.slice(start, start + ITEMS_PER_PAGE);
+
+    // Fetch fraud detection for each transaction with from address
+    // Skip if already loading or has valid result (not error)
+    const fetchPromises = page
+      .filter(tx => {
+        const existing = fraudResults[tx.sender];
+        // Refetch if error or doesn't exist
+        return tx.sender && (!existing || existing.error);
+      })
+      .map(tx => {
+        console.log('Fetching fraud detection for:', tx.sender);
+        return fetchFraudDetection(tx.sender, tx.sender);
+      });
+
+    console.log(`Fetching fraud detection for ${fetchPromises.length} addresses`);
+
+    // Fetch all in parallel for faster loading
+    if (fetchPromises.length > 0) {
+      Promise.all(fetchPromises);
+    }
+  }, [transactions, currentPage]);
+
+  // Load transactions when wallet connects, clear when disconnects
   useEffect(() => {
     if (isConnected && currentAccount) {
       loadTransactions(currentAccount);
       updateBalances();
+    } else {
+      // Clear transactions when wallet disconnects
       clearTransactions();
     }
-  }, [isConnected, currentAccount, loadTransactions, clearTransactions]);
+  }, [isConnected, currentAccount, loadTransactions, updateBalances, clearTransactions]);
 
   return (
     <>
@@ -574,7 +658,7 @@ const Dashboard: React.FC = () => {
       <section
         id="recent-transactions"
         style={{
-          maxWidth: '1200px',
+          maxWidth: '1400px',
           width: 'calc(100% - 2rem)',
           padding: '1rem 1.5rem',
           boxSizing: 'border-box',
@@ -621,6 +705,7 @@ const Dashboard: React.FC = () => {
             <div>Recipient</div>
             <div style={{ textAlign: 'right' }}>Amount</div>
             <div>Memo</div>
+            <div style={{ textAlign: 'center' }}>Fraud Detection</div>
             <div style={{ textAlign: 'right' }}>Date</div>
             <div style={{ textAlign: 'right' }}></div>
           </div>
@@ -656,6 +741,8 @@ const Dashboard: React.FC = () => {
         ? `https://sepolia.etherscan.io/tx/${txHashForUrl}`
         : `https://sepolia.etherscan.io/address/${FINCUBE_ADDRESS}#events`;
 
+      const fraudData = fraudResults[tx.sender];
+
       return (
         <div key={`${tx.txHash || ''}-${index}`} className="transaction-row">
           <div className="tx-address">{shorten(tx.sender)}</div>
@@ -667,6 +754,41 @@ const Dashboard: React.FC = () => {
               <div><span className="label-green" style={{ color: '#10b981' }}>Purpose</span>: {displayedPurpose}</div>
               <div><span className="label-green" style={{ color: '#10b981' }}>Description</span>: Transferred</div>
             </div>
+          </div>
+          <div className={`tx-fraud ${
+            fraudData?.loading ? 'loading' :
+            fraudData?.error ? 'error' :
+            fraudData?.result === 'Fraud' ? 'fraud' :
+            fraudData?.result === 'Not_Fraud' ? 'not-fraud' :
+            fraudData?.result === 'Undecided' ? 'undecided' :
+            fraudData?.result === 'Service Unavailable' ? 'error' :
+            'loading'
+          }`}>
+            {fraudData?.loading ? (
+              <span>🔍 Analyzing...</span>
+            ) : fraudData?.error || fraudData?.result === 'Service Unavailable' ? (
+              <div title="Fraud detection service is offline or slow. Please check the service." style={{ cursor: 'help' }}>
+                <div>⚠️ Offline</div>
+                <div style={{ fontSize: '0.7em', opacity: 0.8 }}>Service Down</div>
+              </div>
+            ) : fraudData?.result ? (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', justifyContent: 'center' }}>
+                  {fraudData.result === 'Fraud' && '🚨'}
+                  {fraudData.result === 'Not_Fraud' && '✅'}
+                  {fraudData.result === 'Undecided' && '⚠️'}
+                  <span>{fraudData.result.replace('_', ' ')}</span>
+                </div>
+                <div className="fraud-probability">
+                  {Math.round(fraudData.probability * 100)}%
+                </div>
+                <div className="fraud-confidence">
+                  Confidence: {Math.round(fraudData.confidence * 100)}%
+                </div>
+              </>
+            ) : (
+              <span>🔍 Analyzing...</span>
+            )}
           </div>
           <div className="tx-date">{new Date(tx.timestamp).toLocaleString()}</div>
           <div className="tx-etherscan">

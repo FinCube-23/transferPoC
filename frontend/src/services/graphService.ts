@@ -21,6 +21,9 @@ export interface ParsedTransfer {
     nullifier?: string
     timestamp: number
     txHash?: string
+    fraudResult?: string
+    fraudProbability?: number
+    fraudConfidence?: number
 }
 
 /**
@@ -54,12 +57,29 @@ export async function fetchTransfersFromGraph(
 ): Promise<ParsedTransfer[]> {
     const endpoint =
         "https://api.studio.thegraph.com/query/112514/fincube-transfer-token/version/latest"
-    
+
     const query = `
         query($addr: Bytes!) {
-            stablecoinTransfers(
+            sent: stablecoinTransfers(
                 where: { from: $addr }, 
-                first: 50, 
+                first: 25, 
+                orderBy: blockNumber, 
+                orderDirection: desc
+            ) {
+                id
+                from
+                to
+                amount
+                memo
+                memoHash
+                nullifier
+                txHash
+                blockNumber
+                timestamp
+            }
+            received: stablecoinTransfers(
+                where: { to: $addr }, 
+                first: 25, 
                 orderBy: blockNumber, 
                 orderDirection: desc
             ) {
@@ -83,19 +103,21 @@ export async function fetchTransfersFromGraph(
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ query, variables: { addr: account } }),
         })
-        
+
         const json = await res.json()
-        const items: GraphTransfer[] = json.data?.stablecoinTransfers || []
+        const sent: GraphTransfer[] = json.data?.sent || []
+        const received: GraphTransfer[] = json.data?.received || []
+        const items: GraphTransfer[] = [...sent, ...received]
 
         const parsedTransfers: ParsedTransfer[] = []
 
         for (const it of items) {
             // Parse memo JSON to extract the actual purpose
             let actualPurpose = ""
-            
+
             if (it.memo) {
                 console.log("RAW MEMO FROM GRAPH:", it.memo, "TYPE:", typeof it.memo)
-                
+
                 // The Graph might return memo as hex string, convert if needed
                 let memoString = it.memo
                 if (memoString.startsWith("0x")) {
@@ -107,7 +129,7 @@ export async function fetchTransfersFromGraph(
                         console.log("HEX CONVERSION FAILED:", e)
                     }
                 }
-                
+
                 try {
                     const memoData = JSON.parse(memoString)
                     console.log("PARSED MEMO DATA:", memoData)
@@ -124,7 +146,7 @@ export async function fetchTransfersFromGraph(
             } else {
                 console.log("NO MEMO FIELD IN GRAPH DATA FOR TX:", it.id)
             }
-            
+
             const rawCandidate = it.txHash || it.id
             const candidateHash = normalizeHash(rawCandidate) || rawCandidate
 
