@@ -26,6 +26,13 @@ contract FinCube is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable {
     /// @notice Used nullifiers to prevent double spending
     mapping(bytes32 => bool) public usedNullifiers;
 
+    /// @notice Hardcoded salt for reference number generation
+    bytes32 private constant REFERENCE_SALT =
+        keccak256("FINCUBE_REFERENCE_SALT_V1");
+
+    /// @notice Mapping to track issued reference numbers
+    mapping(bytes32 => bool) public issuedReferenceNumbers;
+
     event DAOUpdated(address indexed newDAO);
     event ApprovedERC20Updated(address indexed newToken);
     event StablecoinTransfer(
@@ -35,6 +42,10 @@ contract FinCube is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable {
         string memo,
         uint256 amount,
         bytes32 nullifier
+    );
+    event ReferenceNumberIssued(
+        address indexed orgWalletAddress,
+        bytes32 indexed referenceNumber
     );
 
     modifier onlyDAO() {
@@ -120,13 +131,41 @@ contract FinCube is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable {
         // Transfer funds
         IERC20(approvedERC20).safeTransferFrom(msg.sender, to, amount);
 
-        emit StablecoinTransfer(
-            msg.sender,
-            to,
-            memo,
-            memo,
-            amount,
-            nullifier
+        emit StablecoinTransfer(msg.sender, to, memo, memo, amount, nullifier);
+    }
+
+    /// @notice Generate a reference number for a user
+    /// @dev Computes reference_number = keccak256(email_hash, org_reference_key, salt)
+    /// @dev Uses msg.sender as the organization wallet address
+    /// @param emailHash Hash of the user's email
+    /// @param orgReferenceKey Organization-specific reference key
+    /// @return referenceNumber The generated reference number
+    function generateReferenceNumber(
+        bytes32 emailHash,
+        bytes32 orgReferenceKey
+    ) external onlyDAO returns (bytes32 referenceNumber) {
+        require(emailHash != bytes32(0), "Invalid email hash");
+        require(orgReferenceKey != bytes32(0), "Invalid org reference key");
+
+        address orgWalletAddress = msg.sender;
+
+        // Compute reference number: keccak256(email_hash, org_reference_key, salt)
+        referenceNumber = keccak256(
+            abi.encodePacked(emailHash, orgReferenceKey, REFERENCE_SALT)
         );
+
+        // Prevent duplicate reference numbers
+        require(
+            !issuedReferenceNumbers[referenceNumber],
+            "Reference number already issued"
+        );
+
+        // Mark as issued
+        issuedReferenceNumbers[referenceNumber] = true;
+
+        // Emit event for backend to capture
+        emit ReferenceNumberIssued(orgWalletAddress, referenceNumber);
+
+        return referenceNumber;
     }
 }
