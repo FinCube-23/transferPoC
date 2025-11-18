@@ -35,6 +35,3 @@ class ScoreResponse(BaseModel):
     features_extracted: Dict[str, float]
 
 
-class ScraperRequest(BaseModel):
-    source_url: str = Field(..., description="URL to scrape data from")
-    source_type: str = Field(default="kaggle", description="Type of data source")

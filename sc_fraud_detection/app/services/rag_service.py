@@ -576,7 +576,7 @@ class RAGService:
             "balance": features.get("total ether balance", 0),
             "unique_sent": features.get("Unique Sent To Addresses", 0),
             "unique_received": features.get("Unique Received From Addresses", 0),
-            "erc20_tx": features.get(" Total ERC20 tnxs", 0),
+            "erc20_tx": features.get("Total ERC20 tnxs", 0),
             "behavioral_risk": deep_patterns.get("risk_score", 0),
             "detected_patterns": ", ".join(all_patterns) if all_patterns else "None detected",
             "temporal_info": json.dumps(temporal, indent=2),

@@ -1,6 +1,5 @@
 from typing import Dict, List, Any
 import numpy as np
-from sklearn.preprocessing import StandardScaler
 import pickle
 from pathlib import Path
 from datetime import datetime
@@ -35,26 +34,26 @@ class FeatureExtractor:
         "total ether received",
         "total ether sent contracts",
         "total ether balance",
-        " Total ERC20 tnxs",
-        " ERC20 total Ether received",
-        " ERC20 total ether sent",
-        " ERC20 total Ether sent contract",
-        " ERC20 uniq sent addr",
-        " ERC20 uniq rec addr",
-        " ERC20 uniq rec contract addr",
-        " ERC20 avg time between sent tnx",
-        " ERC20 avg time between rec tnx",
-        " ERC20 avg time between contract tnx",
-        " ERC20 min val rec",
-        " ERC20 max val rec",
-        " ERC20 avg val rec",
-        " ERC20 min val sent",
-        " ERC20 max val sent",
-        " ERC20 avg val sent",
-        " ERC20 uniq sent token name",
-        " ERC20 uniq rec token name",
-        " ERC20 most sent token type",
-        " ERC20 most rec token type",
+        "Total ERC20 tnxs",
+        "ERC20 total Ether received",
+        "ERC20 total ether sent",
+        "ERC20 total Ether sent contract",
+        "ERC20 uniq sent addr",
+        "ERC20 uniq rec addr",
+        "ERC20 uniq rec contract addr",
+        "ERC20 avg time between sent tnx",
+        "ERC20 avg time between rec tnx",
+        "ERC20 avg time between contract tnx",
+        "ERC20 min val rec",
+        "ERC20 max val rec",
+        "ERC20 avg val rec",
+        "ERC20 min val sent",
+        "ERC20 max val sent",
+        "ERC20 avg val sent",
+        "ERC20 uniq sent token name",
+        "ERC20 uniq rec token name",
+        "ERC20 most sent token type",
+        "ERC20 most rec token type",
         "Unique Sent To Addresses",
         "Unique Received From Addresses"
     ]
@@ -130,7 +129,7 @@ class FeatureExtractor:
         # Transaction counts
         features["Sent tnx"] = len(sent_external)
         features["Received Tnx"] = len(received_external)
-        features[" Total ERC20 tnxs"] = len(sent_erc20) + len(received_erc20)
+        features["Total ERC20 tnxs"] = len(sent_erc20) + len(received_erc20)
         features["total transactions (including tnx to create contract)"] = len(sent) + len(received)
         
         # Timing features
@@ -177,42 +176,42 @@ class FeatureExtractor:
         erc20_sent_values = [float(t.get("value", 0)) for t in sent_erc20 if t.get("value")]
         erc20_received_values = [float(t.get("value", 0)) for t in received_erc20 if t.get("value")]
         
-        features[" ERC20 total ether sent"] = sum(erc20_sent_values)
-        features[" ERC20 total Ether received"] = sum(erc20_received_values)
-        features[" ERC20 min val sent"] = min(erc20_sent_values) if erc20_sent_values else 0
-        features[" ERC20 max val sent"] = max(erc20_sent_values) if erc20_sent_values else 0
+        features["ERC20 total ether sent"] = sum(erc20_sent_values)
+        features["ERC20 total Ether received"] = sum(erc20_received_values)
+        features["ERC20 min val sent"] = min(erc20_sent_values) if erc20_sent_values else 0
+        features["ERC20 max val sent"] = max(erc20_sent_values) if erc20_sent_values else 0
         avg_erc20_sent = np.mean(erc20_sent_values) if erc20_sent_values else 0
-        features[" ERC20 avg val sent"] = FeatureExtractor._safe_float(avg_erc20_sent)
-        features[" ERC20 min val rec"] = min(erc20_received_values) if erc20_received_values else 0
-        features[" ERC20 max val rec"] = max(erc20_received_values) if erc20_received_values else 0
+        features["ERC20 avg val sent"] = FeatureExtractor._safe_float(avg_erc20_sent)
+        features["ERC20 min val rec"] = min(erc20_received_values) if erc20_received_values else 0
+        features["ERC20 max val rec"] = max(erc20_received_values) if erc20_received_values else 0
         avg_erc20_rec = np.mean(erc20_received_values) if erc20_received_values else 0
-        features[" ERC20 avg val rec"] = FeatureExtractor._safe_float(avg_erc20_rec)
+        features["ERC20 avg val rec"] = FeatureExtractor._safe_float(avg_erc20_rec)
         
         # ERC20 unique addresses
-        features[" ERC20 uniq sent addr"] = len(set([t.get("to", "") for t in sent_erc20 if t.get("to")]))
-        features[" ERC20 uniq rec addr"] = len(set([t.get("from", "") for t in received_erc20 if t.get("from")]))
+        features["ERC20 uniq sent addr"] = len(set([t.get("to", "") for t in sent_erc20 if t.get("to")]))
+        features["ERC20 uniq rec addr"] = len(set([t.get("from", "") for t in received_erc20 if t.get("from")]))
         
         # ERC20 contract interactions
         erc20_contract_txs = [t for t in sent_erc20 if FeatureExtractor._is_contract_tx(t)]
         erc20_contract_values = [float(t.get("value", 0)) for t in erc20_contract_txs if t.get("value")]
-        features[" ERC20 total Ether sent contract"] = sum(erc20_contract_values)
-        features[" ERC20 uniq rec contract addr"] = len(set([t.get("to", "") for t in erc20_contract_txs if t.get("to")]))
+        features["ERC20 total Ether sent contract"] = sum(erc20_contract_values)
+        features["ERC20 uniq rec contract addr"] = len(set([t.get("to", "") for t in erc20_contract_txs if t.get("to")]))
         
         # ERC20 timing
-        features[" ERC20 avg time between sent tnx"] = FeatureExtractor._calc_avg_time_diff(sent_erc20)
-        features[" ERC20 avg time between rec tnx"] = FeatureExtractor._calc_avg_time_diff(received_erc20)
-        features[" ERC20 avg time between contract tnx"] = FeatureExtractor._calc_avg_time_diff(erc20_contract_txs)
+        features["ERC20 avg time between sent tnx"] = FeatureExtractor._calc_avg_time_diff(sent_erc20)
+        features["ERC20 avg time between rec tnx"] = FeatureExtractor._calc_avg_time_diff(received_erc20)
+        features["ERC20 avg time between contract tnx"] = FeatureExtractor._calc_avg_time_diff(erc20_contract_txs)
         
         # ERC20 token types
         sent_tokens = [t.get("rawContract", {}).get("address") for t in sent_erc20 if t.get("rawContract")]
         received_tokens = [t.get("rawContract", {}).get("address") for t in received_erc20 if t.get("rawContract")]
         
-        features[" ERC20 uniq sent token name"] = len(set(sent_tokens))
-        features[" ERC20 uniq rec token name"] = len(set(received_tokens))
+        features["ERC20 uniq sent token name"] = len(set(sent_tokens))
+        features["ERC20 uniq rec token name"] = len(set(received_tokens))
         
         # Most common tokens (using count as proxy)
-        features[" ERC20 most sent token type"] = FeatureExtractor._most_common(sent_tokens)
-        features[" ERC20 most rec token type"] = FeatureExtractor._most_common(received_tokens)
+        features["ERC20 most sent token type"] = FeatureExtractor._most_common(sent_tokens)
+        features["ERC20 most rec token type"] = FeatureExtractor._most_common(received_tokens)
         
         return features
     
