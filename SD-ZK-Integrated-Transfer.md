@@ -19,13 +19,12 @@ sequenceDiagram
     DAO-->>Blockchain: Emit ReferenceNumberIssued(org_id, reference_number)
     OrgB->>OrgB: Store reference_number and assign to User2
     User1->>OrgA: Send(receiver_reference_number, amount)
-    OrgA->>OrgA: Lookup receiver org (OrgB) using DAO event index
-    OrgA->>OrgB: Send(receiver_reference_number, ZK proof u1 ∈ OrgA)
-    OrgB->>OrgB: Verify ZK proof
+    OrgA->>OrgA: Lookup receiver org (OrgB) using FinCube event index
+    OrgA->>OrgB: requestReceiverProof(sender_reference_number, receiver_reference_number)
     OrgB->>User2: Lookup user by receiver_reference_number
-    OrgB->>OrgA: Return ZK proof u2 ∈ OrgB
-    OrgA->>OrgA: Verify proof
-    OrgA->>OrgB: Transfer stablecoin (ERC20)
+    OrgB->>OrgA: Return ZK proof u2 ∈ OrgB: gRPC
+    OrgA->>OrgA: WEB3: Verify proof
+    OrgA->>OrgB: WEB3: Transfer stablecoin (ERC20)
     OrgA->>User1: Update balance (debit)
     OrgB->>User2: Update balance (credit)
     OrgB->>Blockchain: Emit TransactionRecorded(sender_reference, receiver_reference, amount, invoice)
