@@ -58,3 +58,5 @@ Thumbs.db
 
 
 .vscode
+web3/test/dummy_data/proof
+web3/test/dummy_data/public_inputs
