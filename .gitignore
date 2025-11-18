@@ -60,3 +60,5 @@ Thumbs.db
 web3/test/dummy_data/proof
 web3/test/dummy_data/public_inputs
 json-log/zkTranscriptLib_address.json
+
+backend/*/node_modules
