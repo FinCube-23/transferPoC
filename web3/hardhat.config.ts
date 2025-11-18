@@ -1,67 +1,68 @@
-import { HardhatUserConfig } from "hardhat/config";
-import "@openzeppelin/hardhat-upgrades";
-import "@nomicfoundation/hardhat-toolbox";
-import "hardhat-storage-layout";
-import "hardhat-gas-reporter";
-import "@openzeppelin/hardhat-upgrades";
-import * as dotenv from "dotenv";
-dotenv.config({ path: ".env" });
+import { HardhatUserConfig } from "hardhat/config"
+import "@openzeppelin/hardhat-upgrades"
+import "@nomicfoundation/hardhat-toolbox"
+import "hardhat-storage-layout"
+import "hardhat-gas-reporter"
+import "@openzeppelin/hardhat-upgrades"
+import * as dotenv from "dotenv"
+dotenv.config({ path: ".env" })
 
 const config: HardhatUserConfig = {
-  solidity: {
-    compilers: [
-      {
-        version: "0.8.28",
-        settings: {
-          optimizer: {
-            enabled: true,
-            runs: 1000,
-          },
+    solidity: {
+        compilers: [
+            {
+                version: "0.8.28",
+                settings: {
+                    optimizer: {
+                        enabled: true,
+                        runs: 200, // Lower runs = smaller deployment size
+                    },
+                    viaIR: true, // Enable IR-based code generation for better optimization
+                },
+            },
+        ],
+    },
+    networks: {
+        // Ref: https://trufflesuite.com/docs/truffle/getting-started/using-the-truffle-dashboard/#usage-with-non-truffle-tooling
+        sepolia: {
+            url: `${process.env.SEPOLIA_ENDPOINT}/${process.env.SEPOLIA_API_KEY}`,
+            gasPrice: 50000000000,
+            accounts: process.env.WALLET_PRIVATE_KEY
+                ? [`0x${process.env.WALLET_PRIVATE_KEY}`]
+                : [],
         },
-      },
-    ],
-  },
-  networks: {
-    // Ref: https://trufflesuite.com/docs/truffle/getting-started/using-the-truffle-dashboard/#usage-with-non-truffle-tooling
-    sepolia: {
-      url: `${process.env.SEPOLIA_ENDPOINT}/${process.env.SEPOLIA_API_KEY}`,
-      gasPrice: 50000000000,
-      accounts: process.env.WALLET_PRIVATE_KEY
-        ? [`0x${process.env.WALLET_PRIVATE_KEY}`]
-        : [],
-    },
-    amoy: {
-      url: `${process.env.AMOY_ENDPOINT}/${process.env.AMOY_API_KEY}`,
-      gasPrice: 50000000000,
-      accounts: process.env.WALLET_PRIVATE_KEY
-        ? [`0x${process.env.WALLET_PRIVATE_KEY}`]
-        : [],
-    },
-  },
-
-  // https://hardhat.org/hardhat-runner/docs/guides/verifying
-  // (npm etherscan deprecated)
-  // https://coinsbench.com/verify-smart-contract-on-polygonscan-using-hardhat-9b8331dbd888
-  etherscan: {
-    apiKey: {
-      // Sepolia
-      sepolia: process.env.ETHERSCAN_API_KEY,
-
-      // Amoy
-      amoy: process.env.POLYGONSCAN_MUMBAI_API_KEY,
-    },
-    // Ref: https://docs.polygonscan.com/getting-started/endpoint-urls
-    customChains: [
-      {
-        network: "amoy",
-        chainId: 80002,
-        urls: {
-          apiURL: "https://api-amoy.polygonscan.com/api",
-          browserURL: "https://amoy.polygonscan.com/",
+        amoy: {
+            url: `${process.env.AMOY_ENDPOINT}/${process.env.AMOY_API_KEY}`,
+            gasPrice: 50000000000,
+            accounts: process.env.WALLET_PRIVATE_KEY
+                ? [`0x${process.env.WALLET_PRIVATE_KEY}`]
+                : [],
         },
-      },
-    ],
-  },
-};
+    },
 
-export default config;
+    // https://hardhat.org/hardhat-runner/docs/guides/verifying
+    // (npm etherscan deprecated)
+    // https://coinsbench.com/verify-smart-contract-on-polygonscan-using-hardhat-9b8331dbd888
+    etherscan: {
+        apiKey: {
+            // Sepolia
+            sepolia: process.env.ETHERSCAN_API_KEY,
+
+            // Amoy
+            amoy: process.env.POLYGONSCAN_MUMBAI_API_KEY,
+        },
+        // Ref: https://docs.polygonscan.com/getting-started/endpoint-urls
+        customChains: [
+            {
+                network: "amoy",
+                chainId: 80002,
+                urls: {
+                    apiURL: "https://api-amoy.polygonscan.com/api",
+                    browserURL: "https://amoy.polygonscan.com/",
+                },
+            },
+        ],
+    },
+}
+
+export default config
