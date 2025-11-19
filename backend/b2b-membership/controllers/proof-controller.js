@@ -612,7 +612,41 @@ verifier_key = "${verifierKey}"`
         try {
             const bytecodeBaseName = bytecodeFile.replace(".json", "")
 
-            // Generate proof using Barretenberg
+            // Generate verification key FIRST (required by bb prove)
+            this.logger.info("Generating verification key")
+
+            const vkResult = await this.executeCommand(
+                `bb write_vk -b ./target/${bytecodeFile} -o ./target --oracle_hash keccak`,
+                this.circuitPath
+            )
+
+            if (vkResult.exitCode !== 0) {
+                this.logger.stepError(
+                    stepName,
+                    new Error("Verification key generation failed"),
+                    {
+                        exitCode: vkResult.exitCode,
+                        stdout: vkResult.stdout,
+                        stderr: vkResult.stderr,
+                    }
+                )
+
+                return {
+                    success: false,
+                    error: {
+                        type: "PROOF_GENERATION_FAILED",
+                        message: "Verification key generation failed",
+                        step: "proof_generation",
+                        details: {
+                            exitCode: vkResult.exitCode,
+                            stdout: vkResult.stdout,
+                            stderr: vkResult.stderr,
+                        },
+                    },
+                }
+            }
+
+            // Generate proof using Barretenberg (now that vk exists)
             this.logger.info("Generating proof with Barretenberg", {
                 bytecodeFile,
                 witnessFile,
@@ -644,40 +678,6 @@ verifier_key = "${verifierKey}"`
                             exitCode: proveResult.exitCode,
                             stdout: proveResult.stdout,
                             stderr: proveResult.stderr,
-                        },
-                    },
-                }
-            }
-
-            // Generate verification key
-            this.logger.info("Generating verification key")
-
-            const vkResult = await this.executeCommand(
-                `bb write_vk -b ./target/${bytecodeFile} -o ./target --oracle_hash keccak`,
-                this.circuitPath
-            )
-
-            if (vkResult.exitCode !== 0) {
-                this.logger.stepError(
-                    stepName,
-                    new Error("Verification key generation failed"),
-                    {
-                        exitCode: vkResult.exitCode,
-                        stdout: vkResult.stdout,
-                        stderr: vkResult.stderr,
-                    }
-                )
-
-                return {
-                    success: false,
-                    error: {
-                        type: "PROOF_GENERATION_FAILED",
-                        message: "Verification key generation failed",
-                        step: "proof_generation",
-                        details: {
-                            exitCode: vkResult.exitCode,
-                            stdout: vkResult.stdout,
-                            stderr: vkResult.stderr,
                         },
                     },
                 }
@@ -1392,8 +1392,15 @@ verifier_key = "${verifierKey}"`
                 publicInputsCount: publicInputs.length,
             })
 
+            // Log the actual data being sent (first 100 chars of proof)
+            this.logger.debug("Proof data preview", {
+                proofStart: proof.substring(0, 100),
+                publicInputs: publicInputs,
+            })
+
             // Call verify function (this is a view function, so no transaction is sent)
             try {
+                this.logger.info("Executing contract.verify()...")
                 const verified = await contract.verify(proof, publicInputs)
 
                 this.logger.info(
@@ -1408,6 +1415,7 @@ verifier_key = "${verifierKey}"`
                 // Parse contract revert errors
                 this.logger.error("Contract call reverted", {
                     error: contractError.message,
+                    stack: contractError.stack,
                 })
 
                 // Extract error type from contract revert
@@ -1473,19 +1481,146 @@ verifier_key = "${verifierKey}"`
     /**
      * Verify proof against on-chain contract
      * POST /api/proof/verify
+     * Supports optional file uploads or reads from default target directory
      */
     async verifyProof(req, res) {
         try {
             this.logger.info("API: Received proof verification request")
 
-            // Extract proof and public inputs from request body
-            // Validation is handled by middleware
-            const { proof, publicInputs } = req.body
+            let proofBuffer = null
+            let publicInputsBuffer = null
+            let source = "default_target_directory"
+
+            // Check if files were uploaded via multipart/form-data
+            if (req.files) {
+                if (req.files.proof && req.files.proof[0]) {
+                    proofBuffer = req.files.proof[0].buffer
+                    this.logger.info(
+                        `Proof file uploaded (${proofBuffer.length} bytes)`
+                    )
+                    source = "uploaded_files"
+                }
+
+                if (req.files.public_inputs && req.files.public_inputs[0]) {
+                    publicInputsBuffer = req.files.public_inputs[0].buffer
+                    this.logger.info(
+                        `Public inputs file uploaded (${publicInputsBuffer.length} bytes)`
+                    )
+                    source = "uploaded_files"
+                }
+            }
+
+            // If files were not uploaded, read from default target directory
+            if (!proofBuffer || !publicInputsBuffer) {
+                this.logger.info(
+                    "Files not uploaded, reading from default target directory"
+                )
+
+                const artifactsResult = await this.readProofArtifacts()
+
+                if (!artifactsResult.success) {
+                    this.logger.error(
+                        "Failed to read proof artifacts from filesystem",
+                        artifactsResult.error
+                    )
+                    return res.status(400).json(artifactsResult)
+                }
+
+                // Use uploaded files if available, otherwise use filesystem files
+                proofBuffer = proofBuffer || artifactsResult.artifacts.proof
+                publicInputsBuffer =
+                    publicInputsBuffer || artifactsResult.artifacts.publicInputs
+
+                // Parse public inputs if from filesystem (already parsed)
+                if (!req.files || !req.files.public_inputs) {
+                    // publicInputsBuffer is already an array from readProofArtifacts
+                    const formattedData = this.formatProofForContract(
+                        proofBuffer,
+                        publicInputsBuffer
+                    )
+
+                    if (!formattedData.success) {
+                        this.logger.error(
+                            "Failed to format proof data",
+                            formattedData.error
+                        )
+                        return res.status(400).json(formattedData)
+                    }
+
+                    this.logger.info("Proof artifacts loaded", {
+                        source,
+                        proofSize: proofBuffer.length,
+                        publicInputsCount: publicInputsBuffer.length,
+                    })
+
+                    // Call contract verification
+                    const result = await this.callContractVerification(
+                        formattedData.proof,
+                        formattedData.publicInputs
+                    )
+
+                    if (!result.success) {
+                        return res.status(400).json(result)
+                    }
+
+                    return res.status(200).json(result)
+                }
+            }
+
+            // Parse uploaded public inputs buffer
+            const publicInputsArray = []
+            const fieldElementSize = 32 // bytes32 in Solidity
+
+            for (
+                let i = 0;
+                i < publicInputsBuffer.length;
+                i += fieldElementSize
+            ) {
+                const fieldElement = publicInputsBuffer.slice(
+                    i,
+                    i + fieldElementSize
+                )
+                if (fieldElement.length === fieldElementSize) {
+                    publicInputsArray.push(fieldElement.toString("hex"))
+                }
+            }
+
+            // Log parsed public inputs for debugging
+            this.logger.info("Parsed public inputs from uploaded file", {
+                count: publicInputsArray.length,
+                sample: publicInputsArray.slice(0, 2),
+            })
+
+            // Format proof data for contract submission
+            const formattedData = this.formatProofForContract(
+                proofBuffer,
+                publicInputsArray
+            )
+
+            if (!formattedData.success) {
+                this.logger.error(
+                    "Failed to format proof data",
+                    formattedData.error
+                )
+                return res.status(400).json(formattedData)
+            }
+
+            this.logger.info("Proof artifacts loaded", {
+                source,
+                proofSize: proofBuffer.length,
+                publicInputsCount: publicInputsArray.length,
+            })
+
+            this.logger.info("Formatted data ready for contract", {
+                proofLength: formattedData.proof.length,
+                publicInputsCount: formattedData.publicInputs.length,
+                publicInputsSample: formattedData.publicInputs.slice(0, 2),
+            })
 
             // Call contract verification
             const result = await this.callContractVerification(
-                proof,
-                publicInputs
+                formattedData.proof,
+                formattedData.publicInputs
             )
 
             if (!result.success) {
