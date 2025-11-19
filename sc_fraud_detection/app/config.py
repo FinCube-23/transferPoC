@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     confidence_threshold: float = 0.7
     
     # Feature dimensions (based on dataset)
-    feature_dim: int = 44
+    feature_dim: int = 47
     
     class Config:
         env_file = ".env"
