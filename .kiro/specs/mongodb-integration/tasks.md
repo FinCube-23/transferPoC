@@ -42,34 +42,27 @@
     -   Define batch_id as ObjectId reference to Batch model
     -   Define balance field with default 0 and minimum 0 validation
     -   Define reference_number as unique sparse string field
-    -   Define fraud_score with default 1 and range validation [0, 1]
     -   Add sparse unique index for reference_number
     -   Export User model
-    -   _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8, 5.1, 5.2, 5.3, 5.4_
+    -   _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 5.1, 5.2, 5.3, 5.4_
 
 -   [ ]\* 4.1 Write property test for user balance non-negativity
 
     -   **Property 2: User balance non-negativity**
     -   **Validates: Requirements 2.4**
 
--   [ ]\* 4.2 Write property test for user fraud score range
+-   [ ]\* 4.2 Write property test for reference number uniqueness
 
-    -   **Property 3: User fraud score range**
-    -   **Validates: Requirements 2.8**
-
--   [ ]\* 4.3 Write property test for reference number uniqueness
-
-    -   **Property 4: Reference number uniqueness**
+    -   **Property 3: Reference number uniqueness**
     -   **Validates: Requirements 2.5, 2.6**
 
--   [ ]\* 4.4 Write unit tests for User model
+-   [ ]\* 4.3 Write unit tests for User model
 
     -   Test creating user with valid data
     -   Test negative balance rejection
-    -   Test fraud_score boundary values
     -   Test null reference_number handling
     -   Test duplicate reference_number rejection
-    -   _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8_
+    -   _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6_
 
 -   [x] 5. Create Organization model
 

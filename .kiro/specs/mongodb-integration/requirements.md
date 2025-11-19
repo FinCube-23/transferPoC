@@ -8,13 +8,12 @@ This document outlines the requirements for integrating MongoDB with Mongoose OR
 
 -   **Backend Service**: The b2b-membership Node.js/Express application
 -   **Mongoose**: MongoDB object modeling tool (ORM) for Node.js
--   **User**: An entity representing a member with balance and fraud score
+-   **User**: An entity representing a member with balance
 -   **Organization**: An entity representing a business organization with unique reference keys
 -   **Batch**: An entity representing a group of users with associated polynomial equations
 -   **Reference Number**: A unique identifier for users that can be null
 -   **Reference Key**: An auto-generated unique identifier for organizations
 -   **Org Salt**: An auto-generated unique salt value for organizations
--   **Fraud Score**: A numerical value between 0 and 1 representing fraud risk (1 = highest risk)
 
 ## Requirements
 
@@ -42,8 +41,6 @@ This document outlines the requirements for integrating MongoDB with Mongoose OR
 4. WHEN a User balance is set THEN the system SHALL validate that the balance is not negative
 5. THE User model SHALL include a reference_number field as a string that is unique
 6. THE User model SHALL allow reference_number to be null
-7. THE User model SHALL include a fraud_score field as a number between 0 and 1 with default value 1
-8. WHEN a User fraud_score is set THEN the system SHALL validate that the value is between 0 and 1 inclusive
 
 ### Requirement 3
 
