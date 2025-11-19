@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 class FeatureExtractor:
     """Extract features from Alchemy account data matching Kaggle dataset format"""
     
+    
     FEATURE_NAMES = [
         "Avg min between sent tnx",
         "Avg min between received tnx",
@@ -40,9 +41,11 @@ class FeatureExtractor:
         "ERC20 total Ether sent contract",
         "ERC20 uniq sent addr",
         "ERC20 uniq rec addr",
+        "ERC20 uniq sent addr.1",
         "ERC20 uniq rec contract addr",
         "ERC20 avg time between sent tnx",
         "ERC20 avg time between rec tnx",
+        "ERC20 avg time between rec 2 tnx",
         "ERC20 avg time between contract tnx",
         "ERC20 min val rec",
         "ERC20 max val rec",
@@ -50,16 +53,15 @@ class FeatureExtractor:
         "ERC20 min val sent",
         "ERC20 max val sent",
         "ERC20 avg val sent",
+        "ERC20 min val sent contract",
+        "ERC20 max val sent contract",
+        "ERC20 avg val sent contract",
         "ERC20 uniq sent token name",
         "ERC20 uniq rec token name",
         "ERC20 most sent token type",
-        "ERC20 most rec token type",
-        "Unique Sent To Addresses",
-        "Unique Received From Addresses"
+        "ERC20_most_rec_token_type"
     ]
 
-    # ... existing code ...
-    
     _scaler = None
     _scaler_path = Path("/tmp/feature_scaler.pkl")
     
@@ -97,6 +99,7 @@ class FeatureExtractor:
         vector_2d = np.array(vector).reshape(1, -1)
         normalized = cls._scaler.transform(vector_2d)
         return normalized[0].tolist()
+    
     @staticmethod
     def _safe_float(value: float) -> float:
         """Convert value to safe float, replacing NaN/inf with 0"""
@@ -166,8 +169,6 @@ class FeatureExtractor:
         # Unique addresses
         features["Unique Sent To Addresses"] = len(set([t.get("to", "") for t in sent if t.get("to")]))
         features["Unique Received From Addresses"] = len(set([t.get("from", "") for t in received if t.get("from")]))
-        features["Unique Sent To Addresses"] = features["Unique Sent To Addresses"]  # Duplicate in dataset
-        features["Unique Received From Addresses"] = features["Unique Received From Addresses"]  # Duplicate
         
         # Balance
         features["total ether balance"] = account_data["balance"]
@@ -191,15 +192,24 @@ class FeatureExtractor:
         features["ERC20 uniq sent addr"] = len(set([t.get("to", "") for t in sent_erc20 if t.get("to")]))
         features["ERC20 uniq rec addr"] = len(set([t.get("from", "") for t in received_erc20 if t.get("from")]))
         
+        features["ERC20 uniq sent addr.1"] = features["ERC20 uniq sent addr"]
+        
         # ERC20 contract interactions
         erc20_contract_txs = [t for t in sent_erc20 if FeatureExtractor._is_contract_tx(t)]
         erc20_contract_values = [float(t.get("value", 0)) for t in erc20_contract_txs if t.get("value")]
         features["ERC20 total Ether sent contract"] = sum(erc20_contract_values)
         features["ERC20 uniq rec contract addr"] = len(set([t.get("to", "") for t in erc20_contract_txs if t.get("to")]))
         
+        
+        features["ERC20 min val sent contract"] = min(erc20_contract_values) if erc20_contract_values else 0
+        features["ERC20 max val sent contract"] = max(erc20_contract_values) if erc20_contract_values else 0
+        avg_erc20_contract = np.mean(erc20_contract_values) if erc20_contract_values else 0
+        features["ERC20 avg val sent contract"] = FeatureExtractor._safe_float(avg_erc20_contract)
+        
         # ERC20 timing
         features["ERC20 avg time between sent tnx"] = FeatureExtractor._calc_avg_time_diff(sent_erc20)
         features["ERC20 avg time between rec tnx"] = FeatureExtractor._calc_avg_time_diff(received_erc20)
+        features["ERC20 avg time between rec 2 tnx"] = features["ERC20 avg time between rec tnx"]
         features["ERC20 avg time between contract tnx"] = FeatureExtractor._calc_avg_time_diff(erc20_contract_txs)
         
         # ERC20 token types
@@ -211,7 +221,7 @@ class FeatureExtractor:
         
         # Most common tokens (using count as proxy)
         features["ERC20 most sent token type"] = FeatureExtractor._most_common(sent_tokens)
-        features["ERC20 most rec token type"] = FeatureExtractor._most_common(received_tokens)
+        features["ERC20_most_rec_token_type"] = FeatureExtractor._most_common(received_tokens)
         
         return features
     

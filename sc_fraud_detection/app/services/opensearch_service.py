@@ -20,7 +20,7 @@ class OpenSearchService:
         )
         self.index_name = index_name
     
-    def create_index(self, dimension: int = 44):
+    def create_index(self, dimension: int = 47):
         """Create index with k-NN configuration"""
         if self.client.indices.exists(index=self.index_name):
             logger.info(f"Index {self.index_name} already exists")

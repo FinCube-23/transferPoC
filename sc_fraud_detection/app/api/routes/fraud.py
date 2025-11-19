@@ -43,21 +43,22 @@ async def score_address(
         
         logger.info(f"Scoring address: {address}")
         
-        # Step 1: Fetch account data from Alchemy
+        # Fetch account data from Alchemy
         logger.info("Fetching account data from Alchemy...")
         account_data = await alchemy_service.get_account_data(address)
 
+        # print(f"✅✅ Account Data : {account_data}")
         
-        
-        # Step 3: Extract features
+        # Extract features
         logger.info("Extracting features...")
         features = FeatureExtractor.extract_features(account_data)
         feature_vector = FeatureExtractor.features_to_vector(features)
+        # print(f"⚠️⚠️ Features Vector : {feature_vector}")
 
-        # Step 2 NORMALIZE the query vector
+        # NORMALIZE the query vector
         feature_vector = FeatureExtractor.normalize_vector(feature_vector)
         
-        # Step 4: K-NN search
+        # K-NN search
         logger.info("Performing K-NN search...")
         neighbors = opensearch_service.knn_search(feature_vector, k=settings.knn_neighbors)
         
@@ -67,11 +68,11 @@ async def score_address(
                 detail="No data in vector database. Please run /data/scrape first."
             )
         
-        # Step 5: Analyze K-NN results
+        # Analyze K-NN results
         logger.info("Analyzing K-NN results...")
         knn_analysis = KNNService.analyze_neighbors(neighbors)
         
-        # Step 6: RAG analysis with Gemini
+        # RAG analysis with Gemini
         logger.info("Running RAG analysis...")
         rag_result = await rag_service.analyze(
             address, 
@@ -79,7 +80,7 @@ async def score_address(
             features,
             account_data)
         
-        # Step 7: Prepare response
+        # Prepare response
         final_decision = FraudResult(rag_result.get("final_decision", "Undecided"))
         
         response = ScoreResponse(
