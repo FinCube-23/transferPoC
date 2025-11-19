@@ -2,6 +2,9 @@
 export const bn_254_fp =
     21888242871839275222246405745257275088548364400416034343698204186575808495617n
 
+// Maximum polynomial degree (must match main.nr)
+export const MAX_POLY_DEGREE = 128
+
 export const initial_polynomial = [1n] // Represents the polynomial P(x) = 1
 
 // returns an array of coefficients that represent an polynomial, P where P(roots[i]) = 0

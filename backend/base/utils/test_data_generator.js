@@ -106,8 +106,8 @@ async function generateTestData() {
     const polynomial = interpolatePolynomial(testRoots)
     console.log(`Polynomial degree: ${polynomial.length - 1}`)
 
-    // 3. Pad polynomial to MAX_POLY_DEGREE
-    const MAX_POLY_DEGREE = 2048
+    // 3. Pad polynomial to MAX_POLY_DEGREE (must match main.nr)
+    const MAX_POLY_DEGREE = 128
     const paddedPolynomial = [...polynomial]
     while (paddedPolynomial.length <= MAX_POLY_DEGREE) paddedPolynomial.push(0n)
     const validatedPolynomial = paddedPolynomial.map((coeff) =>

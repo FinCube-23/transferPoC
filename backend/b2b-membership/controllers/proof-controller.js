@@ -259,8 +259,8 @@ class ProofController {
                     ]
                     const polynomial = interpolatePolynomial(testRoots)
 
-                    // Pad polynomial to MAX_POLY_DEGREE
-                    const MAX_POLY_DEGREE = 2048
+                    // Pad polynomial to MAX_POLY_DEGREE (must match main.nr)
+                    const MAX_POLY_DEGREE = 128
                     const paddedPolynomial = [...polynomial]
                     while (paddedPolynomial.length <= MAX_POLY_DEGREE)
                         paddedPolynomial.push(0n)
