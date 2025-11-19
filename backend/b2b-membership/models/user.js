@@ -29,16 +29,6 @@ const userSchema = new mongoose.Schema(
             type: String,
             required: false,
         },
-
-        // Fraud score - must be between 0 and 1 inclusive
-        // 1 = highest risk, 0 = lowest risk
-        fraud_score: {
-            type: Number,
-            default: 1,
-            min: [0, "Fraud score must be at least 0"],
-            max: [1, "Fraud score must be at most 1"],
-            required: true,
-        },
     },
     {
         timestamps: true, // Automatically add createdAt and updatedAt fields
