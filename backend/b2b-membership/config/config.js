@@ -32,6 +32,14 @@ const config = {
         targetDir: "../base/circuit/target",
         testDataGenerator: "../base/utils/test_data_generator.js",
     },
+
+    // Database configuration
+    database: {
+        uri:
+            process.env.MONGODB_URI ||
+            "mongodb://localhost:27017/b2b-membership",
+        options: {},
+    },
 }
 
 /**
