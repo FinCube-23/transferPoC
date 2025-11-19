@@ -46,8 +46,6 @@ Comprehensive validation of all MongoDB models:
 
 -   ✓ Creates user with valid data
 -   ✓ Rejects negative balance values
--   ✓ Rejects fraud_score > 1
--   ✓ Rejects fraud_score < 0
 -   ✓ Enforces reference_number uniqueness
 -   ✓ Allows undefined reference_number
 -   ✓ Allows multiple users with undefined reference_number (sparse index)
@@ -82,8 +80,6 @@ All acceptance criteria from the requirements document have been validated:
 -   ✓ 2.4: Balance non-negativity validation
 -   ✓ 2.5: reference_number unique field
 -   ✓ 2.6: reference_number allows null/undefined
--   ✓ 2.7: fraud_score field with default 1
--   ✓ 2.8: fraud_score range validation [0, 1]
 
 ### Requirement 3: Organization Model
 

@@ -61,8 +61,7 @@ This design document describes the integration of MongoDB with Mongoose ORM into
   _id: ObjectId (auto-generated),
   batch_id: ObjectId (ref: 'Batch'),
   balance: Number (default: 0, min: 0),
-  reference_number: String (unique, sparse, nullable),
-  fraud_score: Number (default: 1, min: 0, max: 1)
+  reference_number: String (unique, sparse, nullable)
 }
 ```
 
@@ -153,18 +152,16 @@ database: {
 │  batch_id (FK)  │
 │  balance        │
 │  reference_num  │
-│  fraud_score    │
 └─────────────────┘
 ```
 
 ### Data Constraints
 
 1. **User.balance**: Non-negative number
-2. **User.fraud_score**: Range [0, 1]
-3. **User.reference_number**: Unique when not null (sparse index)
-4. **Organization.reference_key**: Unique, auto-generated
-5. **Organization.org_salt**: Unique, auto-generated
-6. **Batch.equation**: Array of string-encoded numbers
+2. **User.reference_number**: Unique when not null (sparse index)
+3. **Organization.reference_key**: Unique, auto-generated
+4. **Organization.org_salt**: Unique, auto-generated
+5. **Batch.equation**: Array of string-encoded numbers
 
 ## Correctness Properties
 
@@ -180,37 +177,32 @@ _For any_ application startup sequence, when the database connection is establis
 _For any_ User document, the balance field should always be greater than or equal to zero.
 **Validates: Requirements 2.4**
 
-### Property 3: User fraud score range
-
-_For any_ User document, the fraud_score field should always be between 0 and 1 inclusive.
-**Validates: Requirements 2.8**
-
-### Property 4: Reference number uniqueness
+### Property 3: Reference number uniqueness
 
 _For any_ two User documents with non-null reference_number values, the reference_number values should be different.
 **Validates: Requirements 2.5, 2.6**
 
-### Property 5: Organization reference_key uniqueness
+### Property 4: Organization reference_key uniqueness
 
 _For any_ two Organization documents, the reference_key values should be different.
 **Validates: Requirements 3.3, 3.6**
 
-### Property 6: Organization org_salt uniqueness
+### Property 5: Organization org_salt uniqueness
 
 _For any_ two Organization documents, the org_salt values should be different.
 **Validates: Requirements 3.5, 3.7**
 
-### Property 7: Auto-generation on creation
+### Property 6: Auto-generation on creation
 
 _For any_ newly created Organization document without explicit reference_key or org_salt values, both fields should be automatically populated with unique values.
 **Validates: Requirements 3.3, 3.5**
 
-### Property 8: Batch equation array structure
+### Property 7: Batch equation array structure
 
 _For any_ Batch document, the equation field should be an array.
 **Validates: Requirements 4.4**
 
-### Property 9: User-Batch relationship integrity
+### Property 8: User-Batch relationship integrity
 
 _For any_ User document with a batch_id, there should exist a corresponding Batch document with that \_id.
 **Validates: Requirements 2.2**
@@ -247,8 +239,6 @@ Unit tests will verify specific model behaviors and edge cases:
 
     - Creating a user with valid data succeeds
     - Creating a user with negative balance fails
-    - Creating a user with fraud_score > 1 fails
-    - Creating a user with fraud_score < 0 fails
     - Creating users with duplicate reference_numbers fails
     - Creating users with null reference_numbers succeeds
 
@@ -277,22 +267,17 @@ Property-based tests will use **fast-check** (JavaScript property testing librar
     - Generate random user data with various balance values
     - Verify that only non-negative balances are accepted
 
-2. **Property 3: User fraud score range**
-
-    - Generate random user data with various fraud_score values
-    - Verify that only values in [0, 1] are accepted
-
-3. **Property 4: Reference number uniqueness**
+2. **Property 3: Reference number uniqueness**
 
     - Generate multiple users with reference numbers
     - Verify that duplicate reference numbers are rejected
 
-4. **Property 5 & 6: Organization uniqueness**
+3. **Property 4 & 5: Organization uniqueness**
 
     - Generate multiple organizations
     - Verify that reference_key and org_salt are unique across all instances
 
-5. **Property 8: Batch equation array structure**
+4. **Property 7: Batch equation array structure**
     - Generate random batch data
     - Verify that equation field is always an array
 
