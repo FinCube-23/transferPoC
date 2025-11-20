@@ -5,6 +5,7 @@
 
 const { connectDatabase, disconnectDatabase } = require("./utils/database")
 const User = require("./models/user")
+const Organization = require("./models/organization")
 
 async function fixIndexes() {
     console.log("Fixing database indexes...\n")
@@ -15,17 +16,32 @@ async function fixIndexes() {
         // Drop all indexes on User collection
         console.log("Dropping existing indexes on User collection...")
         await User.collection.dropIndexes()
-        console.log("✓ Indexes dropped\n")
+        console.log("✓ User indexes dropped\n")
 
         // Recreate indexes from schema
-        console.log("Recreating indexes from schema...")
+        console.log("Recreating User indexes from schema...")
         await User.syncIndexes()
-        console.log("✓ Indexes recreated\n")
+        console.log("✓ User indexes recreated\n")
 
         // List current indexes
         console.log("Current indexes on User collection:")
-        const indexes = await User.collection.getIndexes()
-        console.log(JSON.stringify(indexes, null, 2))
+        const userIndexes = await User.collection.getIndexes()
+        console.log(JSON.stringify(userIndexes, null, 2))
+
+        // Drop all indexes on Organization collection
+        console.log("\nDropping existing indexes on Organization collection...")
+        await Organization.collection.dropIndexes()
+        console.log("✓ Organization indexes dropped\n")
+
+        // Recreate indexes from schema
+        console.log("Recreating Organization indexes from schema...")
+        await Organization.syncIndexes()
+        console.log("✓ Organization indexes recreated\n")
+
+        // List current indexes
+        console.log("Current indexes on Organization collection:")
+        const orgIndexes = await Organization.collection.getIndexes()
+        console.log(JSON.stringify(orgIndexes, null, 2))
 
         await disconnectDatabase()
         console.log("\n✓ Index fix complete")

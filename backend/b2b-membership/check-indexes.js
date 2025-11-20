@@ -10,12 +10,27 @@ async function checkIndexes() {
         await connectDatabase()
 
         const db = mongoose.connection.db
-        const collection = db.collection("users")
 
+        // Check users collection
+        const usersCollection = db.collection("users")
         console.log("Checking indexes on users collection:\n")
-        const indexes = await collection.indexes()
+        const userIndexes = await usersCollection.indexes()
 
-        indexes.forEach((index, i) => {
+        userIndexes.forEach((index, i) => {
+            console.log(`Index ${i + 1}:`)
+            console.log("  Name:", index.name)
+            console.log("  Key:", JSON.stringify(index.key))
+            console.log("  Unique:", index.unique || false)
+            console.log("  Sparse:", index.sparse || false)
+            console.log("")
+        })
+
+        // Check organizations collection
+        const orgsCollection = db.collection("organizations")
+        console.log("\nChecking indexes on organizations collection:\n")
+        const orgIndexes = await orgsCollection.indexes()
+
+        orgIndexes.forEach((index, i) => {
             console.log(`Index ${i + 1}:`)
             console.log("  Name:", index.name)
             console.log("  Key:", JSON.stringify(index.key))

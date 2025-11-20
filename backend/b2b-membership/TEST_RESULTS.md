@@ -37,15 +37,18 @@ Comprehensive validation of all MongoDB models:
 
 #### Organization Model
 
--   ✓ Auto-generates reference_key (UUID v4)
+-   ✓ Creates organization with required fields (org_id, wallet_address)
 -   ✓ Auto-generates org_salt (32-byte hex)
--   ✓ Enforces reference_key uniqueness
+-   ✓ Enforces org_id uniqueness
+-   ✓ Enforces wallet_address uniqueness
 -   ✓ Enforces org_salt uniqueness
 
 #### User Model
 
--   ✓ Creates user with valid data
+-   ✓ Creates user with valid data (user_id, zkp_key required)
 -   ✓ Rejects negative balance values
+-   ✓ Enforces user_id uniqueness
+-   ✓ Enforces zkp_key uniqueness
 -   ✓ Enforces reference_number uniqueness
 -   ✓ Allows undefined reference_number
 -   ✓ Allows multiple users with undefined reference_number (sparse index)
@@ -75,21 +78,24 @@ All acceptance criteria from the requirements document have been validated:
 ### Requirement 2: User Model
 
 -   ✓ 2.1: \_id field as primary key
--   ✓ 2.2: batch_id foreign key reference
--   ✓ 2.3: balance field with default 0
--   ✓ 2.4: Balance non-negativity validation
--   ✓ 2.5: reference_number unique field
--   ✓ 2.6: reference_number allows null/undefined
+-   ✓ 2.2: user_id field (unique, required, not auto-generated)
+-   ✓ 2.3: batch_id foreign key reference
+-   ✓ 2.4: balance field with default 0
+-   ✓ 2.5: Balance non-negativity validation
+-   ✓ 2.6: zkp_key field (unique, required)
+-   ✓ 2.7: reference_number unique field
+-   ✓ 2.8: reference_number allows null/undefined
 
 ### Requirement 3: Organization Model
 
 -   ✓ 3.1: \_id field as primary key
--   ✓ 3.2: reference_key unique field
--   ✓ 3.3: Auto-generation of reference_key
+-   ✓ 3.2: org_id field (unique, required, not auto-generated)
+-   ✓ 3.3: wallet_address field (unique, required, not auto-generated)
 -   ✓ 3.4: org_salt unique field
 -   ✓ 3.5: Auto-generation of org_salt
--   ✓ 3.6: reference_key uniqueness enforcement
--   ✓ 3.7: org_salt uniqueness enforcement
+-   ✓ 3.6: org_id uniqueness enforcement
+-   ✓ 3.7: wallet_address uniqueness enforcement
+-   ✓ 3.8: org_salt uniqueness enforcement
 
 ### Requirement 4: Batch Model
 
@@ -146,11 +152,13 @@ node run-all-tests.js
 
 1. **Sparse Index Behavior**: The User model's `reference_number` field uses a sparse unique index, which allows multiple documents with undefined `reference_number` values while enforcing uniqueness for non-null values.
 
-2. **Auto-generation**: The Organization model automatically generates `reference_key` and `org_salt` values using UUID v4 and crypto.randomBytes respectively.
+2. **Manual ID Fields**: The Organization model requires `org_id` and `wallet_address` to be provided manually (not auto-generated). The User model requires `user_id` and `zkp_key` to be provided manually.
 
-3. **BigInt Storage**: Batch equation values are stored as strings to preserve precision when working with JavaScript BigInt values.
+3. **Auto-generation**: The Organization model automatically generates `org_salt` values using crypto.randomBytes.
 
-4. **Test Data Cleanup**: All tests clean up their test data after execution to prevent interference with subsequent test runs.
+4. **BigInt Storage**: Batch equation values are stored as strings to preserve precision when working with JavaScript BigInt values.
+
+5. **Test Data Cleanup**: All tests clean up their test data after execution to prevent interference with subsequent test runs.
 
 ## Conclusion
 
