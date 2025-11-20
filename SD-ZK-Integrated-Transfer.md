@@ -7,20 +7,13 @@ sequenceDiagram
     participant User2 as User 2
     participant Blockchain as Blockchain (Event Log)
     User1->>OrgA: Register (email, user details)
-    OrgA->>DAO: Request reference number (email_hash, org_reference_key)
-    DAO->>DAO: Compute reference_number = keccak256(email_hash, org_reference_key, salt)
-    DAO-->>OrgA: Return reference_number
-    DAO-->>Blockchain: Emit ReferenceNumberIssued(org_id, reference_number)
-    OrgA->>OrgA: Store reference_number and assign to User1
+    OrgA->>OrgA: Generate and Store reference_number and assign to User1
     User2->>OrgB: Register (email, user details)
-    OrgB->>DAO: Request reference number (email_hash, org_reference_key)
-    DAO->>DAO: Compute reference_number = keccak256(email_hash, org_reference_key, salt)
-    DAO-->>OrgB: Return reference_number
-    DAO-->>Blockchain: Emit ReferenceNumberIssued(org_id, reference_number)
-    OrgB->>OrgB: Store reference_number and assign to User2
-    User1->>OrgA: Send(receiver_reference_number, amount)
-    OrgA->>OrgA: Lookup receiver org (OrgB) using FinCube event index
-    OrgA->>OrgB: requestReceiverProof(sender_reference_number, receiver_reference_number)
+    OrgB->>OrgB: Generate and Store reference_number and assign to User2
+    User1->>OrgA: send(receiver_reference_number, amount)
+    OrgA->>OrgA: Extract OrgB Wallet Address
+    OrgA<<->>DAO: Get OrgB info from memberURI
+    OrgA->>OrgB: requestReceiverProof(sender_reference_number, receiver_reference_number, amount)
     OrgB->>User2: Lookup user by receiver_reference_number
     OrgB->>OrgA: Return ZK proof u2 ∈ OrgB: gRPC
     OrgA->>OrgA: WEB3: Verify proof
