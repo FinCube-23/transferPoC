@@ -6,6 +6,8 @@
 
 const { connectDatabase, disconnectDatabase } = require("./utils/database")
 const Organization = require("./models/organization")
+const User = require("./models/user")
+const Batch = require("./models/batch")
 const userManagementService = require("./services/user-management-service")
 
 async function testUserManagementService() {
@@ -19,6 +21,8 @@ async function testUserManagementService() {
 
         // Clean up any existing test data
         console.log("Cleaning up any existing test data...")
+        await User.deleteMany({})
+        await Batch.deleteMany({})
         await Organization.deleteMany({})
         console.log("✓ Cleaned up\n")
 
@@ -166,8 +170,191 @@ async function testUserManagementService() {
         console.log("✓ Correctly rejected reference number without underscore")
         console.log("  - Error type:", result5.error.type)
 
+        // Test 11: Generate user secret
+        console.log("\nTest 11: Generating user secret...")
+        const testEmail = "test@example.com"
+        const secretResult = await userManagementService.generateUserSecret(
+            testEmail,
+            walletAddress
+        )
+
+        if (!secretResult.success) {
+            console.log("✗ Failed to generate user secret:", secretResult.error)
+            process.exit(1)
+        }
+
+        console.log("✓ User secret generated successfully")
+        console.log("  - Secret type:", typeof secretResult.secret)
+        console.log(
+            "  - Secret is BigInt:",
+            typeof secretResult.secret === "bigint"
+        )
+
+        // Test 12: Generate user secret with invalid email
+        console.log("\nTest 12: Testing user secret with invalid email...")
+        const invalidSecretResult =
+            await userManagementService.generateUserSecret("", walletAddress)
+
+        if (invalidSecretResult.success) {
+            console.log("✗ Should have rejected invalid email")
+            process.exit(1)
+        }
+
+        console.log("✓ Correctly rejected invalid email")
+        console.log("  - Error type:", invalidSecretResult.error.type)
+
+        // Test 13: Generate user secret with non-existent organization
+        console.log(
+            "\nTest 13: Testing user secret with non-existent organization..."
+        )
+        const nonExistentOrgResult =
+            await userManagementService.generateUserSecret(
+                testEmail,
+                "0xnonexistent1234567890123456789012345678"
+            )
+
+        if (nonExistentOrgResult.success) {
+            console.log("✗ Should have rejected non-existent organization")
+            process.exit(1)
+        }
+
+        console.log("✓ Correctly rejected non-existent organization")
+        console.log("  - Error type:", nonExistentOrgResult.error.type)
+
+        // Test 14: Assign user to batch
+        console.log("\nTest 14: Assigning user to batch...")
+        const batchResult = await userManagementService.assignToBatch(
+            secretResult.secret,
+            testOrg.org_id
+        )
+
+        if (!batchResult.success) {
+            console.log("✗ Failed to assign to batch:", batchResult.error)
+            process.exit(1)
+        }
+
+        console.log("✓ User assigned to batch successfully")
+        console.log("  - Batch ID:", batchResult.batch._id)
+        console.log("  - Equation length:", batchResult.batch.equation.length)
+        console.log("  - Equation:", batchResult.batch.equation)
+
+        // Test 15: Create user with batch
+        console.log("\nTest 15: Creating user with batch assignment...")
+        const userData = {
+            email: "newuser@example.com",
+            user_id: 2001,
+            balance: 100,
+            orgWalletAddress: walletAddress,
+        }
+
+        const createResult = await userManagementService.createUserWithBatch(
+            userData
+        )
+
+        if (!createResult.success) {
+            console.log(
+                "✗ Failed to create user with batch:",
+                createResult.error
+            )
+            process.exit(1)
+        }
+
+        console.log("✓ User created with batch successfully")
+        console.log("  - User ID:", createResult.user.user_id)
+        console.log("  - Batch ID:", createResult.user.batch_id)
+        console.log("  - Balance:", createResult.user.balance)
+        console.log("  - ZKP Key:", createResult.user.zkp_key)
+        console.log(
+            "  - Batch equation length:",
+            createResult.batch.equation.length
+        )
+
+        // Test 16: Verify user has batch_id
+        console.log("\nTest 16: Verifying user has batch_id...")
+        const createdUser = await User.findOne({ user_id: 2001 })
+
+        if (!createdUser || !createdUser.batch_id) {
+            console.log("✗ User does not have batch_id")
+            process.exit(1)
+        }
+
+        console.log("✓ User has batch_id")
+        console.log("  - Batch ID:", createdUser.batch_id)
+
+        // Test 17: Create another user in the same batch
+        console.log(
+            "\nTest 17: Creating another user (should use same batch)..."
+        )
+        const userData2 = {
+            email: "anotheruser@example.com",
+            user_id: 2002,
+            balance: 200,
+            orgWalletAddress: walletAddress,
+        }
+
+        const createResult2 = await userManagementService.createUserWithBatch(
+            userData2
+        )
+
+        if (!createResult2.success) {
+            console.log("✗ Failed to create second user:", createResult2.error)
+            process.exit(1)
+        }
+
+        console.log("✓ Second user created successfully")
+        console.log("  - User ID:", createResult2.user.user_id)
+        console.log("  - Batch ID:", createResult2.user.batch_id)
+        console.log(
+            "  - Batch equation length:",
+            createResult2.batch.equation.length
+        )
+
+        // Test 18: Create user with missing required fields
+        console.log("\nTest 18: Testing user creation with missing fields...")
+        const incompleteData = {
+            email: "incomplete@example.com",
+            user_id: 2003,
+            // Missing balance and orgWalletAddress
+        }
+
+        const incompleteResult =
+            await userManagementService.createUserWithBatch(incompleteData)
+
+        if (incompleteResult.success) {
+            console.log("✗ Should have rejected incomplete data")
+            process.exit(1)
+        }
+
+        console.log("✓ Correctly rejected incomplete data")
+        console.log("  - Error type:", incompleteResult.error.type)
+
+        // Test 19: Create user with duplicate user_id
+        console.log(
+            "\nTest 19: Testing user creation with duplicate user_id..."
+        )
+        const duplicateData = {
+            email: "duplicate@example.com",
+            user_id: 2001, // Same as first user
+            balance: 50,
+            orgWalletAddress: walletAddress,
+        }
+
+        const duplicateResult = await userManagementService.createUserWithBatch(
+            duplicateData
+        )
+
+        if (duplicateResult.success) {
+            console.log("✗ Should have rejected duplicate user_id")
+            process.exit(1)
+        }
+
+        console.log("✓ Correctly rejected duplicate user_id")
+        console.log("  - Error type:", duplicateResult.error.type)
+
         // Clean up test data
         console.log("\nCleaning up test data...")
+        await User.deleteMany({})
+        await Batch.deleteMany({})
         await Organization.deleteMany({})
         console.log("✓ Test data cleaned up")
 
