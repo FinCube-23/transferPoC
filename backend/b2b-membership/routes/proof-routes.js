@@ -51,6 +51,29 @@ router.post("/generate", validateProofGenerationRequest, (req, res) =>
 )
 
 /**
+ * POST /api/proof/generate-user
+ * Generate a ZKP proof for a specific user
+ *
+ * Request body:
+ * {
+ *   user_id: number,
+ *   org_id: number,
+ *   isKYCed: boolean
+ * }
+ *
+ * Response:
+ * {
+ *   success: boolean,
+ *   proof: string,
+ *   publicInputs: string[],
+ *   artifacts: object
+ * }
+ */
+router.post("/generate-user", (req, res) =>
+    proofController.generateUserProof(req, res)
+)
+
+/**
  * POST /api/proof/verify
  * Verify a proof against the on-chain Honk Verifier contract
  *

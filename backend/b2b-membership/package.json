@@ -22,7 +22,11 @@
     "multer": "^1.4.5-lts.1",
     "nodemon": "^3.0.3",
     "uuid": "^13.0.0",
-    "web3": "^4.4.0"
+    "web3": "^4.4.0",
+    "@zk-kit/eddsa-poseidon": "^1.1.0",
+    "@zk-kit/poseidon-cipher": "^0.3.2",
+    "@zkpassport/poseidon2": "^0.6.2",
+    "circomlibjs": "^0.1.7"
   },
   "devDependencies": {
     "fast-check": "^4.3.0"

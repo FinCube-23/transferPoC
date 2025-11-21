@@ -13,6 +13,13 @@ const fs = require("fs").promises
 require("dotenv").config()
 
 const { Logger } = require("../utils/logger")
+const userManagementService = require("../services/user-management-service")
+const { generateUserSecret } = require("../utils/secret-generator")
+const {
+    stringsToBigInts,
+    MAX_POLY_DEGREE,
+} = require("../utils/polynomial-operations")
+const { poseidon2Hash } = require("@zkpassport/poseidon2")
 
 const execAsync = promisify(exec)
 
@@ -177,17 +184,39 @@ class ProofController {
         try {
             const proverTomlPath = path.join(this.circuitPath, "Prover.toml")
 
-            // Check if testConfig is provided and has data
-            const hasTestConfig =
-                testConfig && Object.keys(testConfig).length > 0
+            // Check if testConfig is provided and has all required fields
+            const hasCompleteConfig =
+                testConfig &&
+                testConfig.polynomial &&
+                testConfig.polynomialHash !== undefined &&
+                testConfig.secret !== undefined &&
+                testConfig.verifierKey !== undefined &&
+                testConfig.nullifier !== undefined &&
+                testConfig.isKYCed !== undefined
 
-            if (hasTestConfig) {
-                // Use provided testConfig to generate Prover.toml directly
+            if (hasCompleteConfig) {
+                // Use provided testConfig directly (already computed)
                 this.logger.info(
-                    "Using provided testConfig to generate Prover.toml"
+                    "Using complete testConfig to generate Prover.toml"
                 )
 
-                // Import the test data generator module to use its functions
+                // Create Prover.toml content
+                const proverToml = `isKYCed = ${testConfig.isKYCed}
+nullifier = "${testConfig.nullifier}"
+polynomial = [${testConfig.polynomial.map((p) => `"${p}"`).join(", ")}]
+polynomial_hash = "${testConfig.polynomialHash}"
+secret = "${testConfig.secret}"
+verifier_key = "${testConfig.verifierKey}"`
+
+                // Write to Prover.toml
+                await fs.writeFile(proverTomlPath, proverToml)
+                this.logger.info("Prover.toml created with complete testConfig")
+            } else if (testConfig && Object.keys(testConfig).length > 0) {
+                // Partial config provided, compute missing fields
+                this.logger.info(
+                    "Using partial testConfig to generate Prover.toml"
+                )
+
                 const generatorPath = path.join(
                     this.basePath,
                     "utils/test_data_generator.js"
@@ -211,8 +240,6 @@ class ProofController {
 
                     this.logger.debug("Custom test config", customConfig)
 
-                    // Temporarily override the TEST_CONFIG in the generator
-                    // We'll call the generator's functions directly
                     const crypto = require("crypto")
                     const FIELD_PRIME =
                         21888242871839275222246405745257275088548364400416034343698204186575808495617n
@@ -288,7 +315,7 @@ verifier_key = "${verifierKey}"`
                     // Write to Prover.toml
                     await fs.writeFile(proverTomlPath, proverToml)
                     this.logger.info(
-                        "Prover.toml created with custom testConfig"
+                        "Prover.toml created with partial testConfig"
                     )
                 } catch (generatorError) {
                     this.logger.error("Failed to use generator module", {
@@ -1330,6 +1357,61 @@ verifier_key = "${verifierKey}"`
     }
 
     /**
+     * Generate proof for a specific user
+     * POST /api/proof/generate-user
+     * Body: { user_id: number, org_id: number, isKYCed: boolean }
+     */
+    async generateUserProof(req, res) {
+        try {
+            const { user_id, org_id, isKYCed } = req.body
+
+            // Validate required fields
+            if (!user_id || !org_id || isKYCed === undefined) {
+                return res.status(400).json({
+                    success: false,
+                    error: {
+                        type: "INVALID_PARAMETERS",
+                        message:
+                            "Missing required fields: user_id, org_id, isKYCed",
+                        details: { user_id, org_id, isKYCed },
+                    },
+                })
+            }
+
+            this.logger.info("API: Received user proof generation request", {
+                user_id,
+                org_id,
+                isKYCed,
+            })
+
+            const result = await this.generateProofService(
+                user_id,
+                org_id,
+                isKYCed
+            )
+
+            if (!result.success) {
+                return res.status(400).json(result)
+            }
+
+            return res.status(200).json(result)
+        } catch (error) {
+            this.logger.error("API: Error in generateUserProof endpoint", {
+                error: error.message,
+                stack: error.stack,
+            })
+
+            res.status(500).json({
+                success: false,
+                error: {
+                    type: "INTERNAL_ERROR",
+                    message: error.message,
+                },
+            })
+        }
+    }
+
+    /**
      * Call contract verification with proof data
      * @param {string} proof - Hex-encoded proof bytes
      * @param {string[]} publicInputs - Array of bytes32 public inputs
@@ -1472,6 +1554,153 @@ verifier_key = "${verifierKey}"`
                     message: "Failed to verify proof",
                     details: {
                         error: error.message,
+                    },
+                },
+            }
+        }
+    }
+
+    /**
+     * Generate proof for a specific user
+     *
+     * Flow:
+     * 1. Get batch equation from user_id (via batch_id)
+     * 2. Get org_salt and wallet_address from org_id
+     * 3. Fix equation format if needed
+     * 4. Hash the equation using Poseidon2
+     * 5. Get zkp_key from user and generate secret
+     * 6. Generate nullifier (Poseidon hash of secret and wallet address)
+     * 7. Generate proof and public inputs
+     *
+     * @param {number} user_id - User ID
+     * @param {number} org_id - Organization ID
+     * @param {boolean} isKYCed - KYC status
+     * @returns {Promise<{success: boolean, proof?: string, publicInputs?: string[], error?: object}>}
+     */
+    async generateProofService(user_id, org_id, isKYCed) {
+        this.logger.info("Starting proof generation service", {
+            user_id,
+            org_id,
+            isKYCed,
+        })
+
+        try {
+            // Step 1 & 2: Get user, batch, and organization data
+            const dataResult = await userManagementService.getUserProofData(
+                user_id,
+                org_id
+            )
+
+            if (!dataResult.success) {
+                this.logger.error(
+                    "Failed to get user proof data",
+                    dataResult.error
+                )
+                return dataResult
+            }
+
+            const { user, batch, organization } = dataResult.data
+
+            this.logger.info("Retrieved user proof data", {
+                user_id: user.user_id,
+                batch_id: batch._id,
+                org_id: organization.org_id,
+            })
+
+            // Step 3: Fix equation format (convert string array to BigInt array)
+            const equationStrings = batch.equation
+            let polynomial = stringsToBigInts(equationStrings)
+
+            // Pad polynomial to MAX_POLY_DEGREE if needed
+            while (polynomial.length <= MAX_POLY_DEGREE) {
+                polynomial.push(0n)
+            }
+
+            // Ensure all coefficients are in canonical form (0 <= x < FIELD_PRIME)
+            const FIELD_PRIME =
+                21888242871839275222246405745257275088548364400416034343698204186575808495617n
+            polynomial = polynomial.map((coeff) => {
+                const r = coeff % FIELD_PRIME
+                return r >= 0n ? r : r + FIELD_PRIME
+            })
+
+            this.logger.info("Polynomial prepared", {
+                degree: polynomial.length - 1,
+                coefficientsCount: polynomial.length,
+            })
+
+            // Step 4: Hash the equation using Poseidon2
+            const polynomialHash = poseidon2Hash(polynomial)
+            this.logger.info("Polynomial hash generated", {
+                hash: polynomialHash.toString(),
+            })
+
+            // Step 5: Get zkp_key (email) and generate secret
+            const zkp_key = user.zkp_key // This is the email
+            const secret = generateUserSecret(zkp_key, organization.org_salt)
+
+            this.logger.info("User secret generated", {
+                zkp_key,
+            })
+
+            // Step 6: Generate verifier_key (wallet address as hash) and nullifier
+            const crypto = require("crypto")
+            const verifierKeyHash = crypto
+                .createHash("sha256")
+                .update(organization.wallet_address)
+                .digest("hex")
+            const verifierKey = BigInt("0x" + verifierKeyHash) % FIELD_PRIME
+
+            const nullifier = poseidon2Hash([secret, verifierKey])
+
+            this.logger.info("Nullifier generated", {
+                verifierKey: verifierKey.toString(),
+                nullifier: nullifier.toString(),
+            })
+
+            // Step 7: Create test config and generate proof
+            const testConfig = {
+                isKYCed,
+                nullifier,
+                polynomial,
+                polynomialHash,
+                secret,
+                verifierKey,
+            }
+
+            this.logger.info("Executing proof workflow with generated config")
+
+            // Use the existing executeProofWorkflow with our custom testConfig
+            const proofResult = await this.executeProofWorkflow(testConfig)
+
+            if (!proofResult.success) {
+                this.logger.error("Proof generation failed", proofResult.error)
+                return proofResult
+            }
+
+            this.logger.info("Proof generation completed successfully")
+
+            return {
+                success: true,
+                proof: proofResult.proof,
+                publicInputs: proofResult.publicInputs,
+                artifacts: proofResult.artifacts,
+            }
+        } catch (error) {
+            this.logger.error("Error in generateProofService", {
+                error: error.message,
+                stack: error.stack,
+            })
+
+            return {
+                success: false,
+                error: {
+                    type: "PROOF_SERVICE_ERROR",
+                    message: "Failed to generate proof for user",
+                    details: {
+                        error: error.message,
+                        user_id,
+                        org_id,
                     },
                 },
             }

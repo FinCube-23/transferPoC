@@ -254,6 +254,101 @@ class UserManagementService {
     }
 
     /**
+     * Get user with batch and organization data for proof generation
+     *
+     * @param {number} user_id - User ID
+     * @param {number} org_id - Organization ID
+     * @returns {Promise<{success: boolean, data?: object, error?: object}>}
+     */
+    async getUserProofData(user_id, org_id) {
+        try {
+            // Validate inputs
+            if (!user_id || typeof user_id !== "number") {
+                return {
+                    success: false,
+                    error: {
+                        type: "INVALID_PARAMETERS",
+                        message: "user_id must be a valid number",
+                        details: { user_id },
+                    },
+                }
+            }
+
+            if (!org_id || typeof org_id !== "number") {
+                return {
+                    success: false,
+                    error: {
+                        type: "INVALID_PARAMETERS",
+                        message: "org_id must be a valid number",
+                        details: { org_id },
+                    },
+                }
+            }
+
+            // Get user with batch data
+            const user = await User.findOne({ user_id }).populate("batch_id")
+
+            if (!user) {
+                return {
+                    success: false,
+                    error: {
+                        type: "USER_NOT_FOUND",
+                        message: `No user found with user_id: ${user_id}`,
+                        details: { user_id },
+                    },
+                }
+            }
+
+            if (!user.batch_id) {
+                return {
+                    success: false,
+                    error: {
+                        type: "BATCH_NOT_FOUND",
+                        message: `User ${user_id} has no associated batch`,
+                        details: { user_id },
+                    },
+                }
+            }
+
+            // Get organization data
+            const organization = await Organization.findOne({ org_id })
+
+            if (!organization) {
+                return {
+                    success: false,
+                    error: {
+                        type: "ORGANIZATION_NOT_FOUND",
+                        message: `No organization found with org_id: ${org_id}`,
+                        details: { org_id },
+                    },
+                }
+            }
+
+            return {
+                success: true,
+                data: {
+                    user: user.toObject(),
+                    batch: user.batch_id.toObject(),
+                    organization: organization.toObject(),
+                },
+            }
+        } catch (error) {
+            return {
+                success: false,
+                error: {
+                    type: "DATABASE_ERROR",
+                    message: "Failed to retrieve user proof data",
+                    details: {
+                        error: error.message,
+                        user_id,
+                        org_id,
+                    },
+                },
+            }
+        }
+    }
+
+    /**
      * Assign user to batch and update polynomial
      *
      * Finds an available batch or creates a new one, then updates the batch's
