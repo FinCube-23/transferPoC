@@ -9,6 +9,7 @@ const { Logger } = require("./logger")
 const { storeEvent, updateEventStatus } = require("./event-store")
 const Organization = require("../models/organization.js")
 const UserManagementService = require("../services/user-management-service.js")
+const User = require("../models/user")
 
 const logger = new Logger("EventHandlers")
 
@@ -194,14 +195,217 @@ async function handleSyncAllData(routingKey, payload) {
         // Update status to processing
         await updateEventStatus(eventId, "processing")
 
-        // TODO: Implement business logic for full data synchronization
-        // Example:
-        // - Fetch all organizations from UMS API
-        // - Fetch all users from UMS API
-        // - Compare with local database
-        // - Update/create/delete records as needed
-        // - Generate sync report
-        // - Handle conflicts and errors
+        const syncData = payload?.data
+        if (!syncData) {
+            throw new Error("Invalid sync payload: missing data field")
+        }
+
+        const { organizations = [], users = [] } = syncData
+
+        const syncReport = {
+            organizations: {
+                total: organizations.length,
+                created: 0,
+                skipped: 0,
+                failed: 0,
+            },
+            users: {
+                total: users.length,
+                created: 0,
+                skipped: 0,
+                failed: 0,
+            },
+            errors: [],
+        }
+
+        // Step 1: Sync organizations
+        logger.info("Starting organization sync", {
+            totalOrganizations: organizations.length,
+        })
+
+        for (const org of organizations) {
+            try {
+                if (org.name === "Brain Station 23") {
+                    logger.warn(
+                        "Skipping Super Organization",
+                        {
+                            orgId: org.id,
+                            orgName: org.name,
+                        }
+                    )
+                    syncReport.organizations.skipped++
+                    continue
+                }
+                const orgAdmin = org.organization_admin
+                if (!orgAdmin || !orgAdmin.wallet_address) {
+                    logger.warn(
+                        "Skipping organization without wallet address",
+                        {
+                            orgId: org.id,
+                            orgName: org.name,
+                        }
+                    )
+                    syncReport.organizations.skipped++
+                    continue
+                }
+
+                // Check if organization already exists
+                const existingOrg = await Organization.findOne({
+                    org_id: org.id,
+                })
+
+                if (existingOrg) {
+                    logger.info("Organization already exists, skipping", {
+                        orgId: org.id,
+                        orgName: org.name,
+                    })
+                    syncReport.organizations.skipped++
+                    continue
+                }
+
+                // Create new organization
+                const newOrganization = new Organization({
+                    org_id: org.id,
+                    wallet_address: orgAdmin.wallet_address,
+                })
+                await newOrganization.save()
+
+                logger.info("Organization created during sync", {
+                    orgId: org.id,
+                    orgName: org.name,
+                    walletAddress: orgAdmin.wallet_address,
+                })
+                syncReport.organizations.created++
+            } catch (error) {
+                logger.error("Failed to sync organization", {
+                    orgId: org.id,
+                    orgName: org.name,
+                    error: error.message,
+                })
+                syncReport.organizations.failed++
+                syncReport.errors.push({
+                    type: "organization",
+                    id: org.id,
+                    error: error.message,
+                })
+            }
+        }
+
+        // Step 2: Sync users
+        logger.info("Starting user sync", {
+            totalUsers: users.length,
+        })
+
+        for (const user of users) {
+            try {
+                // Skip users without email
+                if (!user.email) {
+                    logger.warn("Skipping user without email", {
+                        userId: user.id,
+                        email: user.email,
+                    })
+                    syncReport.users.skipped++
+                    continue
+                }
+
+                // Check if user already exists
+                const existingUser = await User.findOne({
+                    user_id: user.id,
+                })
+
+                if (existingUser) {
+                    logger.info("User already exists, skipping", {
+                        userId: user.id,
+                        email: user.email,
+                    })
+                    syncReport.users.skipped++
+                    continue
+                }
+
+                // Find user's organization by checking which org has this user as member
+                let userOrg = null
+                for (const org of organizations) {
+                    if (org.members && org.members.includes(user.id)) {
+                        userOrg = org
+                    }
+                }
+
+                if (!userOrg || !userOrg.organization_admin?.wallet_address) {
+                    logger.warn("Skipping user without valid organization", {
+                        userId: user.id,
+                        email: user.email,
+                    })
+                    syncReport.users.skipped++
+                    continue
+                }
+
+                // Get organization from database
+                const org = await Organization.findOne({
+                    org_id: userOrg.id,
+                })
+
+                if (!org) {
+                    logger.warn("Organization not found for user", {
+                        userId: user.id,
+                        orgId: userOrg.id,
+                    })
+                    syncReport.users.skipped++
+                    continue
+                }
+
+                // Generate reference number
+                const reference_number =
+                    UserManagementService.generateReferenceNumber(
+                        org.wallet_address
+                    )
+
+                // Create user with batch assignment
+                const userData = {
+                    email: user.email,
+                    user_id: user.id,
+                    balance: 10, // Default balance
+                    orgWalletAddress: org.wallet_address,
+                    reference_number: reference_number,
+                }
+
+                const result = await UserManagementService.createUserWithBatch(
+                    userData
+                )
+
+                if (result.success) {
+                    logger.info("User created during sync", {
+                        userId: user.id,
+                        email: user.email,
+                        orgId: userOrg.id,
+                    })
+                    syncReport.users.created++
+                } else {
+                    logger.error("Failed to create user during sync", {
+                        userId: user.id,
+                        email: user.email,
+                        error: result.error,
+                    })
+                    syncReport.users.failed++
+                    syncReport.errors.push({
+                        type: "user",
+                        id: user.id,
+                        error: result.error.message,
+                    })
+                }
+            } catch (error) {
+                logger.error("Failed to sync user", {
+                    userId: user.id,
+                    email: user.email,
+                    error: error.message,
+                })
+                syncReport.users.failed++
+                syncReport.errors.push({
+                    type: "user",
+                    id: user.id,
+                    error: error.message,
+                })
+            }
+        }
 
         // Update status to completed
         await updateEventStatus(eventId, "completed")
@@ -211,6 +415,7 @@ async function handleSyncAllData(routingKey, payload) {
             eventId,
             routingKey,
             duration,
+            syncReport,
         })
     } catch (error) {
         logger.error("Error processing ums.sync event", {
