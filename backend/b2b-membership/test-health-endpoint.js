@@ -1,8 +1,9 @@
 /**
- * Test script for health check endpoint with database status
+ * Test script for health check endpoint with database and RabbitMQ status
  */
 
 const { connectDatabase, disconnectDatabase } = require("./utils/database")
+const { isConsumerConnected } = require("./utils/rabbitmq-consumer")
 const mongoose = require("mongoose")
 
 async function testHealthEndpoint() {
@@ -34,19 +35,29 @@ async function testHealthEndpoint() {
             process.exit(1)
         }
 
-        // Test 3: Health check response structure
-        console.log("Test 3: Verifying health check response structure...")
+        // Test 3: RabbitMQ status check
+        console.log("Test 3: Checking RabbitMQ consumer status...")
+        const rabbitmqStatus = isConsumerConnected()
+            ? "connected"
+            : "disconnected"
+        console.log("  RabbitMQ status:", rabbitmqStatus)
+        console.log("✓ RabbitMQ status check works\n")
+
+        // Test 4: Health check response structure
+        console.log("Test 4: Verifying health check response structure...")
         const healthResponse = {
             status: "ok",
             service: "zkp-proof-controller",
             database: dbStatus,
+            rabbitmq: rabbitmqStatus,
         }
         console.log("  Response:", JSON.stringify(healthResponse, null, 2))
 
         if (
             healthResponse.status === "ok" &&
             healthResponse.service === "zkp-proof-controller" &&
-            healthResponse.database === "connected"
+            healthResponse.database === "connected" &&
+            typeof healthResponse.rabbitmq === "string"
         ) {
             console.log("✓ Health check response structure is correct\n")
         } else {

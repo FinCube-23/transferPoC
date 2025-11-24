@@ -2,6 +2,11 @@ require("dotenv").config()
 const express = require("express")
 const cors = require("cors")
 const { connectDatabase, disconnectDatabase } = require("./utils/database")
+const {
+    startConsumer,
+    stopConsumer,
+    isConsumerConnected,
+} = require("./utils/rabbitmq-consumer")
 
 const app = express()
 
@@ -20,6 +25,7 @@ app.get("/health", (req, res) => {
         status: "ok",
         service: "zkp-proof-controller",
         database: dbStatus,
+        rabbitmq: isConsumerConnected() ? "connected" : "disconnected",
     })
 })
 
@@ -57,6 +63,15 @@ async function startServer() {
                 }`
             )
         })
+
+        // Start RabbitMQ consumer (non-blocking)
+        // Consumer failure doesn't prevent server from running
+        startConsumer().catch((error) => {
+            console.error("Failed to start RabbitMQ consumer:", error)
+            console.log(
+                "Server will continue running without RabbitMQ consumer"
+            )
+        })
     } catch (error) {
         console.error("Failed to start server:", error)
         process.exit(1)
@@ -69,7 +84,12 @@ function setupGracefulShutdown() {
         console.log(`\n${signal} received. Shutting down gracefully...`)
 
         try {
+            // Stop RabbitMQ consumer first (waits for in-flight messages)
+            await stopConsumer()
+
+            // Then disconnect from database
             await disconnectDatabase()
+
             console.log("Server shutdown complete")
             process.exit(0)
         } catch (error) {
