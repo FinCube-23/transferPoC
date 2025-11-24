@@ -7,6 +7,7 @@
 
 const { Logger } = require("./logger")
 const { storeEvent, updateEventStatus } = require("./event-store")
+const Organization = require("../models/organization.js")
 
 const logger = new Logger("EventHandlers")
 
@@ -30,28 +31,34 @@ async function handleOrganizationCreated(routingKey, payload) {
     let eventId = null
 
     try {
-        // Store event in MongoDB for audit trail
         const storedEvent = await storeEvent(routingKey, payload)
         eventId = storedEvent._id.toString()
 
-        // Update status to processing
         await updateEventStatus(eventId, "processing")
 
-        // TODO: Implement business logic for organization creation
-        // Example:
-        // - Create or update organization record in local database
-        // - Sync organization metadata
-        // - Initialize organization-specific resources
-        // - Trigger downstream workflows
+        const orgId = payload?.data?.id
+        const walletAddress = payload?.data?.organization_wallet_address
+        if (!orgId || !walletAddress) throw new Error("Invalid payload data")
 
-        // Update status to completed
+        const newOrganization = new Organization({
+            org_id: orgId,
+            wallet_address: walletAddress,
+        })
+        await newOrganization.save()
+
+        logger.info(
+            "New Organization created",
+            await Organization.findOne({
+                org_id: orgId,
+            })
+        )
+
         await updateEventStatus(eventId, "completed")
 
-        const duration = Date.now() - startTime
         logger.info("organization.created event processed successfully", {
             eventId,
             routingKey,
-            duration,
+            duration: Date.now() - startTime,
         })
     } catch (error) {
         logger.error("Error processing organization.created event", {
@@ -61,7 +68,6 @@ async function handleOrganizationCreated(routingKey, payload) {
             stack: error.stack,
         })
 
-        // Update event status to failed if we have an eventId
         if (eventId) {
             try {
                 await updateEventStatus(eventId, "failed", error.message)
@@ -73,7 +79,7 @@ async function handleOrganizationCreated(routingKey, payload) {
             }
         }
 
-        throw error
+        throw error // optional, depends on your RabbitMQ retry strategy
     }
 }
 
