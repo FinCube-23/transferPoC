@@ -7,6 +7,22 @@
 
 const mongoose = require("mongoose")
 const User = require("../models/user")
+const Organization = require("../models/organization")
+const { ethers } = require("ethers")
+require("dotenv").config()
+
+// FinCube contract ABI (only the functions we need)
+const FINCUBE_ABI = [
+    "function safeTransfer(address to, uint256 amount, string calldata memo, bytes32 nullifier, bytes32 sender_reference_number, bytes32 receiver_reference_number, bytes calldata receiver_proof, bytes32[] calldata receiver_publicInputs) external",
+    "function approvedERC20() external view returns (address)",
+]
+
+// ERC20 ABI for approve function
+const ERC20_ABI = [
+    "function approve(address spender, uint256 amount) external returns (bool)",
+    "function allowance(address owner, address spender) external view returns (uint256)",
+    "function balanceOf(address account) external view returns (uint256)",
+]
 
 class TransferService {
     /**
@@ -360,6 +376,299 @@ class TransferService {
         }
 
         return { valid: true }
+    }
+
+    /**
+     * Execute blockchain transfer using FinCube smart contract
+     * The transaction is signed and sent by the wallet configured in .env
+     *
+     * @param {number} fromUserId - Source user's user_id
+     * @param {number} toUserId - Destination user's user_id
+     * @param {number} amount - Amount to transfer (in token units, e.g., 50 for 50 USDC)
+     * @param {string} memo - Transfer memo/reference
+     * @param {string} nullifier - Unique nullifier (32 bytes hex, e.g., "0x1234...")
+     * @param {string} receiverProof - ZKP proof for receiver (hex format)
+     * @param {string[]} receiverPublicInputs - Array of public inputs for ZKP (array of hex strings)
+     * @returns {Promise<{success: boolean, transaction?: object, error?: object}>}
+     *
+     * @example
+     * const result = await blockchainTransfer(
+     *   2001,
+     *   2002,
+     *   50,
+     *   "Payment for services",
+     *   "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+     *   "0xproof...",
+     *   ["0xinput1...", "0xinput2..."]
+     * )
+     */
+    async blockchainTransfer(
+        fromUserId,
+        toUserId,
+        amount,
+        memo,
+        nullifier,
+        receiverProof,
+        receiverPublicInputs
+    ) {
+        try {
+            // Validate inputs
+            const validation = this._validateBlockchainTransferInputs(
+                fromUserId,
+                toUserId,
+                amount,
+                memo,
+                nullifier,
+                receiverProof,
+                receiverPublicInputs
+            )
+            if (!validation.valid) {
+                return {
+                    success: false,
+                    error: validation.error,
+                }
+            }
+
+            // Get environment variables
+            const alchemyUrl = process.env.ALCHEMY_URL
+            const privateKey = process.env.WALLET_PRIVATE_KEY
+            const finCubeAddress = process.env.FINCUBE_CONTRACT_ADDRESS
+
+            if (!alchemyUrl || !privateKey || !finCubeAddress) {
+                throw new Error(
+                    "Missing required environment variables: ALCHEMY_URL, WALLET_PRIVATE_KEY, or FINCUBE_CONTRACT_ADDRESS"
+                )
+            }
+
+            // Setup provider and wallet
+            const provider = new ethers.JsonRpcProvider(alchemyUrl)
+            const wallet = new ethers.Wallet(privateKey, provider)
+
+            // Get FinCube contract instance
+            const finCubeContract = new ethers.Contract(
+                finCubeAddress,
+                FINCUBE_ABI,
+                wallet
+            )
+
+            // Fetch users from database
+            const sender = await User.findOne({ user_id: fromUserId })
+            if (!sender) {
+                throw new Error(`Sender not found with user_id: ${fromUserId}`)
+            }
+
+            const receiver = await User.findOne({ user_id: toUserId })
+            if (!receiver) {
+                throw new Error(`Receiver not found with user_id: ${toUserId}`)
+            }
+
+            // Get sender and receiver wallet addresses from their organizations
+            const senderOrg = await Organization.findById(sender.batch_id)
+            if (!senderOrg) {
+                throw new Error(
+                    `Sender organization not found for batch_id: ${sender.batch_id}`
+                )
+            }
+
+            const receiverOrg = await Organization.findById(receiver.batch_id)
+            if (!receiverOrg) {
+                throw new Error(
+                    `Receiver organization not found for batch_id: ${receiver.batch_id}`
+                )
+            }
+
+            const senderWalletAddress = senderOrg.wallet_address
+            const receiverWalletAddress = receiverOrg.wallet_address
+
+            // Get reference numbers (use empty bytes32 if not set)
+            const senderReferenceNumber =
+                sender.reference_number ||
+                "0x0000000000000000000000000000000000000000000000000000000000000000"
+            const receiverReferenceNumber =
+                receiver.reference_number ||
+                "0x0000000000000000000000000000000000000000000000000000000000000000"
+
+            // Convert amount to wei (assuming 18 decimals for the token)
+            const amountInWei = ethers.parseUnits(amount.toString(), 18)
+
+            // Call safeTransfer on the FinCube contract
+            const tx = await finCubeContract.safeTransfer(
+                receiverWalletAddress,
+                amountInWei,
+                memo,
+                nullifier,
+                senderReferenceNumber,
+                receiverReferenceNumber,
+                receiverProof,
+                receiverPublicInputs
+            )
+
+            // Wait for transaction confirmation
+            const receipt = await tx.wait()
+
+            // Return success response
+            return {
+                success: true,
+                transaction: {
+                    fromUserId,
+                    toUserId,
+                    amount,
+                    memo,
+                    nullifier,
+                    senderWalletAddress,
+                    receiverWalletAddress,
+                    senderReferenceNumber,
+                    receiverReferenceNumber,
+                    transactionHash: receipt.hash,
+                    blockNumber: receipt.blockNumber,
+                    gasUsed: receipt.gasUsed.toString(),
+                    timestamp: new Date(),
+                },
+            }
+        } catch (error) {
+            return this._formatBlockchainError(
+                error,
+                fromUserId,
+                toUserId,
+                amount
+            )
+        }
+    }
+
+    /**
+     * Validate blockchain transfer inputs
+     * @private
+     */
+    _validateBlockchainTransferInputs(
+        fromUserId,
+        toUserId,
+        amount,
+        memo,
+        nullifier,
+        receiverProof,
+        receiverPublicInputs
+    ) {
+        // Validate user IDs and amount (reuse existing validation)
+        const basicValidation = this._validateTransferInputs(
+            fromUserId,
+            toUserId,
+            amount
+        )
+        if (!basicValidation.valid) {
+            return basicValidation
+        }
+
+        // Validate memo
+        if (typeof memo !== "string" || memo.trim().length === 0) {
+            return {
+                valid: false,
+                error: {
+                    type: "INVALID_INPUT",
+                    message: "memo must be a non-empty string",
+                    details: { memo },
+                },
+            }
+        }
+
+        // Validate nullifier (should be 32 bytes hex string)
+        if (
+            typeof nullifier !== "string" ||
+            !nullifier.match(/^0x[0-9a-fA-F]{64}$/)
+        ) {
+            return {
+                valid: false,
+                error: {
+                    type: "INVALID_INPUT",
+                    message:
+                        "nullifier must be a 32-byte hex string (0x + 64 hex chars)",
+                    details: { nullifier },
+                },
+            }
+        }
+
+        // Validate receiverProof
+        if (
+            typeof receiverProof !== "string" ||
+            !receiverProof.startsWith("0x")
+        ) {
+            return {
+                valid: false,
+                error: {
+                    type: "INVALID_INPUT",
+                    message:
+                        "receiverProof must be a hex string starting with 0x",
+                    details: { receiverProof },
+                },
+            }
+        }
+
+        // Validate receiverPublicInputs
+        if (!Array.isArray(receiverPublicInputs)) {
+            return {
+                valid: false,
+                error: {
+                    type: "INVALID_INPUT",
+                    message: "receiverPublicInputs must be an array",
+                    details: { receiverPublicInputs },
+                },
+            }
+        }
+
+        // Validate each public input is a hex string
+        for (let i = 0; i < receiverPublicInputs.length; i++) {
+            const input = receiverPublicInputs[i]
+            if (typeof input !== "string" || !input.startsWith("0x")) {
+                return {
+                    valid: false,
+                    error: {
+                        type: "INVALID_INPUT",
+                        message: `receiverPublicInputs[${i}] must be a hex string starting with 0x`,
+                        details: { index: i, value: input },
+                    },
+                }
+            }
+        }
+
+        return { valid: true }
+    }
+
+    /**
+     * Format blockchain error response
+     * @private
+     */
+    _formatBlockchainError(error, fromUserId, toUserId, amount) {
+        let errorType = "BLOCKCHAIN_TRANSFER_FAILED"
+        let errorMessage = error.message
+
+        // Parse specific error types
+        if (error.message.includes("not found")) {
+            errorType = "USER_NOT_FOUND"
+        } else if (error.message.includes("not verified")) {
+            errorType = "ZKP_VERIFICATION_FAILED"
+        } else if (error.message.includes("not member")) {
+            errorType = "NOT_DAO_MEMBER"
+        } else if (error.message.includes("Insufficient allowance")) {
+            errorType = "INSUFFICIENT_ALLOWANCE"
+        } else if (error.message.includes("Insufficient balance")) {
+            errorType = "INSUFFICIENT_BALANCE"
+        } else if (error.message.includes("Nullifier already used")) {
+            errorType = "NULLIFIER_ALREADY_USED"
+        } else if (error.message.includes("Missing required environment")) {
+            errorType = "CONFIGURATION_ERROR"
+        }
+
+        return {
+            success: false,
+            error: {
+                type: errorType,
+                message: errorMessage,
+                details: {
+                    fromUserId,
+                    toUserId,
+                    amount,
+                },
+            },
+        }
     }
 }
 
