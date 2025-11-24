@@ -8,6 +8,7 @@
 const { Logger } = require("./logger")
 const { storeEvent, updateEventStatus } = require("./event-store")
 const Organization = require("../models/organization.js")
+const UserManagementService = require("../services/user-management-service.js")
 
 const logger = new Logger("EventHandlers")
 
@@ -110,13 +111,28 @@ async function handleOrganizationUserCreated(routingKey, payload) {
         // Update status to processing
         await updateEventStatus(eventId, "processing")
 
-        // TODO: Implement business logic for organization user creation
-        // Example:
-        // - Create or update user record in local database
-        // - Link user to organization
-        // - Set up user permissions and roles
-        // - Send welcome notifications
-        // - Initialize user-specific resources
+        const orgId = payload?.data?.organization_id
+        if (!orgId) throw new Error("Organization id required")
+
+        const org = await Organization.findOne({
+            org_id: orgId,
+        })
+        if (!org) throw new Error("Organization not found")
+
+        const reference_number = UserManagementService.generateReferenceNumber(
+            org.wallet_address
+        )
+
+        const userData = {
+            email: payload?.data.user_email,
+            user_id: payload?.data.user_id,
+            balance: 10, // For now
+            orgWalletAddress: org.wallet_address,
+            reference_number: reference_number,
+        }
+        const user = await UserManagementService.createUserWithBatch(userData)
+
+        logger.info("New User Created", user)
 
         // Update status to completed
         await updateEventStatus(eventId, "completed")
