@@ -40,6 +40,31 @@ const config = {
             "mongodb://localhost:27017/b2b-membership",
         options: {},
     },
+
+    // RabbitMQ configuration
+    rabbitmq: {
+        host: process.env.RABBITMQ_HOST || "localhost",
+        port: parseInt(process.env.RABBITMQ_PORT) || 5672,
+        username: process.env.RABBITMQ_USERNAME || "guest",
+        password: process.env.RABBITMQ_PASSWORD || "guest",
+        exchange: process.env.RABBITMQ_EXCHANGE || "exchange.ums.events",
+        exchangeType: process.env.RABBITMQ_EXCHANGE_TYPE || "topic",
+        routingKeys: [
+            "organization.created",
+            "organization.user.created",
+            "ums.sync",
+        ],
+        prefetchCount: parseInt(process.env.RABBITMQ_PREFETCH_COUNT) || 10,
+        handlerTimeout: parseInt(process.env.RABBITMQ_HANDLER_TIMEOUT) || 30000,
+        reconnect: {
+            maxAttempts:
+                parseInt(process.env.RABBITMQ_RECONNECT_MAX_ATTEMPTS) || 10,
+            initialDelay:
+                parseInt(process.env.RABBITMQ_RECONNECT_INITIAL_DELAY) || 1000,
+            maxDelay:
+                parseInt(process.env.RABBITMQ_RECONNECT_MAX_DELAY) || 60000,
+        },
+    },
 }
 
 /**
