@@ -3,6 +3,7 @@ import { useTransactions } from "../hooks/useTransactions";
 import { fraudDetectionService } from "../services/fraudDetectionService";
 import { ethers } from "ethers";
 import type { ParsedTransfer } from "../services/graphService";
+import UserInfo from "./UserInfo";
 
 const Dashboard: React.FC = () => {
   const {
@@ -123,6 +124,9 @@ const Dashboard: React.FC = () => {
 
   return (
     <>
+      {/* User Info */}
+      <UserInfo />
+
       {/* Transfer Form */}
       <form
         id="transfer-form"
