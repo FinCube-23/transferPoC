@@ -486,13 +486,13 @@ class TransferService {
             const senderWalletAddress = senderOrg?.organization?.wallet_address
             const receiverWalletAddress = receiverOrg?.organization?.wallet_address
 
-            // Get reference numbers (use empty bytes32 if not set)
-            const senderReferenceNumber =
-                sender.reference_number ||
-                "0x0000000000000000000000000000000000000000000000000000000000000000"
-            const receiverReferenceNumber =
-                receiver.reference_number ||
-                "0x0000000000000000000000000000000000000000000000000000000000000000"
+            // Get reference numbers and convert to bytes32 format
+            const senderReferenceNumber = sender.reference_number
+                ? this._convertToBytes32(sender.reference_number)
+                : "0x0000000000000000000000000000000000000000000000000000000000000000"
+            const receiverReferenceNumber = receiver.reference_number
+                ? this._convertToBytes32(receiver.reference_number)
+                : "0x0000000000000000000000000000000000000000000000000000000000000000"
 
             // Convert amount to wei (assuming 18 decimals for the token)
             const amountInWei = ethers.parseUnits(amount.toString(), 18)
@@ -636,6 +636,19 @@ class TransferService {
         }
 
         return { valid: true }
+    }
+
+    /**
+     * Convert reference number string to bytes32 format
+     * Uses keccak256 hash to ensure consistent 32-byte output
+     * @private
+     * @param {string} referenceNumber - Reference number to convert
+     * @returns {string} 32-byte hex string with 0x prefix
+     */
+    _convertToBytes32(referenceNumber) {
+        // Use ethers.id() which is keccak256 hash of the string
+        // This ensures we get a consistent 32-byte value
+        return ethers.id(referenceNumber)
     }
 
     /**
