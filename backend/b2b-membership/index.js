@@ -36,6 +36,9 @@ app.use("/api/proof", proofRoutes)
 const transferRoutes = require("./routes/transfer-routes")
 app.use("/api/transfer", transferRoutes)
 
+const queryRoutes = require("./routes/query-routes")
+app.use("/api/query", queryRoutes)
+
 // Error handling middleware
 app.use((err, req, res, next) => {
     console.error("Error:", err)

@@ -6,7 +6,123 @@ The ZKP Proof Controller provides REST API endpoints for generating and verifyin
 
 ## API Endpoints
 
-### 1. Generate Proof
+### 1. Query User by ID
+
+**Endpoint:** `GET /api/query/user/:user_id`
+
+**Description:** Retrieves a user by their user_id with populated batch and organization data.
+
+#### Request Format
+
+```
+GET /api/query/user/2001
+```
+
+#### Response Format
+
+**Success Response:**
+
+```json
+{
+    "success": true,
+    "user": {
+        "_id": "...",
+        "user_id": 2001,
+        "balance": 100,
+        "reference_number": "REF-ORG-001-USER-001",
+        "zkp_key": "0x1234...",
+        "batch_id": {
+            "_id": "...",
+            "equation": ["123", "456", "789"],
+            "createdAt": "...",
+            "updatedAt": "..."
+        },
+        "organization": {
+            "_id": "...",
+            "org_id": 1001,
+            "wallet_address": "0xabc...",
+            "org_salt": "...",
+            "createdAt": "...",
+            "updatedAt": "..."
+        },
+        "createdAt": "...",
+        "updatedAt": "..."
+    }
+}
+```
+
+**Error Response:**
+
+```json
+{
+    "success": false,
+    "error": {
+        "type": "USER_NOT_FOUND",
+        "message": "User not found with user_id: 2001"
+    }
+}
+```
+
+### 2. Query Organization by ID
+
+**Endpoint:** `GET /api/query/organization/:org_id`
+
+**Description:** Retrieves an organization by org_id with all associated users (populated with batch data).
+
+#### Request Format
+
+```
+GET /api/query/organization/1001
+```
+
+#### Response Format
+
+**Success Response:**
+
+```json
+{
+    "success": true,
+    "organization": {
+        "_id": "...",
+        "org_id": 1001,
+        "wallet_address": "0xabc...",
+        "org_salt": "...",
+        "createdAt": "...",
+        "updatedAt": "...",
+        "users": [
+            {
+                "_id": "...",
+                "user_id": 2001,
+                "balance": 100,
+                "reference_number": "REF-ORG-001-USER-001",
+                "zkp_key": "0x1234...",
+                "batch_id": {
+                    "_id": "...",
+                    "equation": ["123", "456", "789"],
+                    "createdAt": "...",
+                    "updatedAt": "..."
+                },
+                "createdAt": "...",
+                "updatedAt": "..."
+            }
+        ]
+    }
+}
+```
+
+**Error Response:**
+
+```json
+{
+    "success": false,
+    "error": {
+        "type": "ORGANIZATION_NOT_FOUND",
+        "message": "Organization not found with org_id: 1001"
+    }
+}
+```
+
+### 3. Generate Proof
 
 **Endpoint:** `POST /api/proof/generate`
 
@@ -70,7 +186,7 @@ The ZKP Proof Controller provides REST API endpoints for generating and verifyin
 }
 ```
 
-### 2. Verify Proof
+### 4. Verify Proof
 
 **Endpoint:** `POST /api/proof/verify`
 
@@ -116,6 +232,18 @@ The ZKP Proof Controller provides REST API endpoints for generating and verifyin
 
 ### Using cURL
 
+#### Query User by ID
+
+```bash
+curl http://localhost:7000/api/query/user/2001
+```
+
+#### Query Organization by ID
+
+```bash
+curl http://localhost:7000/api/query/organization/1001
+```
+
 #### Generate Proof with Custom Config
 
 ```bash
@@ -153,6 +281,26 @@ curl -X POST http://localhost:8000/api/proof/verify \
 
 ### Using Node.js
 
+#### Query User by ID
+
+```javascript
+const axios = require("axios")
+
+const response = await axios.get("http://localhost:7000/api/query/user/2001")
+console.log(response.data)
+```
+
+#### Query Organization by ID
+
+```javascript
+const axios = require("axios")
+
+const response = await axios.get(
+    "http://localhost:7000/api/query/organization/1001"
+)
+console.log(response.data)
+```
+
 #### Generate Proof with Custom Config
 
 ```javascript
@@ -180,13 +328,20 @@ console.log(result)
 
 We provide test scripts for easy testing:
 
-**Test with custom config:**
+**Test query endpoints:**
+
+```bash
+node test-query-api.js [user_id] [org_id]
+# Example: node test-query-api.js 2001 1001
+```
+
+**Test proof generation with custom config:**
 
 ```bash
 node test-api-with-config.js
 ```
 
-**Test with default config:**
+**Test proof generation with default config:**
 
 ```bash
 node test-api-default.js
