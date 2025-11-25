@@ -100,7 +100,8 @@ class TransferController {
                 })
             }
 
-            const { sender, receiver, receiverOrg } = userDataResult.data
+            const { sender, receiver, receiverOrg, senderOrg } =
+                userDataResult.data
             const dataRetrievalDuration = Date.now() - dataRetrievalStart
             this.logger.info("User data retrieved successfully", {
                 duration: `${dataRetrievalDuration}ms`,
@@ -108,7 +109,62 @@ class TransferController {
                 receiver_user_id: receiver.user_id,
             })
 
-            // Step 3: Generate ZKP proof for receiver
+            // Check if sender and receiver are from the same organization
+            const isSameOrganization = senderOrg.org_id === receiverOrg.org_id
+
+            if (isSameOrganization) {
+                this.logger.info(
+                    "Same organization transfer detected - skipping blockchain and proof generation",
+                    {
+                        org_id: senderOrg.org_id,
+                        wallet_address: senderOrg.wallet_address,
+                    }
+                )
+
+                // For same-organization transfers, only do database transaction
+                const databaseUpdateStart = Date.now()
+                this.logger.info("Executing database-only transfer...")
+
+                const dbResult = await transferService.transfer(
+                    sender.user_id,
+                    receiver.user_id,
+                    amount
+                )
+
+                const databaseUpdateDuration = Date.now() - databaseUpdateStart
+
+                if (!dbResult.success) {
+                    this.logger.error("Database transfer failed", {
+                        duration: `${databaseUpdateDuration}ms`,
+                        error: dbResult.error,
+                    })
+
+                    return res.status(500).json({
+                        success: false,
+                        error: dbResult.error,
+                    })
+                }
+
+                this.logger.info("Database transfer completed successfully", {
+                    duration: `${databaseUpdateDuration}ms`,
+                })
+
+                const totalDuration = Date.now() - workflowStartTime
+                this.logger.info(
+                    "Same-organization transfer completed successfully",
+                    {
+                        totalDuration: `${totalDuration}ms`,
+                    }
+                )
+
+                return res.status(200).json({
+                    success: true,
+                    transferType: "SAME_ORGANIZATION",
+                    database: dbResult.transaction,
+                })
+            }
+
+            // Step 3: Generate ZKP proof for receiver (cross-organization transfer)
             const proofGenerationStart = Date.now()
             this.logger.info("[STEP 2/6] Generating ZKP proof for receiver...")
 
@@ -152,32 +208,6 @@ class TransferController {
             // Step 5: Create memo
             const memoCreationStart = Date.now()
             this.logger.info("[STEP 4/6] Creating transfer memo...")
-
-            // Get sender organization from sender's reference number
-            const senderOrgResult =
-                await userManagementService.getOrganizationByReferenceNumber(
-                    sender.reference_number
-                )
-
-            if (!senderOrgResult.success) {
-                this.logger.error("Sender organization not found", {
-                    reference_number: sender.reference_number,
-                    error: senderOrgResult.error,
-                })
-                return res.status(500).json({
-                    success: false,
-                    error: {
-                        type: "ORGANIZATION_NOT_FOUND",
-                        message: "Sender organization not found",
-                        details: {
-                            reference_number: sender.reference_number,
-                            error: senderOrgResult.error,
-                        },
-                    },
-                })
-            }
-
-            const senderOrg = senderOrgResult.organization
 
             const memo = this._createMemo(
                 sender.reference_number,
@@ -386,19 +416,19 @@ class TransferController {
     async _retrieveUserData(receiver_reference_number, sender_user_id) {
         try {
             // Get receiver organization from reference number
-            const orgResult =
+            const receiverOrgResult =
                 await userManagementService.getOrganizationByReferenceNumber(
                     receiver_reference_number
                 )
 
-            if (!orgResult.success) {
+            if (!receiverOrgResult.success) {
                 return {
                     success: false,
-                    error: orgResult.error,
+                    error: receiverOrgResult.error,
                 }
             }
 
-            const receiverOrg = orgResult.organization
+            const receiverOrg = receiverOrgResult.organization
 
             // Find receiver user by reference_number with populated batch_id
             const receiver = await User.findOne({
@@ -436,12 +466,35 @@ class TransferController {
                 }
             }
 
+            // Get sender organization from sender's reference number
+            const senderOrgResult =
+                await userManagementService.getOrganizationByReferenceNumber(
+                    sender.reference_number
+                )
+
+            if (!senderOrgResult.success) {
+                return {
+                    success: false,
+                    error: {
+                        type: "ORGANIZATION_NOT_FOUND",
+                        message: "Sender organization not found",
+                        details: {
+                            reference_number: sender.reference_number,
+                            error: senderOrgResult.error,
+                        },
+                    },
+                }
+            }
+
+            const senderOrg = senderOrgResult.organization
+
             return {
                 success: true,
                 data: {
                     sender,
                     receiver,
                     receiverOrg,
+                    senderOrg,
                 },
             }
         } catch (error) {
