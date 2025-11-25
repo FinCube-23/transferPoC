@@ -539,6 +539,10 @@ class TransferService {
             // Wait for transaction confirmation
             const receipt = await tx.wait()
 
+            // Get chain ID from provider
+            const network = await provider.getNetwork()
+            const chainId = network.chainId.toString()
+
             // Return success response
             return {
                 success: true,
@@ -555,6 +559,7 @@ class TransferService {
                     transactionHash: receipt.hash,
                     blockNumber: receipt.blockNumber,
                     gasUsed: receipt.gasUsed.toString(),
+                    chainId,
                     timestamp: new Date(),
                 },
             }

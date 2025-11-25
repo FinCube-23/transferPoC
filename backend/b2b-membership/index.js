@@ -7,6 +7,11 @@ const {
     stopConsumer,
     isConsumerConnected,
 } = require("./utils/rabbitmq-consumer")
+const {
+    initializePublisher,
+    closePublisher,
+    isPublisherConnected,
+} = require("./utils/rabbitmq-publisher")
 
 const app = express()
 
@@ -25,7 +30,10 @@ app.get("/health", (req, res) => {
         status: "ok",
         service: "zkp-proof-controller",
         database: dbStatus,
-        rabbitmq: isConsumerConnected() ? "connected" : "disconnected",
+        rabbitmq: {
+            consumer: isConsumerConnected() ? "connected" : "disconnected",
+            publisher: isPublisherConnected() ? "connected" : "disconnected",
+        },
     })
 })
 
@@ -78,6 +86,15 @@ async function startServer() {
                 "Server will continue running without RabbitMQ consumer"
             )
         })
+
+        // Initialize RabbitMQ publisher (non-blocking)
+        // Publisher failure doesn't prevent server from running
+        initializePublisher().catch((error) => {
+            console.error("Failed to initialize RabbitMQ publisher:", error)
+            console.log(
+                "Server will continue running without RabbitMQ publisher"
+            )
+        })
     } catch (error) {
         console.error("Failed to start server:", error)
         process.exit(1)
@@ -92,6 +109,9 @@ function setupGracefulShutdown() {
         try {
             // Stop RabbitMQ consumer first (waits for in-flight messages)
             await stopConsumer()
+
+            // Close RabbitMQ publisher
+            await closePublisher()
 
             // Then disconnect from database
             await disconnectDatabase()
