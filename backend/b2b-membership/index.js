@@ -33,6 +33,9 @@ app.get("/health", (req, res) => {
 const proofRoutes = require("./routes/proof-routes")
 app.use("/api/proof", proofRoutes)
 
+const transferRoutes = require("./routes/transfer-routes")
+app.use("/api/transfer", transferRoutes)
+
 // Error handling middleware
 app.use((err, req, res, next) => {
     console.error("Error:", err)
