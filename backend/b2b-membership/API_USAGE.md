@@ -122,7 +122,129 @@ GET /api/query/organization/1001
 }
 ```
 
-### 3. Generate Proof
+### 3. Execute ZKP-Enabled Transfer
+
+**Endpoint:** `POST /api/transfer`
+
+**Description:** Executes a complete ZKP-enabled transfer from sender to receiver, including proof generation, blockchain transaction, and database balance updates.
+
+#### Workflow Steps
+
+The transfer endpoint orchestrates a 6-step workflow:
+
+1. **User Data Retrieval** - Fetches sender and receiver information
+2. **ZKP Proof Generation** - Generates proof for receiver verification
+3. **Nullifier Generation** - Creates unique transaction identifier
+4. **Memo Creation** - Builds transfer metadata
+5. **Blockchain Transfer** - Executes on-chain transfer via FinCube contract
+6. **Database Update** - Updates user balances in MongoDB
+
+#### Request Format
+
+```json
+{
+    "receiver_reference_number": "0x1234567890123456789012345678901234567890_uuid-here",
+    "amount": 0.01,
+    "sender_user_id": 2001
+}
+```
+
+#### Field Descriptions
+
+-   **receiver_reference_number** (required): String - Receiver's unique reference number (format: `{wallet_address}_{uuid}`)
+-   **amount** (required): Number - Transfer amount in tokens (must be positive)
+-   **sender_user_id** (required): Number - Sender's user ID (positive integer)
+
+#### Response Format
+
+**Success Response (Both Blockchain and Database Succeeded):**
+
+```json
+{
+    "success": true,
+    "blockchain": {
+        "fromUserId": 2001,
+        "toUserId": 2002,
+        "amount": 0.01,
+        "memo": "{\"sender_reference_number\":\"...\",\"receiver_reference_number\":\"...\",\"sender_wallet_address\":\"0x...\",\"receiver_wallet_address\":\"0x...\",\"amount\":0.01,\"timestamp\":\"2024-01-01T00:00:00.000Z\"}",
+        "nullifier": "0x1234567890abcdef...",
+        "senderWalletAddress": "0xabc...",
+        "receiverWalletAddress": "0xdef...",
+        "senderReferenceNumber": "0x...",
+        "receiverReferenceNumber": "0x...",
+        "transactionHash": "0x123abc...",
+        "blockNumber": 12345,
+        "gasUsed": "150000",
+        "timestamp": "2024-01-01T00:00:00.000Z"
+    },
+    "database": {
+        "fromUserId": 2001,
+        "toUserId": 2002,
+        "amount": 0.01,
+        "senderPreviousBalance": 100,
+        "senderNewBalance": 99.99,
+        "receiverPreviousBalance": 50,
+        "receiverNewBalance": 50.01,
+        "timestamp": "2024-01-01T00:00:00.000Z",
+        "transactionMode": "optimistic_locking"
+    }
+}
+```
+
+**Partial Success Response (Blockchain Succeeded, Database Failed):**
+
+```json
+{
+    "success": true,
+    "warning": "BLOCKCHAIN_SUCCEEDED_DATABASE_FAILED",
+    "blockchain": {
+        "transactionHash": "0x123abc...",
+        "blockNumber": 12345,
+        "gasUsed": "150000",
+        ...
+    },
+    "database": {
+        "error": "Failed to update receiver balance - balance was modified by another operation",
+        "details": {
+            "fromUserId": 2001,
+            "toUserId": 2002,
+            "amount": 0.01
+        }
+    }
+}
+```
+
+**Error Response:**
+
+```json
+{
+    "success": false,
+    "error": {
+        "type": "INSUFFICIENT_BALANCE",
+        "message": "Insufficient token balance. Available: 0.000000000001 tokens, Required: 0.01 tokens",
+        "details": {
+            "fromUserId": 2001,
+            "toUserId": 2002,
+            "amount": 0.01
+        }
+    }
+}
+```
+
+#### Common Error Types
+
+-   **INVALID_INPUT**: Invalid request parameters
+-   **USER_NOT_FOUND**: Sender or receiver not found
+-   **ORGANIZATION_NOT_FOUND**: Organization not found for reference number
+-   **PROOF_GENERATION_FAILED**: ZKP proof generation failed
+-   **MEMO_TOO_LONG**: Transfer memo exceeds 1024 bytes
+-   **INSUFFICIENT_BALANCE**: Insufficient token balance for transfer
+-   **INSUFFICIENT_ALLOWANCE**: FinCube contract not approved to spend tokens
+-   **NULLIFIER_ALREADY_USED**: Nullifier has been used in a previous transaction
+-   **BLOCKCHAIN_TRANSFER_FAILED**: On-chain transaction failed
+-   **DATABASE_ERROR**: Database operation failed
+
+### 4. Generate Proof
 
 **Endpoint:** `POST /api/proof/generate`
 
@@ -186,7 +308,7 @@ GET /api/query/organization/1001
 }
 ```
 
-### 4. Verify Proof
+### 5. Verify Proof
 
 **Endpoint:** `POST /api/proof/verify`
 
@@ -242,6 +364,18 @@ curl http://localhost:7000/api/query/user/2001
 
 ```bash
 curl http://localhost:7000/api/query/organization/1001
+```
+
+#### Execute Transfer
+
+```bash
+curl -X POST http://localhost:7000/api/transfer \
+  -H "Content-Type: application/json" \
+  -d '{
+    "receiver_reference_number": "0x1234567890123456789012345678901234567890_uuid-here",
+    "amount": 0.01,
+    "sender_user_id": 2001
+  }'
 ```
 
 #### Generate Proof with Custom Config
@@ -301,6 +435,35 @@ const response = await axios.get(
 console.log(response.data)
 ```
 
+#### Execute Transfer
+
+```javascript
+const axios = require("axios")
+
+const response = await axios.post("http://localhost:7000/api/transfer", {
+    receiver_reference_number:
+        "0x1234567890123456789012345678901234567890_uuid-here",
+    amount: 0.01,
+    sender_user_id: 2001,
+})
+
+console.log(response.data)
+
+// Check if transfer succeeded
+if (response.data.success) {
+    console.log("Transfer completed!")
+    console.log("Transaction Hash:", response.data.blockchain.transactionHash)
+    console.log(
+        "New Sender Balance:",
+        response.data.database.senderNewBalance
+    )
+    console.log(
+        "New Receiver Balance:",
+        response.data.database.receiverNewBalance
+    )
+}
+```
+
 #### Generate Proof with Custom Config
 
 ```javascript
@@ -335,6 +498,17 @@ node test-query-api.js [user_id] [org_id]
 # Example: node test-query-api.js 2001 1001
 ```
 
+**Test transfer endpoint:**
+
+```bash
+# First, ensure you have sufficient token balance and allowance
+node check-token-balance.js
+node approve-fincube.js 1000
+
+# Then test the transfer
+# (Use your actual test script or create one)
+```
+
 **Test proof generation with custom config:**
 
 ```bash
@@ -349,8 +523,25 @@ node test-api-default.js
 
 ### Using Postman or Thunder Client
 
+#### Transfer Request
+
 1. **Method:** POST
-2. **URL:** `http://localhost:8000/api/proof/generate`
+2. **URL:** `http://localhost:7000/api/transfer`
+3. **Headers:**
+    - `Content-Type: application/json`
+4. **Body (raw JSON):**
+    ```json
+    {
+        "receiver_reference_number": "0x1234567890123456789012345678901234567890_uuid-here",
+        "amount": 0.01,
+        "sender_user_id": 2001
+    }
+    ```
+
+#### Proof Generation Request
+
+1. **Method:** POST
+2. **URL:** `http://localhost:7000/api/proof/generate`
 3. **Headers:**
     - `Content-Type: application/json`
 4. **Body (raw JSON):**
@@ -365,6 +556,55 @@ node test-api-default.js
         }
     }
     ```
+
+## Transfer Prerequisites
+
+Before executing transfers, ensure the following:
+
+### 1. Token Balance
+
+The sender's wallet must have sufficient ERC20 tokens for the transfer amount.
+
+**Check token balance:**
+
+```bash
+node check-token-balance.js
+```
+
+This will show:
+- Token decimals
+- Current balance (raw units and formatted)
+- Allowance for FinCube contract
+- Whether you have enough for a test transfer
+
+### 2. Token Allowance
+
+The FinCube contract must be approved to spend tokens from the sender's wallet.
+
+**Approve FinCube contract:**
+
+```bash
+node approve-fincube.js 1000
+```
+
+This approves the FinCube contract to spend up to 1000 tokens.
+
+### 3. User Setup
+
+- Both sender and receiver must exist in the database
+- Sender must have a valid `reference_number`
+- Receiver must have a valid `reference_number`
+- Both users must be associated with organizations
+- Both users must have populated `batch_id` (for ZKP proof generation)
+
+### 4. Smart Contract Configuration
+
+Ensure your `.env` file has the correct contract addresses:
+
+```env
+FINCUBE_CONTRACT_ADDRESS=0x...
+HONK_VERIFIER_CONTRACT_ADDRESS=0x...
+```
 
 ## Important Notes
 
@@ -399,7 +639,22 @@ This approach:
 
 The API provides detailed error responses for debugging:
 
-### Common Error Types
+### Transfer Error Types
+
+-   **INVALID_INPUT**: Invalid request parameters (missing fields, wrong types, negative amounts)
+-   **USER_NOT_FOUND**: Sender or receiver not found in database
+-   **ORGANIZATION_NOT_FOUND**: Organization not found for reference number
+-   **DATABASE_ERROR**: Failed to retrieve user data from MongoDB
+-   **PROOF_GENERATION_FAILED**: ZKP proof generation failed for receiver
+-   **MEMO_TOO_LONG**: Transfer memo exceeds 1024 bytes limit
+-   **INSUFFICIENT_BALANCE**: Sender doesn't have enough tokens
+-   **INSUFFICIENT_ALLOWANCE**: FinCube contract not approved to spend tokens
+-   **NULLIFIER_ALREADY_USED**: Nullifier has been used in a previous transaction
+-   **BLOCKCHAIN_TRANSFER_FAILED**: On-chain transaction failed
+-   **CONCURRENT_MODIFICATION**: Database balance was modified by another operation
+-   **INTERNAL_ERROR**: Unexpected error during transfer workflow
+
+### Proof Generation Error Types
 
 -   **TEST_DATA_GENERATION_FAILED**: Failed to generate or write test data
 -   **COMPILATION_FAILED**: Circuit compilation error
@@ -412,10 +667,26 @@ Each error includes:
 
 -   `type`: Error category
 -   `message`: Human-readable description
--   `step`: Which workflow step failed
+-   `step`: Which workflow step failed (for proof generation)
 -   `details`: Additional debugging information
 
 ## Workflow Steps
+
+### Transfer Workflow
+
+The transfer endpoint executes these steps in order:
+
+1. **Input Validation** - Validates request parameters
+2. **User Data Retrieval** - Fetches sender and receiver from database
+3. **ZKP Proof Generation** - Generates proof for receiver verification
+4. **Nullifier Generation** - Creates unique 32-byte transaction identifier
+5. **Memo Creation** - Builds JSON memo with transfer metadata
+6. **Blockchain Transfer** - Executes on-chain transfer via FinCube contract
+7. **Database Update** - Updates user balances in MongoDB
+
+If any step fails, the workflow halts and returns an error. If blockchain succeeds but database fails, a partial success response is returned with a warning.
+
+### Proof Generation Workflow
 
 The proof generation workflow executes these steps in order:
 
@@ -434,15 +705,27 @@ Ensure your `.env` file is properly configured:
 # Alchemy Configuration
 ALCHEMY_API_KEY=your_api_key_here
 ALCHEMY_NETWORK=celo-sepolia
+ALCHEMY_URL=https://celo-sepolia.g.alchemy.com/v2/your_api_key_here
 
 # Smart Contract Configuration
 HONK_VERIFIER_CONTRACT_ADDRESS=0x...
+FINCUBE_CONTRACT_ADDRESS=0x...
 
 # Wallet Configuration
 WALLET_PRIVATE_KEY=your_private_key_here
 
 # Server Configuration
-PORT=8000
+PORT=7000
+
+# MongoDB Configuration
+MONGODB_URI=mongodb://localhost:27017/b2b-membership
+MONGODB_DB_NAME=b2b-membership
+
+# RabbitMQ Configuration (optional)
+RABBITMQ_HOST=localhost
+RABBITMQ_PORT=5672
+RABBITMQ_USERNAME=guest
+RABBITMQ_PASSWORD=guest
 ```
 
 ## Starting the Server
@@ -452,14 +735,14 @@ cd backend/b2b-membership
 npm start
 ```
 
-The server will start on `http://localhost:8000` (or the port specified in `.env`).
+The server will start on `http://localhost:7000` (or the port specified in `.env`).
 
 ## Health Check
 
 Verify the server is running:
 
 ```bash
-curl http://localhost:8000/health
+curl http://localhost:7000/health
 ```
 
 Expected response:
@@ -467,6 +750,62 @@ Expected response:
 ```json
 {
     "status": "ok",
-    "service": "zkp-proof-controller"
+    "service": "zkp-proof-controller",
+    "database": "connected",
+    "rabbitmq": "connected"
 }
+```
+
+## Quick Start Guide
+
+### 1. Setup Environment
+
+```bash
+# Copy environment template
+cp .env.example .env
+
+# Edit .env with your configuration
+nano .env
+```
+
+### 2. Start MongoDB
+
+```bash
+# Using Docker Compose
+docker-compose up -d
+```
+
+### 3. Start Server
+
+```bash
+npm start
+```
+
+### 4. Check Token Balance and Approve
+
+```bash
+# Check your token balance
+node check-token-balance.js
+
+# Approve FinCube contract (if needed)
+node approve-fincube.js 1000
+```
+
+### 5. Test APIs
+
+```bash
+# Test query endpoints
+node test-query-api.js 2001 1001
+
+# Test proof generation
+node test-api-with-config.js
+
+# Execute a transfer (via API call)
+curl -X POST http://localhost:7000/api/transfer \
+  -H "Content-Type: application/json" \
+  -d '{
+    "receiver_reference_number": "your_receiver_ref",
+    "amount": 0.01,
+    "sender_user_id": 2001
+  }'
 ```
