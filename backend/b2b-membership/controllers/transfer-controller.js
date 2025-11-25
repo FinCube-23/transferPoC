@@ -15,6 +15,7 @@ const { Logger } = require("../utils/logger")
 const userManagementService = require("../services/user-management-service")
 const ProofController = require("./proof-controller")
 const transferService = require("../services/transfer-service")
+const { publishTransactionReceipt } = require("../utils/rabbitmq-publisher")
 const User = require("../models/user")
 const Organization = require("../models/organization")
 
@@ -74,7 +75,7 @@ class TransferController {
 
             // Step 2: Retrieve user data
             const dataRetrievalStart = Date.now()
-            this.logger.info("[STEP 1/6] Retrieving user data...")
+            this.logger.info("[STEP 1/7] Retrieving user data...")
 
             const userDataResult = await this._retrieveUserData(
                 receiver_reference_number,
@@ -166,7 +167,7 @@ class TransferController {
 
             // Step 3: Generate ZKP proof for receiver (cross-organization transfer)
             const proofGenerationStart = Date.now()
-            this.logger.info("[STEP 2/6] Generating ZKP proof for receiver...")
+            this.logger.info("[STEP 2/7] Generating ZKP proof for receiver...")
 
             const proofResult = await this._generateProof(
                 receiver.user_id,
@@ -195,7 +196,7 @@ class TransferController {
 
             // Step 4: Generate nullifier
             const nullifierGenerationStart = Date.now()
-            this.logger.info("[STEP 3/6] Generating nullifier...")
+            this.logger.info("[STEP 3/7] Generating nullifier...")
 
             const nullifier = this._generateNullifier()
             const nullifierGenerationDuration =
@@ -207,7 +208,7 @@ class TransferController {
 
             // Step 5: Create memo
             const memoCreationStart = Date.now()
-            this.logger.info("[STEP 4/6] Creating transfer memo...")
+            this.logger.info("[STEP 4/7] Creating transfer memo...")
 
             const memo = this._createMemo(
                 sender.reference_number,
@@ -240,7 +241,7 @@ class TransferController {
 
             // Step 6: Execute blockchain transfer
             const blockchainTransferStart = Date.now()
-            this.logger.info("[STEP 5/6] Executing blockchain transfer...")
+            this.logger.info("[STEP 5/7] Executing blockchain transfer...")
 
             const blockchainResult = await transferService.blockchainTransfer(
                 sender.user_id,
@@ -273,9 +274,63 @@ class TransferController {
                 transactionHash: blockchainResult.transaction.transactionHash,
             })
 
-            // Step 7: Update database balances
+            // Step 7: Publish transaction receipt to RabbitMQ
+            const publishEventStart = Date.now()
+            this.logger.info(
+                "[STEP 6/7] Publishing transaction receipt to RabbitMQ..."
+            )
+
+            try {
+                // Get chain ID from blockchain result or use configured value
+                const chainId =
+                    blockchainResult.transaction.chainId ||
+                    process.env.CHAIN_ID ||
+                    "unknown"
+
+                await publishTransactionReceipt({
+                    transactionHash:
+                        blockchainResult.transaction.transactionHash,
+                    signedBy: blockchainResult.transaction.senderWalletAddress,
+                    chainId: chainId.toString(),
+                    context: {
+                        fromUserId: sender.user_id,
+                        toUserId: receiver.user_id,
+                        amount,
+                        senderWalletAddress:
+                            blockchainResult.transaction.senderWalletAddress,
+                        receiverWalletAddress:
+                            blockchainResult.transaction.receiverWalletAddress,
+                        blockNumber: blockchainResult.transaction.blockNumber,
+                        gasUsed: blockchainResult.transaction.gasUsed,
+                        memo,
+                        nullifier,
+                    },
+                })
+
+                const publishEventDuration = Date.now() - publishEventStart
+                this.logger.info("Transaction receipt published successfully", {
+                    duration: `${publishEventDuration}ms`,
+                    transactionHash:
+                        blockchainResult.transaction.transactionHash,
+                    chainId,
+                })
+            } catch (publishError) {
+                const publishEventDuration = Date.now() - publishEventStart
+                // Log error but don't fail the transaction
+                this.logger.warn(
+                    "Failed to publish transaction receipt to RabbitMQ",
+                    {
+                        duration: `${publishEventDuration}ms`,
+                        error: publishError.message,
+                        transactionHash:
+                            blockchainResult.transaction.transactionHash,
+                    }
+                )
+            }
+
+            // Step 8: Update database balances
             const databaseUpdateStart = Date.now()
-            this.logger.info("[STEP 6/6] Updating database balances...")
+            this.logger.info("[STEP 7/7] Updating database balances...")
 
             const dbResult = await transferService.transfer(
                 sender.user_id,
