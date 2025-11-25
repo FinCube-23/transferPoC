@@ -23,6 +23,7 @@ const ERC20_ABI = [
     "function approve(address spender, uint256 amount) external returns (bool)",
     "function allowance(address owner, address spender) external view returns (uint256)",
     "function balanceOf(address account) external view returns (uint256)",
+    "function decimals() external view returns (uint8)",
 ]
 
 class TransferService {
@@ -494,13 +495,39 @@ class TransferService {
                 ? this._convertToBytes32(receiver.reference_number)
                 : "0x0000000000000000000000000000000000000000000000000000000000000000"
 
-            // Convert amount to wei (assuming 18 decimals for the token)
-            const amountInWei = ethers.parseUnits(amount.toString(), 18)
+            // Get the ERC20 token address from FinCube contract
+            const tokenAddress = await finCubeContract.approvedERC20()
+            
+            // Get ERC20 token contract instance
+            const tokenContract = new ethers.Contract(
+                tokenAddress,
+                ERC20_ABI,
+                provider
+            )
+            
+            // Fetch token decimals dynamically
+            const decimals = await tokenContract.decimals()
+            console.log(`Token decimals: ${decimals}`)
+            
+            // Check sender's token balance
+            const senderBalance = await tokenContract.balanceOf(senderWalletAddress)
+            console.log(`Sender balance: ${ethers.formatUnits(senderBalance, decimals)} tokens (${senderBalance.toString()} units)`)
+
+            // Convert amount to token units using actual decimals
+            const amountInUnits = ethers.parseUnits(amount.toString(), decimals)
+            console.log(`Transfer amount: ${amount} tokens (${amountInUnits.toString()} units)`)
+            
+            // Verify sender has sufficient balance
+            if (senderBalance < amountInUnits) {
+                throw new Error(
+                    `Insufficient token balance. Available: ${ethers.formatUnits(senderBalance, decimals)} tokens, Required: ${amount} tokens`
+                )
+            }
 
             // Call safeTransfer on the FinCube contract
             const tx = await finCubeContract.safeTransfer(
                 receiverWalletAddress,
-                amountInWei,
+                amountInUnits,
                 memo,
                 nullifier,
                 senderReferenceNumber,
