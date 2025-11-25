@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { useAuthStore } from '../stores/authStore';
-import { authService } from '../services/authService';
+import React, { useState } from "react";
+import { useAuthStore } from "../stores/authStore";
+import { authService } from "../services/authService";
 
 interface AuthModalProps {
   onClose: () => void;
@@ -8,8 +8,8 @@ interface AuthModalProps {
 }
 
 const AuthModal: React.FC<AuthModalProps> = ({ onClose, onAuthSuccess }) => {
-  const [activeTab, setActiveTab] = useState<'login' | 'register'>('login');
-  const setLoading = useAuthStore((state) => state.setLoading);
+  const [activeTab, setActiveTab] = useState<"login" | "register">("login");
+  const { setLoading, signIn } = useAuthStore();
 
   const handleBackdropClick = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget) {
@@ -19,52 +19,86 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onAuthSuccess }) => {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     const form = e.target as HTMLFormElement;
-    const email = (form.elements.namedItem('login-email') as HTMLInputElement).value;
-    const password = (form.elements.namedItem('login-password') as HTMLInputElement).value;
-    
+    const email = (form.elements.namedItem("login-email") as HTMLInputElement)
+      .value;
+    const password = (
+      form.elements.namedItem("login-password") as HTMLInputElement
+    ).value;
+
     // Show loading overlay
-    setLoading(true, 'Authenticating...');
-    
+    setLoading(true, "Authenticating...");
+
     try {
+      // Step 1: Login and get tokens
+      setLoading(true, "Logging in...");
       const response = await authService.login({ email, password });
-      
-      if (response.success) {
-        localStorage.setItem('fincube_auth', 'true');
+
+      if (response.success && response.userProfile && response.zkpUser) {
+        // Step 2: Fetch user profile
+        setLoading(true, "Loading profile...");
+
+        // Step 3: Fetch ZKP user data
+        setLoading(true, "Loading account data...");
+
+        // Store user data in auth store
+        signIn(response.userProfile, response.zkpUser);
+
         // Clear loading state before calling onAuthSuccess
         setLoading(false);
+
+        // Show success message with user info
+        console.log("Login successful:", {
+          profile: response.userProfile,
+          zkp: response.zkpUser,
+        });
+
         onAuthSuccess();
       } else {
-        alert(response.message || 'Login failed');
+        alert(response.message || "Login failed");
         setLoading(false);
       }
     } catch (err: any) {
-      console.error('Login failed', err);
-      alert(err.message || 'Authentication failed. Please check your credentials.');
+      console.error("Login failed", err);
+      alert(
+        err.message || "Authentication failed. Please check your credentials."
+      );
       setLoading(false);
     }
   };
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     const form = e.target as HTMLFormElement;
-    const firstName = (form.elements.namedItem('register-firstname') as HTMLInputElement).value;
-    const lastName = (form.elements.namedItem('register-lastname') as HTMLInputElement).value;
-    const email = (form.elements.namedItem('register-email') as HTMLInputElement).value;
-    const contactNumber = (form.elements.namedItem('register-contact') as HTMLInputElement).value;
-    const password = (form.elements.namedItem('register-password') as HTMLInputElement).value;
-    const passwordConfirm = (form.elements.namedItem('register-password-confirm') as HTMLInputElement).value;
-    
+    const firstName = (
+      form.elements.namedItem("register-firstname") as HTMLInputElement
+    ).value;
+    const lastName = (
+      form.elements.namedItem("register-lastname") as HTMLInputElement
+    ).value;
+    const email = (
+      form.elements.namedItem("register-email") as HTMLInputElement
+    ).value;
+    const contactNumber = (
+      form.elements.namedItem("register-contact") as HTMLInputElement
+    ).value;
+    const password = (
+      form.elements.namedItem("register-password") as HTMLInputElement
+    ).value;
+    const passwordConfirm = (
+      form.elements.namedItem("register-password-confirm") as HTMLInputElement
+    ).value;
+
     // Validate passwords match
     if (password !== passwordConfirm) {
-      alert('Passwords do not match');
+      alert("Passwords do not match");
       return;
     }
-    
-    setLoading(true, 'Creating account...');
-    
+
+    setLoading(true, "Creating account...");
+
     try {
       const response = await authService.register({
         email,
@@ -74,16 +108,16 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onAuthSuccess }) => {
         password,
         password_confirm: passwordConfirm,
       });
-      
+
       if (response.success) {
-        alert('Registration successful. Please login.');
-        setActiveTab('login');
+        alert("Registration successful. Please login.");
+        setActiveTab("login");
       } else {
-        alert(response.message || 'Registration failed');
+        alert(response.message || "Registration failed");
       }
     } catch (err: any) {
-      console.error('Registration failed', err);
-      alert(err.message || 'Registration failed. Please try again.');
+      console.error("Registration failed", err);
+      alert(err.message || "Registration failed. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -94,87 +128,97 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onAuthSuccess }) => {
       id="auth-modal"
       onClick={handleBackdropClick}
       style={{
-        display: 'flex',
-        position: 'fixed',
+        display: "flex",
+        position: "fixed",
         inset: 0,
-        background: 'rgba(15, 23, 42, 0.45)',
-        backdropFilter: 'blur(4px)',
-        WebkitBackdropFilter: 'blur(4px)',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '1rem',
+        background: "rgba(15, 23, 42, 0.45)",
+        backdropFilter: "blur(4px)",
+        WebkitBackdropFilter: "blur(4px)",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "1rem",
         zIndex: 50,
       }}
     >
       <div
         style={{
-          width: '100%',
-          maxWidth: '420px',
-          maxHeight: '80vh',
-          overflowY: 'auto',
-          background: '#ffffff',
-          borderRadius: '0.9rem',
-          boxShadow: '0 24px 60px rgba(2, 6, 23, 0.35)',
-          overflow: 'hidden',
-          position: 'relative',
+          width: "100%",
+          maxWidth: "420px",
+          maxHeight: "80vh",
+          overflowY: "auto",
+          background: "#ffffff",
+          borderRadius: "0.9rem",
+          boxShadow: "0 24px 60px rgba(2, 6, 23, 0.35)",
+          overflow: "hidden",
+          position: "relative",
         }}
       >
         {/* Tabs */}
         <div
           style={{
-            padding: '0.8rem 1rem 0.5rem',
-            borderBottom: '1px solid #e5e7eb',
-            display: 'flex',
-            gap: '0.4rem',
+            padding: "0.8rem 1rem 0.5rem",
+            borderBottom: "1px solid #e5e7eb",
+            display: "flex",
+            gap: "0.4rem",
           }}
         >
           <button
-            onClick={() => setActiveTab('login')}
+            onClick={() => setActiveTab("login")}
             style={{
               flex: 1,
-              padding: '0.6rem',
-              border: 'none',
-              background: activeTab === 'login' ? '#ecfdf5' : 'transparent',
-              color: activeTab === 'login' ? '#10b981' : '#334155',
-              borderRadius: '0.6rem',
+              padding: "0.6rem",
+              border: "none",
+              background: activeTab === "login" ? "#ecfdf5" : "transparent",
+              color: activeTab === "login" ? "#10b981" : "#334155",
+              borderRadius: "0.6rem",
               fontWeight: 700,
-              cursor: 'pointer',
+              cursor: "pointer",
             }}
           >
             Login
           </button>
           <button
-            onClick={() => setActiveTab('register')}
+            onClick={() => setActiveTab("register")}
             style={{
               flex: 1,
-              padding: '0.6rem',
-              border: 'none',
-              background: activeTab === 'register' ? '#ecfdf5' : 'transparent',
-              color: activeTab === 'register' ? '#10b981' : '#334155',
-              borderRadius: '0.6rem',
+              padding: "0.6rem",
+              border: "none",
+              background: activeTab === "register" ? "#ecfdf5" : "transparent",
+              color: activeTab === "register" ? "#10b981" : "#334155",
+              borderRadius: "0.6rem",
               fontWeight: 700,
-              cursor: 'pointer',
+              cursor: "pointer",
             }}
           >
             Register
           </button>
         </div>
 
-        <div style={{ padding: '0.8rem 1rem' }}>
+        <div style={{ padding: "0.8rem 1rem" }}>
           {/* Login Form */}
-          {activeTab === 'login' && (
+          {activeTab === "login" && (
             <form
               onSubmit={handleLogin}
               style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '0.6rem',
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.6rem",
               }}
             >
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "0.2rem",
+                }}
+              >
                 <label
                   htmlFor="login-email"
-                  style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.95rem' }}
+                  style={{
+                    fontWeight: 700,
+                    color: "#0f172a",
+                    fontSize: "0.95rem",
+                  }}
                 >
                   Email
                 </label>
@@ -185,21 +229,31 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onAuthSuccess }) => {
                   placeholder="you@example.com"
                   required
                   style={{
-                    width: '100%',
-                    padding: '0.8rem 0.9rem',
-                    border: '2px solid #e2e8f0',
-                    borderRadius: '0.7rem',
-                    fontSize: '1rem',
-                    background: '#fff',
-                    outline: 'none',
-                    boxSizing: 'border-box',
+                    width: "100%",
+                    padding: "0.8rem 0.9rem",
+                    border: "2px solid #e2e8f0",
+                    borderRadius: "0.7rem",
+                    fontSize: "1rem",
+                    background: "#fff",
+                    outline: "none",
+                    boxSizing: "border-box",
                   }}
                 />
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "0.2rem",
+                }}
+              >
                 <label
                   htmlFor="login-password"
-                  style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.95rem' }}
+                  style={{
+                    fontWeight: 700,
+                    color: "#0f172a",
+                    fontSize: "0.95rem",
+                  }}
                 >
                   Password
                 </label>
@@ -211,29 +265,30 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onAuthSuccess }) => {
                   required
                   minLength={6}
                   style={{
-                    width: '100%',
-                    padding: '0.8rem 0.9rem',
-                    border: '2px solid #e2e8f0',
-                    borderRadius: '0.7rem',
-                    fontSize: '1rem',
-                    background: '#fff',
-                    outline: 'none',
-                    boxSizing: 'border-box',
+                    width: "100%",
+                    padding: "0.8rem 0.9rem",
+                    border: "2px solid #e2e8f0",
+                    borderRadius: "0.7rem",
+                    fontSize: "1rem",
+                    background: "#fff",
+                    outline: "none",
+                    boxSizing: "border-box",
                   }}
                 />
               </div>
               <button
                 type="submit"
                 style={{
-                  marginTop: '0.2rem',
-                  padding: '0.8rem 1rem',
-                  background: 'linear-gradient(135deg, #10b981 0%, #06b6d4 100%)',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '0.7rem',
+                  marginTop: "0.2rem",
+                  padding: "0.8rem 1rem",
+                  background:
+                    "linear-gradient(135deg, #10b981 0%, #06b6d4 100%)",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "0.7rem",
                   fontWeight: 800,
-                  cursor: 'pointer',
-                  boxShadow: '0 10px 22px rgba(16, 185, 129, 0.35)',
+                  cursor: "pointer",
+                  boxShadow: "0 10px 22px rgba(16, 185, 129, 0.35)",
                 }}
               >
                 Sign In
@@ -242,18 +297,31 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onAuthSuccess }) => {
           )}
 
           {/* Register Form */}
-          {activeTab === 'register' && (
+          {activeTab === "register" && (
             <form
               onSubmit={handleRegister}
               style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '0.6rem',
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.6rem",
               }}
             >
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                  <label style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.95rem' }}>
+              <div style={{ display: "flex", gap: "0.5rem" }}>
+                <div
+                  style={{
+                    flex: 1,
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.2rem",
+                  }}
+                >
+                  <label
+                    style={{
+                      fontWeight: 700,
+                      color: "#0f172a",
+                      fontSize: "0.95rem",
+                    }}
+                  >
                     First name
                   </label>
                   <input
@@ -262,19 +330,32 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onAuthSuccess }) => {
                     placeholder="John"
                     required
                     style={{
-                      width: '100%',
-                      padding: '0.8rem 0.9rem',
-                      border: '2px solid #e2e8f0',
-                      borderRadius: '0.7rem',
-                      fontSize: '1rem',
-                      background: '#fff',
-                      outline: 'none',
-                      boxSizing: 'border-box',
+                      width: "100%",
+                      padding: "0.8rem 0.9rem",
+                      border: "2px solid #e2e8f0",
+                      borderRadius: "0.7rem",
+                      fontSize: "1rem",
+                      background: "#fff",
+                      outline: "none",
+                      boxSizing: "border-box",
                     }}
                   />
                 </div>
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                  <label style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.95rem' }}>
+                <div
+                  style={{
+                    flex: 1,
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.35rem",
+                  }}
+                >
+                  <label
+                    style={{
+                      fontWeight: 700,
+                      color: "#0f172a",
+                      fontSize: "0.95rem",
+                    }}
+                  >
                     Last name
                   </label>
                   <input
@@ -283,20 +364,32 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onAuthSuccess }) => {
                     placeholder="Doe"
                     required
                     style={{
-                      width: '100%',
-                      padding: '0.9rem 1rem',
-                      border: '2px solid #e2e8f0',
-                      borderRadius: '0.7rem',
-                      fontSize: '1rem',
-                      background: '#fff',
-                      outline: 'none',
-                      boxSizing: 'border-box',
+                      width: "100%",
+                      padding: "0.9rem 1rem",
+                      border: "2px solid #e2e8f0",
+                      borderRadius: "0.7rem",
+                      fontSize: "1rem",
+                      background: "#fff",
+                      outline: "none",
+                      boxSizing: "border-box",
                     }}
                   />
                 </div>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                <label style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.95rem' }}>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "0.35rem",
+                }}
+              >
+                <label
+                  style={{
+                    fontWeight: 700,
+                    color: "#0f172a",
+                    fontSize: "0.95rem",
+                  }}
+                >
                   Email
                 </label>
                 <input
@@ -305,19 +398,31 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onAuthSuccess }) => {
                   placeholder="you@example.com"
                   required
                   style={{
-                    width: '100%',
-                    padding: '0.8rem 0.9rem',
-                    border: '2px solid #e2e8f0',
-                    borderRadius: '0.7rem',
-                    fontSize: '1rem',
-                    background: '#fff',
-                    outline: 'none',
-                    boxSizing: 'border-box',
+                    width: "100%",
+                    padding: "0.8rem 0.9rem",
+                    border: "2px solid #e2e8f0",
+                    borderRadius: "0.7rem",
+                    fontSize: "1rem",
+                    background: "#fff",
+                    outline: "none",
+                    boxSizing: "border-box",
                   }}
                 />
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                <label style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.95rem' }}>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "0.35rem",
+                }}
+              >
+                <label
+                  style={{
+                    fontWeight: 700,
+                    color: "#0f172a",
+                    fontSize: "0.95rem",
+                  }}
+                >
                   Contact Number
                 </label>
                 <input
@@ -326,19 +431,31 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onAuthSuccess }) => {
                   placeholder="+1234567890"
                   required
                   style={{
-                    width: '100%',
-                    padding: '0.8rem 0.9rem',
-                    border: '2px solid #e2e8f0',
-                    borderRadius: '0.7rem',
-                    fontSize: '1rem',
-                    background: '#fff',
-                    outline: 'none',
-                    boxSizing: 'border-box',
+                    width: "100%",
+                    padding: "0.8rem 0.9rem",
+                    border: "2px solid #e2e8f0",
+                    borderRadius: "0.7rem",
+                    fontSize: "1rem",
+                    background: "#fff",
+                    outline: "none",
+                    boxSizing: "border-box",
                   }}
                 />
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                <label style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.95rem' }}>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "0.35rem",
+                }}
+              >
+                <label
+                  style={{
+                    fontWeight: 700,
+                    color: "#0f172a",
+                    fontSize: "0.95rem",
+                  }}
+                >
                   Password
                 </label>
                 <input
@@ -348,19 +465,31 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onAuthSuccess }) => {
                   required
                   minLength={6}
                   style={{
-                    width: '100%',
-                    padding: '0.8rem 0.9rem',
-                    border: '2px solid #e2e8f0',
-                    borderRadius: '0.7rem',
-                    fontSize: '1rem',
-                    background: '#fff',
-                    outline: 'none',
-                    boxSizing: 'border-box',
+                    width: "100%",
+                    padding: "0.8rem 0.9rem",
+                    border: "2px solid #e2e8f0",
+                    borderRadius: "0.7rem",
+                    fontSize: "1rem",
+                    background: "#fff",
+                    outline: "none",
+                    boxSizing: "border-box",
                   }}
                 />
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                <label style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.95rem' }}>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "0.35rem",
+                }}
+              >
+                <label
+                  style={{
+                    fontWeight: 700,
+                    color: "#0f172a",
+                    fontSize: "0.95rem",
+                  }}
+                >
                   Confirm Password
                 </label>
                 <input
@@ -370,29 +499,30 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onAuthSuccess }) => {
                   required
                   minLength={6}
                   style={{
-                    width: '100%',
-                    padding: '0.8rem 0.9rem',
-                    border: '2px solid #e2e8f0',
-                    borderRadius: '0.7rem',
-                    fontSize: '1rem',
-                    background: '#fff',
-                    outline: 'none',
-                    boxSizing: 'border-box',
+                    width: "100%",
+                    padding: "0.8rem 0.9rem",
+                    border: "2px solid #e2e8f0",
+                    borderRadius: "0.7rem",
+                    fontSize: "1rem",
+                    background: "#fff",
+                    outline: "none",
+                    boxSizing: "border-box",
                   }}
                 />
               </div>
               <button
                 type="submit"
                 style={{
-                  marginTop: '0.2rem',
-                  padding: '0.8rem 1rem',
-                  background: 'linear-gradient(135deg, #10b981 0%, #06b6d4 100%)',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '0.7rem',
+                  marginTop: "0.2rem",
+                  padding: "0.8rem 1rem",
+                  background:
+                    "linear-gradient(135deg, #10b981 0%, #06b6d4 100%)",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "0.7rem",
                   fontWeight: 800,
-                  cursor: 'pointer',
-                  boxShadow: '0 10px 22px rgba(16, 185, 129, 0.35)',
+                  cursor: "pointer",
+                  boxShadow: "0 10px 22px rgba(16, 185, 129, 0.35)",
                 }}
               >
                 Sign Up

@@ -17,157 +17,280 @@ interface RegisterData {
   password_confirm: string;
 }
 
-interface AuthResponse {
-  success: boolean;
-  token?: string;
-  message?: string;
-  user?: {
-    id: string;
-    email: string;
-    first_name?: string;
-    last_name?: string;
+interface AuthTokens {
+  refresh: string;
+  access: string;
+}
+
+interface UserProfile {
+  id: number;
+  email: string;
+  first_name: string;
+  last_name: string;
+  contact_number: string;
+  wallet_address: string;
+  is_active: boolean;
+  is_staff: boolean;
+  is_superuser: boolean;
+  is_verified_email: boolean;
+  is_verified_contact_number: boolean;
+  status: string;
+  date_joined: string;
+  updated_at: string;
+  organizations: string[];
+}
+
+interface ZKPUser {
+  _id: string;
+  user_id: number;
+  batch_id: {
+    _id: string;
+    createdAt: string;
+    updatedAt: string;
+    __v: number;
+  };
+  balance: number;
+  reference_number: string;
+  zkp_key: string;
+  createdAt: string;
+  updatedAt: string;
+  __v: number;
+  organization: {
+    _id: string;
+    org_id: number;
+    wallet_address: string;
+    createdAt: string;
+    updatedAt: string;
+    __v: number;
   };
 }
 
+interface AuthResponse {
+  success: boolean;
+  tokens?: AuthTokens;
+  userProfile?: UserProfile;
+  zkpUser?: ZKPUser;
+  message?: string;
+}
+
 class AuthService {
-  private apiUrl: string;
+  private userManagementUrl: string;
+  private zkpApiUrl: string;
 
   constructor() {
-    // In development, use Vite proxy (empty string means relative URLs)
-    // In production, use environment variable
-    this.apiUrl = import.meta.env.DEV ? '' : (import.meta.env.VITE_AUTH_API_URL || 'http://localhost:3001');
+    // User management service (port 3000)
+    this.userManagementUrl =
+      import.meta.env.VITE_USER_MANAGEMENT_URL || "http://localhost:3000";
+    // ZKP query service (port 7000)
+    this.zkpApiUrl =
+      import.meta.env.VITE_ZKP_API_URL || "http://localhost:7000";
   }
 
   /**
    * Login with email and password
-   * Endpoint: POST /api/users/login
+   * Endpoint: POST /user-management-service/api/users/login
    */
   async login(credentials: LoginCredentials): Promise<AuthResponse> {
     try {
-      const response = await fetch(`${this.apiUrl}/api/users/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: credentials.email,
-          password: credentials.password,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        // Parse field-specific errors from Django REST Framework
-        const errors: string[] = [];
-        
-        // Check for field-specific errors
-        if (typeof data === 'object' && data !== null) {
-          for (const [field, messages] of Object.entries(data)) {
-            if (Array.isArray(messages)) {
-              // Format: { "email": ["Error 1", "Error 2"] }
-              errors.push(`${field.replace(/_/g, ' ')}: ${messages.join(', ')}`);
-            } else if (typeof messages === 'string') {
-              // Format: { "email": "Error message" }
-              errors.push(`${field.replace(/_/g, ' ')}: ${messages}`);
-            }
-          }
+      // Step 1: Login and get tokens
+      const loginResponse = await fetch(
+        `${this.userManagementUrl}/user-management-service/api/users/login`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            email: credentials.email,
+            password: credentials.password,
+          }),
         }
-        
-        // If we found field errors, show them
-        if (errors.length > 0) {
-          throw new Error(errors.join('\n'));
-        }
-        
-        // Fallback to generic message
-        throw new Error(data.message || data.error || 'Login failed');
+      );
+
+      const loginData = await loginResponse.json();
+
+      if (!loginResponse.ok || loginData.status !== "success") {
+        throw new Error(loginData.message || "Login failed");
       }
 
-      // Store token if provided
-      if (data.token) {
-        localStorage.setItem('fincube_auth_token', data.token);
+      const tokens = loginData.tokens;
+
+      // Store tokens
+      localStorage.setItem("fincube_access_token", tokens.access);
+      localStorage.setItem("fincube_refresh_token", tokens.refresh);
+
+      // Step 2: Fetch user profile using access token
+      const profileResponse = await fetch(
+        `${this.userManagementUrl}/user-management-service/api/users/profile`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${tokens.access}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (!profileResponse.ok) {
+        throw new Error("Failed to fetch user profile");
       }
-      
+
+      const userProfile: UserProfile = await profileResponse.json();
+
+      // Step 3: Fetch ZKP user data using user ID
+      const zkpResponse = await fetch(
+        `${this.zkpApiUrl}/api/query/user/${userProfile.id}`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (!zkpResponse.ok) {
+        throw new Error("Failed to fetch ZKP user data");
+      }
+
+      const zkpData = await zkpResponse.json();
+
+      if (!zkpData.success) {
+        throw new Error("ZKP user data fetch unsuccessful");
+      }
+
+      const zkpUser: ZKPUser = zkpData.user;
+
+      // Store user data
+      localStorage.setItem("fincube_user_profile", JSON.stringify(userProfile));
+      localStorage.setItem("fincube_zkp_user", JSON.stringify(zkpUser));
+
       return {
         success: true,
-        token: data.token,
-        message: data.message,
-        user: data.user,
+        tokens,
+        userProfile,
+        zkpUser,
+        message: "Login successful",
       };
     } catch (error: any) {
-      console.error('Login error:', error);
-      
-      // Provide specific error messages
-      if (error.name === 'TypeError' && error.message.includes('fetch')) {
-        throw new Error('Cannot connect to authentication service. Please ensure the service is running on port 3001.');
+      console.error("Login error:", error);
+
+      // Clean up any partial data
+      this.clearStoredData();
+
+      if (error.name === "TypeError" && error.message.includes("fetch")) {
+        throw new Error(
+          "Cannot connect to authentication service. Please ensure the services are running."
+        );
       }
-      
-      throw new Error(error.message || 'Failed to connect to authentication service');
+
+      throw new Error(error.message || "Failed to authenticate");
     }
   }
 
   /**
    * Register a new user
-   * Endpoint: POST /api/users/registration
+   * Endpoint: POST /user-management-service/api/users/registration
    */
   async register(data: RegisterData): Promise<AuthResponse> {
     try {
-      const response = await fetch(`${this.apiUrl}/api/users/registration`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: data.email,
-          first_name: data.first_name,
-          last_name: data.last_name,
-          contact_number: data.contact_number,
-          password: data.password,
-          password_confirm: data.password_confirm,
-        }),
-      });
+      const response = await fetch(
+        `${this.userManagementUrl}/user-management-service/api/users/registration`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            email: data.email,
+            first_name: data.first_name,
+            last_name: data.last_name,
+            contact_number: data.contact_number,
+            password: data.password,
+            password_confirm: data.password_confirm,
+          }),
+        }
+      );
 
       const result = await response.json();
 
       if (!response.ok) {
-        // Parse field-specific errors from Django REST Framework
+        // Parse field-specific errors
         const errors: string[] = [];
-        
-        // Check for field-specific errors
-        if (typeof result === 'object' && result !== null) {
+
+        if (typeof result === "object" && result !== null) {
           for (const [field, messages] of Object.entries(result)) {
             if (Array.isArray(messages)) {
-              // Format: { "email": ["Error 1", "Error 2"] }
-              errors.push(`${field.replace(/_/g, ' ')}: ${messages.join(', ')}`);
-            } else if (typeof messages === 'string') {
-              // Format: { "email": "Error message" }
-              errors.push(`${field.replace(/_/g, ' ')}: ${messages}`);
+              errors.push(
+                `${field.replace(/_/g, " ")}: ${messages.join(", ")}`
+              );
+            } else if (typeof messages === "string") {
+              errors.push(`${field.replace(/_/g, " ")}: ${messages}`);
             }
           }
         }
-        
-        // If we found field errors, show them
+
         if (errors.length > 0) {
-          throw new Error(errors.join('\n'));
+          throw new Error(errors.join("\n"));
         }
-        
-        // Fallback to generic message
-        throw new Error(result.message || result.error || 'Registration failed');
+
+        throw new Error(
+          result.message || result.error || "Registration failed"
+        );
       }
 
       return {
         success: true,
-        message: result.message || 'Registration successful',
+        message: result.message || "Registration successful",
       };
     } catch (error: any) {
-      console.error('Registration error:', error);
-      
-      // Provide specific error messages
-      if (error.name === 'TypeError' && error.message.includes('fetch')) {
-        throw new Error('Cannot connect to authentication service. Please ensure the service is running on port 3001.');
+      console.error("Registration error:", error);
+
+      if (error.name === "TypeError" && error.message.includes("fetch")) {
+        throw new Error(
+          "Cannot connect to authentication service. Please ensure the service is running."
+        );
       }
-      
-      throw new Error(error.message || 'Failed to connect to authentication service');
+
+      throw new Error(error.message || "Failed to register");
+    }
+  }
+
+  /**
+   * Refresh access token using refresh token
+   */
+  async refreshAccessToken(): Promise<string | null> {
+    try {
+      const refreshToken = localStorage.getItem("fincube_refresh_token");
+      if (!refreshToken) {
+        return null;
+      }
+
+      const response = await fetch(
+        `${this.userManagementUrl}/user-management-service/api/users/token/refresh`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            refresh: refreshToken,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Token refresh failed");
+      }
+
+      const data = await response.json();
+      const newAccessToken = data.access;
+
+      localStorage.setItem("fincube_access_token", newAccessToken);
+      return newAccessToken;
+    } catch (error) {
+      console.error("Token refresh error:", error);
+      this.logout();
+      return null;
     }
   }
 
@@ -175,23 +298,57 @@ class AuthService {
    * Logout and clear stored credentials
    */
   logout(): void {
-    localStorage.removeItem('fincube_auth_token');
-    localStorage.removeItem('fincube_auth');
+    this.clearStoredData();
+    localStorage.removeItem("fincube_auth");
   }
 
   /**
-   * Get stored auth token
+   * Clear all stored authentication data
    */
-  getToken(): string | null {
-    return localStorage.getItem('fincube_auth_token');
+  private clearStoredData(): void {
+    localStorage.removeItem("fincube_access_token");
+    localStorage.removeItem("fincube_refresh_token");
+    localStorage.removeItem("fincube_user_profile");
+    localStorage.removeItem("fincube_zkp_user");
   }
 
   /**
-   * Check if user has a valid token
+   * Get stored access token
    */
-  hasToken(): boolean {
-    return !!this.getToken();
+  getAccessToken(): string | null {
+    return localStorage.getItem("fincube_access_token");
+  }
+
+  /**
+   * Get stored refresh token
+   */
+  getRefreshToken(): string | null {
+    return localStorage.getItem("fincube_refresh_token");
+  }
+
+  /**
+   * Get stored user profile
+   */
+  getUserProfile(): UserProfile | null {
+    const profile = localStorage.getItem("fincube_user_profile");
+    return profile ? JSON.parse(profile) : null;
+  }
+
+  /**
+   * Get stored ZKP user data
+   */
+  getZKPUser(): ZKPUser | null {
+    const zkpUser = localStorage.getItem("fincube_zkp_user");
+    return zkpUser ? JSON.parse(zkpUser) : null;
+  }
+
+  /**
+   * Check if user has valid tokens
+   */
+  hasValidTokens(): boolean {
+    return !!this.getAccessToken() && !!this.getRefreshToken();
   }
 }
 
 export const authService = new AuthService();
+export type { UserProfile, ZKPUser, AuthTokens };
