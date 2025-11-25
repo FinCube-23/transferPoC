@@ -1,11 +1,14 @@
 import React, { useEffect, useState } from "react";
 import { useTransactions } from "../hooks/useTransactions";
 import { fraudDetectionService } from "../services/fraudDetectionService";
-import { ethers } from "ethers";
 import type { ParsedTransfer } from "../services/graphService";
+import { useAuthStore } from "../stores/authStore";
 import UserInfo from "./UserInfo";
 
 const Dashboard: React.FC = () => {
+  const userProfile = useAuthStore((state) => state.userProfile);
+  const zkpUser = useAuthStore((state) => state.zkpUser);
+
   const {
     transactions,
     currentPage,
@@ -14,14 +17,15 @@ const Dashboard: React.FC = () => {
     addTransaction,
     nextPage,
     prevPage,
-    clearTransactions,
   } = useTransactions();
 
   const [transferForm, setTransferForm] = useState({
-    address: "",
+    referenceNumber: "",
     amount: "",
     purpose: "",
   });
+
+  const [isTransferring, setIsTransferring] = useState(false);
 
   const [fraudResults, setFraudResults] = useState<
     Record<
@@ -127,60 +131,213 @@ const Dashboard: React.FC = () => {
       {/* User Info */}
       <UserInfo />
 
+      {/* User Reference Number Info */}
+      {zkpUser && (
+        <div
+          style={{
+            maxWidth: "420px",
+            width: "100%",
+            margin: "1.5rem auto 0",
+            padding: "1rem 1.25rem",
+            background:
+              "linear-gradient(135deg, rgba(6, 182, 212, 0.08), rgba(16, 185, 129, 0.08))",
+            backdropFilter: "blur(10px)",
+            borderRadius: "0.75rem",
+            border: "1px solid rgba(6, 182, 212, 0.25)",
+            boxShadow: "0 4px 12px rgba(0, 0, 0, 0.1)",
+          }}
+        >
+          <div
+            style={{
+              fontSize: "0.9rem",
+              color: "#cbd5e1",
+              marginBottom: "0.5rem",
+              fontWeight: 600,
+            }}
+          >
+            Your Reference Number:
+          </div>
+          <div
+            style={{
+              fontFamily: "monospace",
+              fontSize: "0.85rem",
+              color: "#06b6d4",
+              background: "rgba(6, 182, 212, 0.1)",
+              padding: "0.5rem 0.75rem",
+              borderRadius: "0.5rem",
+              border: "1px solid rgba(6, 182, 212, 0.2)",
+              wordBreak: "break-all",
+            }}
+          >
+            {zkpUser.reference_number}
+          </div>
+          <div
+            style={{
+              fontSize: "0.75rem",
+              color: "#94a3b8",
+              marginTop: "0.5rem",
+            }}
+          >
+            Share this with others to receive transfers
+          </div>
+        </div>
+      )}
+
       {/* Transfer Form */}
       <form
         id="transfer-form"
         onSubmit={async (e) => {
           e.preventDefault();
 
+          if (!userProfile || !zkpUser) {
+            alert("User information not loaded. Please refresh the page.");
+            return;
+          }
+
           try {
-            const toInput = transferForm.address.trim().replace(/\s+/g, "");
-            const amount = transferForm.amount;
-            const purpose = transferForm.purpose;
+            setIsTransferring(true);
+
+            const referenceNumber = transferForm.referenceNumber.trim();
+            const amount = transferForm.amount.trim();
+            const purpose = transferForm.purpose.trim();
 
             // Basic validation
-            let checksumTo: string;
-            try {
-              checksumTo = ethers.utils.getAddress(toInput);
-            } catch {
-              throw new Error("Please enter a valid recipient address");
+            if (!referenceNumber) {
+              throw new Error("Please enter a recipient reference number");
             }
 
-            const normalized = amount.trim().replace(/,/g, "");
+            // Validate reference number format (wallet_address_uuid)
+            const refParts = referenceNumber.split("_");
+            if (refParts.length < 2 || !refParts[0].startsWith("0x")) {
+              throw new Error(
+                "Invalid reference number format. Expected: {wallet_address}_{uuid}"
+              );
+            }
+
+            const normalized = amount.replace(/,/g, "");
             if (!/^\d*\.?\d+$/.test(normalized)) {
               throw new Error("Please enter a valid decimal amount");
             }
 
-            if (!purpose.trim()) {
-              throw new Error("Please enter a purpose for this transfer");
+            const amountNum = parseFloat(normalized);
+            if (amountNum <= 0) {
+              throw new Error("Amount must be greater than 0");
             }
 
-            // For demo purposes, just show success message
-            // In production, this would call backend API to process transfer
-            alert("Transfer functionality requires backend integration");
+            if (amountNum > zkpUser.balance) {
+              throw new Error(
+                `Insufficient balance. Available: ${zkpUser.balance} USDC`
+              );
+            }
 
-            // Add demo transaction to list
+            // Call transfer API
+            console.log("Sending transfer request:", {
+              receiver_reference_number: referenceNumber,
+              amount: amountNum,
+              sender_user_id: userProfile.id,
+            });
+
+            const response = await fetch("http://localhost:7000/api/transfer", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                receiver_reference_number: referenceNumber,
+                amount: amountNum,
+                sender_user_id: userProfile.id,
+              }),
+            });
+
+            console.log("Transfer response status:", response.status);
+
+            const data = await response.json();
+            console.log("Transfer response data:", data);
+
+            if (!response.ok || !data.success) {
+              // Extract detailed error message
+              let errorMessage = "Transfer failed";
+
+              if (data.error) {
+                if (typeof data.error === "string") {
+                  errorMessage = data.error;
+                } else if (data.error.message) {
+                  errorMessage = data.error.message;
+                } else if (data.error.type) {
+                  errorMessage = `${data.error.type}: ${JSON.stringify(
+                    data.error.details || {}
+                  )}`;
+                }
+              } else if (data.message) {
+                errorMessage = data.message;
+              }
+
+              console.error("Transfer failed:", errorMessage, data);
+
+              throw new Error(errorMessage);
+            }
+
+            // Show success message
+            alert(
+              `Transfer successful!\n\n` +
+                `Amount: ${amountNum} USDC\n` +
+                `Transaction Hash: ${data.blockchain.transactionHash}\n` +
+                `New Balance: ${data.database.senderNewBalance} USDC`
+            );
+
+            // Add transaction to list
             const newTx: ParsedTransfer = {
-              sender: "0x0000000000000000000000000000000000000000",
-              recipient: toInput,
-              amount: `${amount} USDC`,
-              purpose: purpose.trim(),
-              nullifier: ethers.utils.id(`demo_${Date.now()}`),
-              timestamp: Date.now(),
-              txHash: undefined,
+              sender: data.blockchain.senderWalletAddress,
+              recipient: data.blockchain.receiverWalletAddress,
+              amount: `${amountNum} USDC`,
+              purpose: purpose || "Transfer",
+              nullifier: data.blockchain.nullifier,
+              timestamp: new Date(data.blockchain.timestamp).getTime(),
+              txHash: data.blockchain.transactionHash,
             };
 
             addTransaction(newTx);
 
+            // Update user balance in store
+            if (zkpUser) {
+              zkpUser.balance = data.database.senderNewBalance;
+              localStorage.setItem("fincube_zkp_user", JSON.stringify(zkpUser));
+            }
+
             // Clear form
             setTransferForm({
-              address: "",
+              referenceNumber: "",
               amount: "",
               purpose: "",
             });
           } catch (error: any) {
-            console.error(error.message);
-            alert(error.message);
+            console.error("Transfer error:", error);
+
+            let userMessage =
+              error.message || "Transfer failed. Please try again.";
+
+            // Provide more helpful error messages for common issues
+            if (error.message?.includes("execution reverted")) {
+              userMessage =
+                "Smart contract transaction failed. Possible reasons:\n\n" +
+                "1. Insufficient blockchain wallet balance (need ETH for gas)\n" +
+                "2. Invalid ZKP proof verification\n" +
+                "3. Duplicate transaction (nullifier already used)\n" +
+                "4. Contract state issue\n\n" +
+                "Please check the backend logs for detailed error information.";
+            } else if (error.message?.includes("BLOCKCHAIN_TRANSFER_FAILED")) {
+              userMessage =
+                "Blockchain transfer failed.\n\n" +
+                "This is usually due to:\n" +
+                "- Insufficient ETH for gas fees in sender's wallet\n" +
+                "- Invalid proof data\n" +
+                "- Contract validation failure\n\n" +
+                "Check backend logs for details.";
+            }
+
+            alert(userMessage);
+          } finally {
+            setIsTransferring(false);
           }
         }}
         style={{
@@ -197,12 +354,15 @@ const Dashboard: React.FC = () => {
         <div style={{ position: "relative" }}>
           <input
             type="text"
-            name="address"
-            value={transferForm.address}
+            name="referenceNumber"
+            value={transferForm.referenceNumber}
             onChange={(e) =>
-              setTransferForm({ ...transferForm, address: e.target.value })
+              setTransferForm({
+                ...transferForm,
+                referenceNumber: e.target.value,
+              })
             }
-            placeholder="Recipient Address"
+            placeholder="Recipient Reference Number (e.g., 0x123...abc_uuid)"
             required
             style={{
               width: "100%",
@@ -228,16 +388,11 @@ const Dashboard: React.FC = () => {
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
               <path
-                d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0Z"
+                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
                 stroke="#94a3b8"
                 strokeWidth="1.5"
-              />
-              <circle
-                cx="12"
-                cy="10"
-                r="3"
-                stroke="#94a3b8"
-                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
               />
             </svg>
           </div>
@@ -299,8 +454,7 @@ const Dashboard: React.FC = () => {
             onChange={(e) =>
               setTransferForm({ ...transferForm, purpose: e.target.value })
             }
-            placeholder="Purpose (e.g., Salary, Invoice, Refund)"
-            required
+            placeholder="Purpose (Optional - e.g., Salary, Invoice, Refund)"
             style={{
               width: "100%",
               padding: "1rem 1.2rem",
@@ -335,16 +489,19 @@ const Dashboard: React.FC = () => {
         </div>
         <button
           type="submit"
+          disabled={isTransferring}
           style={{
             width: "100%",
             padding: "1rem 1.5rem",
-            background: "linear-gradient(135deg, #10b981 0%, #06b6d4 100%)",
+            background: isTransferring
+              ? "linear-gradient(135deg, #6b7280 0%, #9ca3af 100%)"
+              : "linear-gradient(135deg, #10b981 0%, #06b6d4 100%)",
             color: "#fff",
             border: "none",
             borderRadius: "0.75rem",
             fontWeight: 700,
             fontSize: "1.1rem",
-            cursor: "pointer",
+            cursor: isTransferring ? "not-allowed" : "pointer",
             boxShadow: "0 8px 20px rgba(16, 185, 129, 0.4)",
             transition: "all 0.3s ease",
             position: "relative",
@@ -353,24 +510,57 @@ const Dashboard: React.FC = () => {
             alignItems: "center",
             justifyContent: "center",
             gap: "0.5rem",
+            opacity: isTransferring ? 0.7 : 1,
           }}
         >
-          <svg
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            style={{ position: "relative", zIndex: 1 }}
-          >
-            <path
-              d="M3 12h18m-9-9l9 9-9 9"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-          <span style={{ position: "relative", zIndex: 1 }}>Transfer</span>
+          {isTransferring ? (
+            <>
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                style={{
+                  position: "relative",
+                  zIndex: 1,
+                  animation: "spin 1s linear infinite",
+                }}
+              >
+                <circle
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="3"
+                  strokeDasharray="60"
+                  strokeDashoffset="15"
+                  fill="none"
+                />
+              </svg>
+              <span style={{ position: "relative", zIndex: 1 }}>
+                Processing...
+              </span>
+            </>
+          ) : (
+            <>
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                style={{ position: "relative", zIndex: 1 }}
+              >
+                <path
+                  d="M3 12h18m-9-9l9 9-9 9"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              <span style={{ position: "relative", zIndex: 1 }}>Transfer</span>
+            </>
+          )}
         </button>
       </form>
 
