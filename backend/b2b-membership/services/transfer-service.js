@@ -9,6 +9,7 @@ const mongoose = require("mongoose")
 const User = require("../models/user")
 const Organization = require("../models/organization")
 const { ethers } = require("ethers")
+const userManagementService = require("./user-management-service")
 require("dotenv").config()
 
 // FinCube contract ABI (only the functions we need)
@@ -463,22 +464,27 @@ class TransferService {
             }
 
             // Get sender and receiver wallet addresses from their organizations
-            const senderOrg = await Organization.findById(sender.batch_id)
-            if (!senderOrg) {
+            const senderOrg =
+                await userManagementService.getOrganizationByReferenceNumber(
+                    sender.reference_number
+                )
+            if (!senderOrg.success) {
                 throw new Error(
-                    `Sender organization not found for batch_id: ${sender.batch_id}`
+                    `Sender organization not found for reference number: ${sender.reference_number}`
                 )
             }
 
-            const receiverOrg = await Organization.findById(receiver.batch_id)
-            if (!receiverOrg) {
+            const receiverOrg = await userManagementService.getOrganizationByReferenceNumber(
+                receiver.reference_number
+            )
+            if (!receiverOrg.success) {
                 throw new Error(
-                    `Receiver organization not found for batch_id: ${receiver.batch_id}`
+                    `Receiver organization not found for reference number: ${receiver.reference_number}`
                 )
             }
 
-            const senderWalletAddress = senderOrg.wallet_address
-            const receiverWalletAddress = receiverOrg.wallet_address
+            const senderWalletAddress = senderOrg?.organization?.wallet_address
+            const receiverWalletAddress = receiverOrg?.organization?.wallet_address
 
             // Get reference numbers (use empty bytes32 if not set)
             const senderReferenceNumber =
