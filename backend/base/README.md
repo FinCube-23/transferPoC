@@ -38,9 +38,9 @@ This system uses polynomial-based zero-knowledge proofs to verify organizational
 
 ### Batch-Based Scaling
 
-The system overcomes the 2047-user polynomial degree limit through intelligent batching:
+The system overcomes the 128-user polynomial degree limit through intelligent batching:
 
--   **Batch Size**: Each batch supports up to 2047 members
+-   **Batch Size**: Each batch supports up to 128 members
 -   **Independent Polynomials**: Each batch has its own polynomial equation
 -   **Unlimited Growth**: Organizations can create multiple batches as needed
 -   **Batch Identification**: Users are assigned to specific batches during registration
@@ -77,7 +77,7 @@ flowchart TD
     E --> F[End]
 ```
 
-**Note**: The batching system automatically handles scalability - when a batch reaches 2047 members, new users are placed into a new batch with its own independent polynomial equation. This allows organizations to support unlimited members while maintaining efficient proof generation.
+**Note**: The batching system automatically handles scalability - when a batch reaches 128 members, new users are placed into a new batch with its own independent polynomial equation. This allows organizations to support unlimited members while maintaining efficient proof generation.
 
 ### Proof Generation & Verification
 
@@ -173,18 +173,18 @@ flowchart TD
 
 ## 🔧 Circuit Parameters
 
-| Parameter         | Type            | Description                                     |
-| ----------------- | --------------- | ----------------------------------------------- |
-| `polynomial_hash` | `pub Field`     | On-chain polynomial commitment for user's batch |
-| `nullifier`       | `pub Field`     | Verification cache identifier                   |
-| `verifier_key`    | `pub Field`     | Verification context                            |
-| `secret`          | `Field`         | Private member identifier                       |
-| `isKYCed`         | `bool`          | KYC compliance status                           |
-| `polynomial`      | `[Field; 2048]` | Batch-specific membership polynomial            |
+| Parameter         | Type           | Description                                     |
+| ----------------- | -------------- | ----------------------------------------------- |
+| `polynomial_hash` | `pub Field`    | On-chain polynomial commitment for user's batch |
+| `nullifier`       | `pub Field`    | Verification cache identifier                   |
+| `verifier_key`    | `pub Field`    | Verification context                            |
+| `secret`          | `Field`        | Private member identifier                       |
+| `isKYCed`         | `bool`         | KYC compliance status                           |
+| `polynomial`      | `[Field; 129]` | Batch-specific membership polynomial            |
 
 ### Security Constraints
 
--   **Polynomial Degree**: Maximum 2047 coefficients per batch
+-   **Polynomial Degree**: Maximum 128 coefficients per batch
 -   **Batch Scaling**: Unlimited total members across multiple batches
 -   **Hash Security**: Poseidon2 with 254-bit field elements
 -   **Nullifier Uniqueness**: Deterministic per (secret, verifier_key) pair for verification caching
@@ -228,7 +228,7 @@ flowchart TD
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](../../LICENSE) file for details.
+MIT
 
 ## 📞 Support
 
