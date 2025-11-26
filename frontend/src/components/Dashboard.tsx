@@ -3,7 +3,6 @@ import { useTransactions } from "../hooks/useTransactions";
 import { fraudDetectionService } from "../services/fraudDetectionService";
 import type { ParsedTransfer } from "../services/graphService";
 import { useAuthStore } from "../stores/authStore";
-import UserInfo from "./UserInfo";
 
 const Dashboard: React.FC = () => {
   const userProfile = useAuthStore((state) => state.userProfile);
@@ -26,6 +25,7 @@ const Dashboard: React.FC = () => {
   });
 
   const [isTransferring, setIsTransferring] = useState(false);
+  const [isCopied, setIsCopied] = useState(false);
 
   const [fraudResults, setFraudResults] = useState<
     Record<
@@ -126,443 +126,655 @@ const Dashboard: React.FC = () => {
     loadTransactions(demoAccount);
   }, [loadTransactions]);
 
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text).then(
+      () => {
+        setIsCopied(true);
+        setTimeout(() => setIsCopied(false), 2000);
+      },
+      (err) => {
+        console.error("Failed to copy:", err);
+        alert("Failed to copy to clipboard");
+      }
+    );
+  };
+
   return (
     <>
-      {/* User Info */}
-      <UserInfo />
-
-      {/* User Reference Number Info */}
-      {zkpUser && (
-        <div
-          style={{
-            maxWidth: "420px",
-            width: "100%",
-            margin: "1.5rem auto 0",
-            padding: "1rem 1.25rem",
-            background:
-              "linear-gradient(135deg, rgba(6, 182, 212, 0.08), rgba(16, 185, 129, 0.08))",
-            backdropFilter: "blur(10px)",
-            borderRadius: "0.75rem",
-            border: "1px solid rgba(6, 182, 212, 0.25)",
-            boxShadow: "0 4px 12px rgba(0, 0, 0, 0.1)",
-          }}
-        >
-          <div
-            style={{
-              fontSize: "0.9rem",
-              color: "#cbd5e1",
-              marginBottom: "0.5rem",
-              fontWeight: 600,
-            }}
-          >
-            Your Reference Number:
-          </div>
-          <div
-            style={{
-              fontFamily: "monospace",
-              fontSize: "0.85rem",
-              color: "#06b6d4",
-              background: "rgba(6, 182, 212, 0.1)",
-              padding: "0.5rem 0.75rem",
-              borderRadius: "0.5rem",
-              border: "1px solid rgba(6, 182, 212, 0.2)",
-              wordBreak: "break-all",
-            }}
-          >
-            {zkpUser.reference_number}
-          </div>
-          <div
-            style={{
-              fontSize: "0.75rem",
-              color: "#94a3b8",
-              marginTop: "0.5rem",
-            }}
-          >
-            Share this with others to receive transfers
-          </div>
-        </div>
-      )}
-
-      {/* Transfer Form */}
-      <form
-        id="transfer-form"
-        onSubmit={async (e) => {
-          e.preventDefault();
-
-          if (!userProfile || !zkpUser) {
-            alert("User information not loaded. Please refresh the page.");
-            return;
-          }
-
-          try {
-            setIsTransferring(true);
-
-            const referenceNumber = transferForm.referenceNumber.trim();
-            const amount = transferForm.amount.trim();
-            const purpose = transferForm.purpose.trim();
-
-            // Basic validation
-            if (!referenceNumber) {
-              throw new Error("Please enter a recipient reference number");
-            }
-
-            // Validate reference number format (wallet_address_uuid)
-            const refParts = referenceNumber.split("_");
-            if (refParts.length < 2 || !refParts[0].startsWith("0x")) {
-              throw new Error(
-                "Invalid reference number format. Expected: {wallet_address}_{uuid}"
-              );
-            }
-
-            const normalized = amount.replace(/,/g, "");
-            if (!/^\d*\.?\d+$/.test(normalized)) {
-              throw new Error("Please enter a valid decimal amount");
-            }
-
-            const amountNum = parseFloat(normalized);
-            if (amountNum <= 0) {
-              throw new Error("Amount must be greater than 0");
-            }
-
-            if (amountNum > zkpUser.balance) {
-              throw new Error(
-                `Insufficient balance. Available: ${zkpUser.balance} USDC`
-              );
-            }
-
-            // Call transfer API
-            console.log("Sending transfer request:", {
-              receiver_reference_number: referenceNumber,
-              amount: amountNum,
-              sender_user_id: userProfile.id,
-            });
-
-            const response = await fetch("http://localhost:7000/api/transfer", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                receiver_reference_number: referenceNumber,
-                amount: amountNum,
-                sender_user_id: userProfile.id,
-              }),
-            });
-
-            console.log("Transfer response status:", response.status);
-
-            const data = await response.json();
-            console.log("Transfer response data:", data);
-
-            if (!response.ok || !data.success) {
-              // Extract detailed error message
-              let errorMessage = "Transfer failed";
-
-              if (data.error) {
-                if (typeof data.error === "string") {
-                  errorMessage = data.error;
-                } else if (data.error.message) {
-                  errorMessage = data.error.message;
-                } else if (data.error.type) {
-                  errorMessage = `${data.error.type}: ${JSON.stringify(
-                    data.error.details || {}
-                  )}`;
-                }
-              } else if (data.message) {
-                errorMessage = data.message;
-              }
-
-              console.error("Transfer failed:", errorMessage, data);
-
-              throw new Error(errorMessage);
-            }
-
-            // Show success message
-            alert(
-              `Transfer successful!\n\n` +
-                `Amount: ${amountNum} USDC\n` +
-                `Transaction Hash: ${data.blockchain.transactionHash}\n` +
-                `New Balance: ${data.database.senderNewBalance} USDC`
-            );
-
-            // Add transaction to list
-            const newTx: ParsedTransfer = {
-              sender: data.blockchain.senderWalletAddress,
-              recipient: data.blockchain.receiverWalletAddress,
-              amount: `${amountNum} USDC`,
-              purpose: purpose || "Transfer",
-              nullifier: data.blockchain.nullifier,
-              timestamp: new Date(data.blockchain.timestamp).getTime(),
-              txHash: data.blockchain.transactionHash,
-            };
-
-            addTransaction(newTx);
-
-            // Update user balance in store
-            if (zkpUser) {
-              zkpUser.balance = data.database.senderNewBalance;
-              localStorage.setItem("fincube_zkp_user", JSON.stringify(zkpUser));
-            }
-
-            // Clear form
-            setTransferForm({
-              referenceNumber: "",
-              amount: "",
-              purpose: "",
-            });
-          } catch (error: any) {
-            console.error("Transfer error:", error);
-
-            let userMessage =
-              error.message || "Transfer failed. Please try again.";
-
-            // Provide more helpful error messages for common issues
-            if (error.message?.includes("execution reverted")) {
-              userMessage =
-                "Smart contract transaction failed. Possible reasons:\n\n" +
-                "1. Insufficient blockchain wallet balance (need ETH for gas)\n" +
-                "2. Invalid ZKP proof verification\n" +
-                "3. Duplicate transaction (nullifier already used)\n" +
-                "4. Contract state issue\n\n" +
-                "Please check the backend logs for detailed error information.";
-            } else if (error.message?.includes("BLOCKCHAIN_TRANSFER_FAILED")) {
-              userMessage =
-                "Blockchain transfer failed.\n\n" +
-                "This is usually due to:\n" +
-                "- Insufficient ETH for gas fees in sender's wallet\n" +
-                "- Invalid proof data\n" +
-                "- Contract validation failure\n\n" +
-                "Check backend logs for details.";
-            }
-
-            alert(userMessage);
-          } finally {
-            setIsTransferring(false);
-          }
-        }}
+      {/* Two Column Layout */}
+      <div
         style={{
-          display: "flex",
-          marginTop: "2.5rem",
-          marginLeft: "auto",
-          marginRight: "auto",
-          flexDirection: "column",
-          gap: "0.8rem",
+          maxWidth: "1200px",
           width: "100%",
-          maxWidth: "420px",
+          margin: "1.5rem auto 0",
+          padding: "0 1rem",
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(400px, 1fr))",
+          gap: "2rem",
+          alignItems: "start",
         }}
       >
-        <div style={{ position: "relative" }}>
-          <input
-            type="text"
-            name="referenceNumber"
-            value={transferForm.referenceNumber}
-            onChange={(e) =>
-              setTransferForm({
-                ...transferForm,
-                referenceNumber: e.target.value,
-              })
-            }
-            placeholder="Recipient Reference Number (e.g., 0x123...abc_uuid)"
-            required
+        {/* Left Column - Transfer Form */}
+        <div style={{ width: "100%" }}>
+          <h2
             style={{
-              width: "100%",
-              padding: "1rem 1.2rem",
-              border: "2px solid #e2e8f0",
-              borderRadius: "0.75rem",
-              fontSize: "1rem",
-              fontWeight: 500,
-              outline: "none",
-              background: "rgba(255, 255, 255, 0.9)",
-              transition: "all 0.2s ease",
-              boxSizing: "border-box",
-            }}
-          />
-          <div
-            style={{
-              position: "absolute",
-              top: "50%",
-              right: "1rem",
-              transform: "translateY(-50%)",
-              pointerEvents: "none",
+              margin: "0 0 1.5rem 0",
+              fontSize: "1.5rem",
+              fontWeight: 800,
+              background: "linear-gradient(135deg, #10b981 0%, #06b6d4 100%)",
+              WebkitBackgroundClip: "text",
+              backgroundClip: "text",
+              color: "transparent",
+              letterSpacing: "-0.02em",
             }}
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-              <path
-                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                stroke="#94a3b8"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </div>
-        </div>
-        <div style={{ position: "relative" }}>
-          <input
-            type="text"
-            name="amount"
-            value={transferForm.amount}
-            onChange={(e) =>
-              setTransferForm({ ...transferForm, amount: e.target.value })
-            }
-            placeholder="Amount"
-            inputMode="decimal"
-            required
-            style={{
-              width: "100%",
-              padding: "1rem 1.2rem",
-              border: "2px solid #e2e8f0",
-              borderRadius: "0.75rem",
-              fontSize: "1rem",
-              fontWeight: 500,
-              outline: "none",
-              background: "rgba(255, 255, 255, 0.9)",
-              transition: "all 0.2s ease",
-              boxSizing: "border-box",
+            Send Transfer
+          </h2>
+
+          {/* Transfer Form */}
+          <form
+            id="transfer-form"
+            onSubmit={async (e) => {
+              e.preventDefault();
+
+              if (!userProfile || !zkpUser) {
+                alert("User information not loaded. Please refresh the page.");
+                return;
+              }
+
+              try {
+                setIsTransferring(true);
+
+                const referenceNumber = transferForm.referenceNumber.trim();
+                const amount = transferForm.amount.trim();
+                const purpose = transferForm.purpose.trim();
+
+                // Basic validation
+                if (!referenceNumber) {
+                  throw new Error("Please enter a recipient reference number");
+                }
+
+                // Validate reference number format (wallet_address_uuid)
+                const refParts = referenceNumber.split("_");
+                if (refParts.length < 2 || !refParts[0].startsWith("0x")) {
+                  throw new Error(
+                    "Invalid reference number format. Expected: {wallet_address}_{uuid}"
+                  );
+                }
+
+                const normalized = amount.replace(/,/g, "");
+                if (!/^\d*\.?\d+$/.test(normalized)) {
+                  throw new Error("Please enter a valid decimal amount");
+                }
+
+                const amountNum = parseFloat(normalized);
+                if (amountNum <= 0) {
+                  throw new Error("Amount must be greater than 0");
+                }
+
+                if (amountNum > zkpUser.balance) {
+                  throw new Error(
+                    `Insufficient balance. Available: ${zkpUser.balance} USDC`
+                  );
+                }
+
+                // Call transfer API
+                console.log("Sending transfer request:", {
+                  receiver_reference_number: referenceNumber,
+                  amount: amountNum,
+                  sender_user_id: userProfile.id,
+                });
+
+                const response = await fetch(
+                  "http://localhost:7000/api/transfer",
+                  {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                      receiver_reference_number: referenceNumber,
+                      amount: amountNum,
+                      sender_user_id: userProfile.id,
+                    }),
+                  }
+                );
+
+                console.log("Transfer response status:", response.status);
+
+                const data = await response.json();
+                console.log("Transfer response data:", data);
+
+                if (!response.ok || !data.success) {
+                  // Extract detailed error message
+                  let errorMessage = "Transfer failed";
+
+                  if (data.error) {
+                    if (typeof data.error === "string") {
+                      errorMessage = data.error;
+                    } else if (data.error.message) {
+                      errorMessage = data.error.message;
+                    } else if (data.error.type) {
+                      errorMessage = `${data.error.type}: ${JSON.stringify(
+                        data.error.details || {}
+                      )}`;
+                    }
+                  } else if (data.message) {
+                    errorMessage = data.message;
+                  }
+
+                  console.error("Transfer failed:", errorMessage, data);
+
+                  throw new Error(errorMessage);
+                }
+
+                // Show success message
+                alert(
+                  `Transfer successful!\n\n` +
+                    `Amount: ${amountNum} USDC\n` +
+                    `Transaction Hash: ${data.blockchain.transactionHash}\n` +
+                    `New Balance: ${data.database.senderNewBalance} USDC`
+                );
+
+                // Add transaction to list
+                const newTx: ParsedTransfer = {
+                  sender: data.blockchain.senderWalletAddress,
+                  recipient: data.blockchain.receiverWalletAddress,
+                  amount: `${amountNum} USDC`,
+                  purpose: purpose || "Transfer",
+                  nullifier: data.blockchain.nullifier,
+                  timestamp: new Date(data.blockchain.timestamp).getTime(),
+                  txHash: data.blockchain.transactionHash,
+                };
+
+                addTransaction(newTx);
+
+                // Update user balance in store
+                if (zkpUser) {
+                  zkpUser.balance = data.database.senderNewBalance;
+                  localStorage.setItem(
+                    "fincube_zkp_user",
+                    JSON.stringify(zkpUser)
+                  );
+                }
+
+                // Clear form
+                setTransferForm({
+                  referenceNumber: "",
+                  amount: "",
+                  purpose: "",
+                });
+              } catch (error: any) {
+                console.error("Transfer error:", error);
+
+                let userMessage =
+                  error.message || "Transfer failed. Please try again.";
+
+                // Provide more helpful error messages for common issues
+                if (error.message?.includes("execution reverted")) {
+                  userMessage =
+                    "Smart contract transaction failed. Possible reasons:\n\n" +
+                    "1. Insufficient blockchain wallet balance (need ETH for gas)\n" +
+                    "2. Invalid ZKP proof verification\n" +
+                    "3. Duplicate transaction (nullifier already used)\n" +
+                    "4. Contract state issue\n\n" +
+                    "Please check the backend logs for detailed error information.";
+                } else if (
+                  error.message?.includes("BLOCKCHAIN_TRANSFER_FAILED")
+                ) {
+                  userMessage =
+                    "Blockchain transfer failed.\n\n" +
+                    "This is usually due to:\n" +
+                    "- Insufficient ETH for gas fees in sender's wallet\n" +
+                    "- Invalid proof data\n" +
+                    "- Contract validation failure\n\n" +
+                    "Check backend logs for details.";
+                }
+
+                alert(userMessage);
+              } finally {
+                setIsTransferring(false);
+              }
             }}
-          />
-          <div
             style={{
-              position: "absolute",
-              top: "50%",
-              right: "1rem",
-              transform: "translateY(-50%)",
-              pointerEvents: "none",
+              display: "flex",
+              flexDirection: "column",
+              gap: "0.8rem",
+              width: "100%",
             }}
           >
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              aria-label="ETH"
-            >
-              <path d="M12 2l6 9-6 3-6-3 6-9z" fill="#94a3b8" opacity="0.95" />
-              <path
-                d="M12 14l6-3-6 11-6-11 6 3z"
-                fill="#94a3b8"
-                opacity="0.7"
-              />
-            </svg>
-          </div>
-        </div>
-        <div style={{ position: "relative" }}>
-          <input
-            type="text"
-            name="purpose"
-            value={transferForm.purpose}
-            onChange={(e) =>
-              setTransferForm({ ...transferForm, purpose: e.target.value })
-            }
-            placeholder="Purpose (Optional - e.g., Salary, Invoice, Refund)"
-            style={{
-              width: "100%",
-              padding: "1rem 1.2rem",
-              border: "2px solid #e2e8f0",
-              borderRadius: "0.75rem",
-              fontSize: "1rem",
-              fontWeight: 500,
-              outline: "none",
-              background: "rgba(255, 255, 255, 0.9)",
-              transition: "all 0.2s ease",
-              boxSizing: "border-box",
-            }}
-          />
-          <div
-            style={{
-              position: "absolute",
-              top: "50%",
-              right: "1rem",
-              transform: "translateY(-50%)",
-              pointerEvents: "none",
-            }}
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-              <path
-                d="M4 7h16M7 12h10M8 17h8"
-                stroke="#94a3b8"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-              />
-            </svg>
-          </div>
-        </div>
-        <button
-          type="submit"
-          disabled={isTransferring}
-          style={{
-            width: "100%",
-            padding: "1rem 1.5rem",
-            background: isTransferring
-              ? "linear-gradient(135deg, #6b7280 0%, #9ca3af 100%)"
-              : "linear-gradient(135deg, #10b981 0%, #06b6d4 100%)",
-            color: "#fff",
-            border: "none",
-            borderRadius: "0.75rem",
-            fontWeight: 700,
-            fontSize: "1.1rem",
-            cursor: isTransferring ? "not-allowed" : "pointer",
-            boxShadow: "0 8px 20px rgba(16, 185, 129, 0.4)",
-            transition: "all 0.3s ease",
-            position: "relative",
-            overflow: "hidden",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: "0.5rem",
-            opacity: isTransferring ? 0.7 : 1,
-          }}
-        >
-          {isTransferring ? (
-            <>
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
+            <div style={{ position: "relative" }}>
+              <input
+                type="text"
+                name="referenceNumber"
+                value={transferForm.referenceNumber}
+                onChange={(e) =>
+                  setTransferForm({
+                    ...transferForm,
+                    referenceNumber: e.target.value,
+                  })
+                }
+                placeholder="Recipient Reference Number (e.g., 0x123...abc_uuid)"
+                required
                 style={{
-                  position: "relative",
-                  zIndex: 1,
-                  animation: "spin 1s linear infinite",
+                  width: "100%",
+                  padding: "1rem 1.2rem",
+                  border: "2px solid #e2e8f0",
+                  borderRadius: "0.75rem",
+                  fontSize: "1rem",
+                  fontWeight: 500,
+                  outline: "none",
+                  background: "rgba(255, 255, 255, 0.9)",
+                  transition: "all 0.2s ease",
+                  boxSizing: "border-box",
+                }}
+              />
+              <div
+                style={{
+                  position: "absolute",
+                  top: "50%",
+                  right: "1rem",
+                  transform: "translateY(-50%)",
+                  pointerEvents: "none",
                 }}
               >
-                <circle
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="3"
-                  strokeDasharray="60"
-                  strokeDashoffset="15"
-                  fill="none"
-                />
-              </svg>
-              <span style={{ position: "relative", zIndex: 1 }}>
-                Processing...
-              </span>
-            </>
-          ) : (
-            <>
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                style={{ position: "relative", zIndex: 1 }}
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                  <path
+                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                    stroke="#94a3b8"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </div>
+            </div>
+            <div style={{ position: "relative" }}>
+              <input
+                type="text"
+                name="amount"
+                value={transferForm.amount}
+                onChange={(e) =>
+                  setTransferForm({ ...transferForm, amount: e.target.value })
+                }
+                placeholder="Amount"
+                inputMode="decimal"
+                required
+                style={{
+                  width: "100%",
+                  padding: "1rem 1.2rem",
+                  border: "2px solid #e2e8f0",
+                  borderRadius: "0.75rem",
+                  fontSize: "1rem",
+                  fontWeight: 500,
+                  outline: "none",
+                  background: "rgba(255, 255, 255, 0.9)",
+                  transition: "all 0.2s ease",
+                  boxSizing: "border-box",
+                }}
+              />
+              <div
+                style={{
+                  position: "absolute",
+                  top: "50%",
+                  right: "1rem",
+                  transform: "translateY(-50%)",
+                  pointerEvents: "none",
+                }}
               >
-                <path
-                  d="M3 12h18m-9-9l9 9-9 9"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-              <span style={{ position: "relative", zIndex: 1 }}>Transfer</span>
-            </>
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  aria-label="ETH"
+                >
+                  <path
+                    d="M12 2l6 9-6 3-6-3 6-9z"
+                    fill="#94a3b8"
+                    opacity="0.95"
+                  />
+                  <path
+                    d="M12 14l6-3-6 11-6-11 6 3z"
+                    fill="#94a3b8"
+                    opacity="0.7"
+                  />
+                </svg>
+              </div>
+            </div>
+            <div style={{ position: "relative" }}>
+              <input
+                type="text"
+                name="purpose"
+                value={transferForm.purpose}
+                onChange={(e) =>
+                  setTransferForm({ ...transferForm, purpose: e.target.value })
+                }
+                placeholder="Purpose (Optional - e.g., Salary, Invoice, Refund)"
+                style={{
+                  width: "100%",
+                  padding: "1rem 1.2rem",
+                  border: "2px solid #e2e8f0",
+                  borderRadius: "0.75rem",
+                  fontSize: "1rem",
+                  fontWeight: 500,
+                  outline: "none",
+                  background: "rgba(255, 255, 255, 0.9)",
+                  transition: "all 0.2s ease",
+                  boxSizing: "border-box",
+                }}
+              />
+              <div
+                style={{
+                  position: "absolute",
+                  top: "50%",
+                  right: "1rem",
+                  transform: "translateY(-50%)",
+                  pointerEvents: "none",
+                }}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                  <path
+                    d="M4 7h16M7 12h10M8 17h8"
+                    stroke="#94a3b8"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </div>
+            </div>
+            <button
+              type="submit"
+              disabled={isTransferring}
+              style={{
+                width: "100%",
+                padding: "1rem 1.5rem",
+                background: isTransferring
+                  ? "linear-gradient(135deg, #6b7280 0%, #9ca3af 100%)"
+                  : "linear-gradient(135deg, #10b981 0%, #06b6d4 100%)",
+                color: "#fff",
+                border: "none",
+                borderRadius: "0.75rem",
+                fontWeight: 700,
+                fontSize: "1.1rem",
+                cursor: isTransferring ? "not-allowed" : "pointer",
+                boxShadow: "0 8px 20px rgba(16, 185, 129, 0.4)",
+                transition: "all 0.3s ease",
+                position: "relative",
+                overflow: "hidden",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "0.5rem",
+                opacity: isTransferring ? 0.7 : 1,
+              }}
+            >
+              {isTransferring ? (
+                <>
+                  <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    style={{
+                      position: "relative",
+                      zIndex: 1,
+                      animation: "spin 1s linear infinite",
+                    }}
+                  >
+                    <circle
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="3"
+                      strokeDasharray="60"
+                      strokeDashoffset="15"
+                      fill="none"
+                    />
+                  </svg>
+                  <span style={{ position: "relative", zIndex: 1 }}>
+                    Processing...
+                  </span>
+                </>
+              ) : (
+                <>
+                  <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    style={{ position: "relative", zIndex: 1 }}
+                  >
+                    <path
+                      d="M3 12h18m-9-9l9 9-9 9"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                  <span style={{ position: "relative", zIndex: 1 }}>
+                    Transfer
+                  </span>
+                </>
+              )}
+            </button>
+          </form>
+        </div>
+
+        {/* Right Column - User Info */}
+        <div style={{ width: "100%" }}>
+          <h2
+            style={{
+              margin: "0 0 1.5rem 0",
+              fontSize: "1.5rem",
+              fontWeight: 800,
+              background: "linear-gradient(135deg, #10b981 0%, #06b6d4 100%)",
+              WebkitBackgroundClip: "text",
+              backgroundClip: "text",
+              color: "transparent",
+              letterSpacing: "-0.02em",
+            }}
+          >
+            Your Account
+          </h2>
+
+          {/* User Profile Card */}
+          {userProfile && zkpUser && (
+            <div
+              style={{
+                padding: "1.5rem",
+                background:
+                  "linear-gradient(135deg, rgba(15, 23, 42, 0.9) 0%, rgba(30, 41, 59, 0.9) 100%)",
+                backdropFilter: "blur(20px) saturate(180%)",
+                borderRadius: "1rem",
+                border: "2px solid rgba(16, 185, 129, 0.25)",
+                boxShadow:
+                  "0 8px 24px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1)",
+                marginBottom: "1.5rem",
+              }}
+            >
+              <h3
+                style={{
+                  margin: "0 0 1rem 0",
+                  background: "rgba(16, 185, 129, 0.3)",
+                  fontSize: "1.15rem",
+                  fontWeight: 700,
+                  color: "#10b981",
+                  textShadow: "0 0 10px rgba(16, 185, 129, 0.3)",
+                }}
+              >
+                {userProfile.first_name} {userProfile.last_name}
+              </h3>
+              <div style={{ fontSize: "0.9rem", lineHeight: 1.8 }}>
+                <div style={{ marginBottom: "0.5rem" }}>
+                  <strong style={{ color: "#10b981", fontWeight: 600 }}>
+                    Balance:
+                  </strong>{" "}
+                  <span
+                    style={{
+                      color: "#10b981",
+                      fontSize: "1.3rem",
+                      fontWeight: 700,
+                      textShadow: "0 0 10px rgba(16, 185, 129, 0.4)",
+                    }}
+                  >
+                    {zkpUser.balance} USDC
+                  </span>
+                </div>
+                <div style={{ marginBottom: "0.5rem" }}>
+                  <strong style={{ color: "#06b6d4", fontWeight: 600 }}>
+                    Email:
+                  </strong>{" "}
+                  <span style={{ color: "#cbd5e1" }}>{userProfile.email}</span>
+                </div>
+                <div style={{ marginBottom: "0.5rem" }}>
+                  <strong style={{ color: "#06b6d4", fontWeight: 600 }}>
+                    Status:
+                  </strong>{" "}
+                  <span
+                    style={{
+                      color: "#10b981",
+                      background: "rgba(16, 185, 129, 0.15)",
+                      padding: "0.15rem 0.5rem",
+                      borderRadius: "0.4rem",
+                      fontSize: "0.85rem",
+                      fontWeight: 600,
+                      textTransform: "capitalize",
+                      border: "1px solid rgba(16, 185, 129, 0.3)",
+                    }}
+                  >
+                    {userProfile.status}
+                  </span>
+                </div>
+              </div>
+            </div>
           )}
-        </button>
-      </form>
+
+          {/* Reference Number Card */}
+          {zkpUser && (
+            <div
+              style={{
+                padding: "1.5rem",
+                background:
+                  "linear-gradient(135deg, rgba(15, 23, 42, 0.9) 0%, rgba(30, 41, 59, 0.9) 100%)",
+                backdropFilter: "blur(20px) saturate(180%)",
+                borderRadius: "1rem",
+                border: "2px solid rgba(6, 182, 212, 0.25)",
+                boxShadow:
+                  "0 8px 24px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1)",
+              }}
+            >
+              <h3
+                style={{
+                  margin: "0 0 1rem 0",
+                  background: "rgba(6, 182, 212, 0.3)",
+                  fontSize: "1.15rem",
+                  fontWeight: 700,
+                  color: "#06b6d4",
+                  textShadow: "0 0 10px rgba(6, 182, 212, 0.3)",
+                }}
+              >
+                Your Reference Number
+              </h3>
+              <div
+                style={{
+                  fontSize: "0.85rem",
+                  color: "#94a3b8",
+                  marginBottom: "0.75rem",
+                }}
+              >
+                Share this with others to receive transfers
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  gap: "0.5rem",
+                  alignItems: "center",
+                }}
+              >
+                <div
+                  style={{
+                    flex: 1,
+                    fontFamily: "monospace",
+                    fontSize: "0.8rem",
+                    color: "#06b6d4",
+                    background: "rgba(6, 182, 212, 0.1)",
+                    padding: "0.75rem",
+                    borderRadius: "0.5rem",
+                    border: "1px solid rgba(6, 182, 212, 0.2)",
+                    wordBreak: "break-all",
+                    lineHeight: 1.4,
+                  }}
+                >
+                  {zkpUser.reference_number}
+                </div>
+                <button
+                  onClick={() => copyToClipboard(zkpUser.reference_number)}
+                  style={{
+                    padding: "0.75rem",
+                    background: isCopied
+                      ? "rgba(16, 185, 129, 0.2)"
+                      : "rgba(6, 182, 212, 0.2)",
+                    border: isCopied
+                      ? "1px solid rgba(16, 185, 129, 0.3)"
+                      : "1px solid rgba(6, 182, 212, 0.3)",
+                    borderRadius: "0.5rem",
+                    cursor: "pointer",
+                    transition: "all 0.2s ease",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isCopied) {
+                      e.currentTarget.style.background =
+                        "rgba(6, 182, 212, 0.3)";
+                      e.currentTarget.style.transform = "scale(1.05)";
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isCopied) {
+                      e.currentTarget.style.background =
+                        "rgba(6, 182, 212, 0.2)";
+                      e.currentTarget.style.transform = "scale(1)";
+                    }
+                  }}
+                  title={isCopied ? "Copied!" : "Copy to clipboard"}
+                >
+                  {isCopied ? (
+                    <svg
+                      width="20"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="#10b981"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  ) : (
+                    <svg
+                      width="20"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="#06b6d4"
+                      strokeWidth="2"
+                    >
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                    </svg>
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* Recent Transactions */}
       <section
