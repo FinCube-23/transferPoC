@@ -268,23 +268,48 @@ const Dashboard: React.FC = () => {
                   throw new Error(errorMessage);
                 }
 
+                // Check if this is a same-organization transfer or cross-organization transfer
+                const isSameOrg =
+                  data.transferType === "SAME_ORGANIZATION" || !data.blockchain;
+
                 // Show success message
-                alert(
-                  `Transfer successful!\n\n` +
-                    `Amount: ${amountNum} USDC\n` +
-                    `Transaction Hash: ${data.blockchain.transactionHash}\n` +
-                    `New Balance: ${data.database.senderNewBalance} USDC`
-                );
+                if (isSameOrg) {
+                  alert(
+                    `Transfer successful!\n\n` +
+                      `Type: Same Organization (Database Only)\n` +
+                      `Amount: ${amountNum} USDC\n` +
+                      `New Balance: ${data.database.senderNewBalance} USDC`
+                  );
+                } else {
+                  alert(
+                    `Transfer successful!\n\n` +
+                      `Type: Cross Organization (Blockchain)\n` +
+                      `Amount: ${amountNum} USDC\n` +
+                      `Transaction Hash: ${data.blockchain.transactionHash}\n` +
+                      `New Balance: ${data.database.senderNewBalance} USDC`
+                  );
+                }
 
                 // Add transaction to list
                 const newTx: ParsedTransfer = {
-                  sender: data.blockchain.senderWalletAddress,
-                  recipient: data.blockchain.receiverWalletAddress,
+                  sender:
+                    data.blockchain?.senderWalletAddress ||
+                    userProfile.wallet_address ||
+                    "Unknown",
+                  recipient:
+                    data.blockchain?.receiverWalletAddress ||
+                    referenceNumber.split("_")[0] ||
+                    "Unknown",
                   amount: `${amountNum} USDC`,
                   purpose: purpose || "Transfer",
-                  nullifier: data.blockchain.nullifier,
-                  timestamp: new Date(data.blockchain.timestamp).getTime(),
-                  txHash: data.blockchain.transactionHash,
+                  nullifier:
+                    data.blockchain?.nullifier || `same-org-${Date.now()}`,
+                  timestamp: new Date(
+                    data.database.timestamp ||
+                      data.blockchain?.timestamp ||
+                      Date.now()
+                  ).getTime(),
+                  txHash: data.blockchain?.transactionHash,
                 };
 
                 addTransaction(newTx);
