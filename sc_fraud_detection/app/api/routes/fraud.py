@@ -7,13 +7,14 @@ from fastapi import APIRouter, HTTPException, Depends
 import logging
 
 from app.config import get_settings
-from app.models import ScoreRequest, ScoreResponse, FraudResult, KNNResult, RAGAnalysis
+from app.models import ScoreInfo, ScoreRequest, ScoreResponse, FraudResult, KNNResult, RAGAnalysis
 from app.services.alchemy_service import AlchemyService
 from app.services.opensearch_service import OpenSearchService
 from app.services.knn_service import KNNService
 from app.services.rag_service import RAGService
 from app.utils.feature_extractor import FeatureExtractor
-from app.api.deps import get_alchemy_service, get_opensearch_service, get_rag_service
+from app.api.deps import get_alchemy_service, get_opensearch_service, get_rag_service,get_mongodb_service
+from app.services.mongodb_service import MongoDBService
 from app.services.alchemy_service import convert_reference_to_bytes32
 
 logger = logging.getLogger(__name__)
@@ -21,16 +22,13 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/fraud", tags=["fraud"])
 
 
-
-
-
-
 @router.post("/score", response_model=ScoreResponse)
 async def score_address(
     request: ScoreRequest,
     alchemy_service: AlchemyService = Depends(get_alchemy_service),
     opensearch_service: OpenSearchService = Depends(get_opensearch_service),
-    rag_service: RAGService = Depends(get_rag_service)
+    rag_service: RAGService = Depends(get_rag_service),
+    mongodb_service:MongoDBService=Depends(get_mongodb_service)
 ):
     """
     Score an Ethereum address for fraud probability
@@ -134,10 +132,62 @@ async def score_address(
         )
         
         logger.info(f"Scoring complete: {final_decision}")
+
+        try:
+            if final_decision==FraudResult.UNDECIDED:
+                return response
+            
+            is_fraud=(final_decision==FraudResult.FRAUD)
+            confidance_value=rag_result.get("confidance",knn_analysis["confidence"])
+
+            await mongodb_service.update_score(
+                user_ref_number=reference_number,
+                confidance=confidance_value,
+                is_fraud=is_fraud
+            )
+            logger.info(f"Saved score to MongoDB for reference: {reference_number}")
+        except Exception as e:
+            logger.error(f"Failed to save score to MongoDB: {e}")
+
         return response
         
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error scoring address: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
+
+@router.get("/score/{reference_number}",response_model=ScoreInfo)
+async def get_score(
+    reference_number:str,
+    mongodb_service:MongoDBService=Depends(get_mongodb_service)
+):
+    """
+        Get user score by reference number
+        
+        Returns:
+            Score information including current score and metadata
+    """
+    try:
+        document=await mongodb_service.get_score(reference_number)
+        if not document:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No score found for reference number: {reference_number}"
+            )
+        
+        return{
+            "user_ref_number": document.get("user_ref_number"),
+            "score": document.get("score", 0.0),
+            "created_at": document.get("created_at").isoformat() if document.get("created_at") else None,
+            "updated_at": document.get("updated_at").isoformat() if document.get("updated_at") else None,
+            "last_result": document.get("last_result"),
+            "last_confidence": document.get("last_confidence")
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting score: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")

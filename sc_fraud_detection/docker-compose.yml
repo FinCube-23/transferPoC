@@ -15,6 +15,24 @@ services:
     networks:
       - fraud-detection-net
 
+  mongodb:
+    image: mongo:7.0
+    container_name: fraud-detection-mongodb
+    ports:
+      - "27017:27017"
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=admin123
+    volumes:
+      - mongodb-data:/data/db
+    networks:
+      - fraud-detection-net
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   api:
     build: .
     container_name: fraud-detection-api
@@ -27,6 +45,7 @@ services:
       - .env
     depends_on:
       - opensearch
+      - mongodb
     networks:
       - fraud-detection-net
     volumes:
@@ -35,6 +54,7 @@ services:
 
 volumes:
   opensearch-data:
+  mongodb-data:
 
 networks:
   fraud-detection-net:

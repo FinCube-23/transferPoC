@@ -14,6 +14,7 @@ ckzg==2.1.5
 click==8.3.1
 cytoolz==1.1.0
 dataclasses-json==0.6.7
+dnspython==2.8.0
 eth-account==0.13.7
 eth-hash==0.7.1
 eth-keyfile==0.8.1
@@ -49,6 +50,7 @@ langchain-google-genai==0.0.6
 langgraph==0.0.20
 langsmith==0.0.87
 marshmallow==3.26.1
+motor==3.7.1
 multidict==6.7.0
 mypy_extensions==1.1.0
 numpy==1.26.2
@@ -65,6 +67,7 @@ pycryptodome==3.23.0
 pydantic==2.5.0
 pydantic-settings==2.1.0
 pydantic_core==2.14.1
+pymongo==4.15.4
 python-dateutil==2.9.0.post0
 python-dotenv==1.0.0
 python-multipart==0.0.20
