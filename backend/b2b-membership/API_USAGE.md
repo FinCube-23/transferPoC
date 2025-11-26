@@ -126,18 +126,37 @@ GET /api/query/organization/1001
 
 **Endpoint:** `POST /api/transfer`
 
-**Description:** Executes a complete ZKP-enabled transfer from sender to receiver, including proof generation, blockchain transaction, and database balance updates.
+**Description:** Executes a complete ZKP-enabled transfer from sender to receiver, including proof generation, blockchain transaction, RabbitMQ event publishing, and database balance updates.
 
-#### Workflow Steps
+#### Transfer Types
 
-The transfer endpoint orchestrates a 6-step workflow:
+The system supports two types of transfers:
 
-1. **User Data Retrieval** - Fetches sender and receiver information
-2. **ZKP Proof Generation** - Generates proof for receiver verification
-3. **Nullifier Generation** - Creates unique transaction identifier
-4. **Memo Creation** - Builds transfer metadata
-5. **Blockchain Transfer** - Executes on-chain transfer via FinCube contract
-6. **Database Update** - Updates user balances in MongoDB
+1. **Same-Organization Transfer** - When sender and receiver belong to the same organization:
+   - Skips blockchain transaction and ZKP proof generation
+   - Only updates database balances
+   - Faster and more cost-effective
+
+2. **Cross-Organization Transfer** - When sender and receiver belong to different organizations:
+   - Generates ZKP proof for receiver verification
+   - Executes blockchain transaction via FinCube contract
+   - Publishes transaction receipt to RabbitMQ
+   - Updates database balances
+
+#### Workflow Steps (Cross-Organization Transfer)
+
+The transfer endpoint orchestrates a 7-step workflow:
+
+1. **[STEP 1/7] Input Validation** - Validates request parameters
+2. **[STEP 2/7] User Data Retrieval** - Fetches sender, receiver, and organization information
+3. **[STEP 3/7] ZKP Proof Generation** - Generates zero-knowledge proof for receiver verification
+4. **[STEP 4/7] Nullifier Generation** - Creates unique 32-byte transaction identifier
+5. **[STEP 5/7] Memo Creation** - Builds JSON memo with transfer metadata
+6. **[STEP 6/7] Blockchain Transfer** - Executes on-chain transfer via FinCube contract
+7. **[STEP 7/7] Publish Transaction Receipt** - Emits event to RabbitMQ for audit trail
+8. **[STEP 8/7] Database Update** - Updates sender and receiver balances in MongoDB
+
+**Note:** Steps 3-7 are skipped for same-organization transfers.
 
 #### Request Format
 
@@ -157,7 +176,27 @@ The transfer endpoint orchestrates a 6-step workflow:
 
 #### Response Format
 
-**Success Response (Both Blockchain and Database Succeeded):**
+**Success Response (Same-Organization Transfer):**
+
+```json
+{
+    "success": true,
+    "transferType": "SAME_ORGANIZATION",
+    "database": {
+        "fromUserId": 2001,
+        "toUserId": 2002,
+        "amount": 0.01,
+        "senderPreviousBalance": 100,
+        "senderNewBalance": 99.99,
+        "receiverPreviousBalance": 50,
+        "receiverNewBalance": 50.01,
+        "timestamp": "2024-01-01T00:00:00.000Z",
+        "transactionMode": "optimistic_locking"
+    }
+}
+```
+
+**Success Response (Cross-Organization Transfer - Both Blockchain and Database Succeeded):**
 
 ```json
 {
@@ -190,6 +229,8 @@ The transfer endpoint orchestrates a 6-step workflow:
     }
 }
 ```
+
+**Note:** For cross-organization transfers, a transaction receipt event is automatically published to RabbitMQ exchange `exchange.transaction-receipt.fanout` for audit trail purposes. See `RABBITMQ_TRANSACTION_EVENTS.md` for details.
 
 **Partial Success Response (Blockchain Succeeded, Database Failed):**
 
@@ -674,17 +715,45 @@ Each error includes:
 
 ### Transfer Workflow
 
-The transfer endpoint executes these steps in order:
+#### Same-Organization Transfer
+
+When sender and receiver belong to the same organization:
 
 1. **Input Validation** - Validates request parameters
-2. **User Data Retrieval** - Fetches sender and receiver from database
-3. **ZKP Proof Generation** - Generates proof for receiver verification
-4. **Nullifier Generation** - Creates unique 32-byte transaction identifier
-5. **Memo Creation** - Builds JSON memo with transfer metadata
-6. **Blockchain Transfer** - Executes on-chain transfer via FinCube contract
-7. **Database Update** - Updates user balances in MongoDB
+2. **User Data Retrieval** - Fetches sender, receiver, and organization data
+3. **Organization Check** - Detects same organization (skips steps 4-7)
+4. **Database Update** - Updates user balances in MongoDB
 
-If any step fails, the workflow halts and returns an error. If blockchain succeeds but database fails, a partial success response is returned with a warning.
+This is faster and more cost-effective as it skips blockchain operations.
+
+#### Cross-Organization Transfer
+
+When sender and receiver belong to different organizations:
+
+1. **[STEP 1/7] Input Validation** - Validates request parameters
+2. **[STEP 2/7] User Data Retrieval** - Fetches sender, receiver, and organization data
+3. **[STEP 3/7] ZKP Proof Generation** - Generates zero-knowledge proof for receiver verification
+4. **[STEP 4/7] Nullifier Generation** - Creates unique 32-byte transaction identifier
+5. **[STEP 5/7] Memo Creation** - Builds JSON memo with transfer metadata
+6. **[STEP 6/7] Blockchain Transfer** - Executes on-chain transfer via FinCube contract
+7. **[STEP 7/7] Publish Transaction Receipt** - Emits event to RabbitMQ (exchange: `exchange.transaction-receipt.fanout`)
+8. **[STEP 8/7] Database Update** - Updates sender and receiver balances in MongoDB
+
+**Error Handling:**
+- If any step fails before blockchain transfer, the workflow halts and returns an error
+- If blockchain succeeds but database fails, a partial success response is returned with a warning
+- If RabbitMQ publishing fails, the error is logged but the transaction is still considered successful
+
+**RabbitMQ Event:**
+After a successful blockchain transfer, a transaction receipt event is published to RabbitMQ for audit trail services. The event includes:
+- Transaction hash
+- Sender and receiver wallet addresses
+- Chain ID
+- Block number and gas used
+- Transfer amount and memo
+- Nullifier
+
+See `RABBITMQ_TRANSACTION_EVENTS.md` for complete event structure and consumer implementation.
 
 ### Proof Generation Workflow
 
@@ -721,11 +790,16 @@ PORT=7000
 MONGODB_URI=mongodb://localhost:27017/b2b-membership
 MONGODB_DB_NAME=b2b-membership
 
-# RabbitMQ Configuration (optional)
+# RabbitMQ Configuration
 RABBITMQ_HOST=localhost
 RABBITMQ_PORT=5672
 RABBITMQ_USERNAME=guest
 RABBITMQ_PASSWORD=guest
+RABBITMQ_TRANSACTION_RECEIPT_EXCHANGE=exchange.transaction-receipt.fanout
+
+# Chain ID (used in transaction receipt events)
+# Celo Alfajores: 44787, Celo Mainnet: 42220, Ethereum Sepolia: 11155111
+CHAIN_ID=44787
 ```
 
 ## Starting the Server
@@ -752,8 +826,71 @@ Expected response:
     "status": "ok",
     "service": "zkp-proof-controller",
     "database": "connected",
-    "rabbitmq": "connected"
+    "rabbitmq": {
+        "consumer": "connected",
+        "publisher": "connected"
+    }
 }
+```
+
+## RabbitMQ Integration
+
+### Transaction Receipt Events
+
+After every successful cross-organization blockchain transfer, the system automatically publishes a transaction receipt event to RabbitMQ. This enables:
+
+- **Audit Trail** - Track all blockchain transactions
+- **Monitoring** - Real-time transaction monitoring
+- **Analytics** - Transaction data analysis
+- **Compliance** - Regulatory reporting
+
+#### Event Structure
+
+```json
+{
+  "onChainData": {
+    "transactionHash": "0x...",
+    "signedBy": "0x...",
+    "chainId": "44787",
+    "context": {
+      "fromUserId": 2001,
+      "toUserId": 2002,
+      "amount": 0.01,
+      "senderWalletAddress": "0x...",
+      "receiverWalletAddress": "0x...",
+      "blockNumber": 12345,
+      "gasUsed": "150000",
+      "memo": "{...}",
+      "nullifier": "0x..."
+    }
+  },
+  "timestamp": "2024-01-01T00:00:00.000Z"
+}
+```
+
+#### Configuration
+
+- **Exchange**: `exchange.transaction-receipt.fanout` (configurable via `RABBITMQ_TRANSACTION_RECEIPT_EXCHANGE`)
+- **Exchange Type**: Fanout (broadcasts to all bound queues)
+- **Durable**: Yes
+- **Non-Blocking**: Publishing failures don't affect transaction success
+
+#### Consumer Example
+
+See `RABBITMQ_TRANSACTION_EVENTS.md` for:
+- Complete event structure
+- Consumer implementation examples (NestJS)
+- Testing procedures
+- Troubleshooting guide
+
+#### Testing RabbitMQ Publisher
+
+```bash
+# Test the publisher
+node test-rabbitmq-publisher.js
+
+# Check publisher status
+curl http://localhost:7000/health
 ```
 
 ## Quick Start Guide
@@ -768,12 +905,22 @@ cp .env.example .env
 nano .env
 ```
 
-### 2. Start MongoDB
+### 2. Start Services
 
 ```bash
-# Using Docker Compose
+# Start MongoDB and Mongo Express using Docker Compose
 docker-compose up -d
+
+# Verify services are running
+docker ps
+
+# Access Mongo Express (MongoDB GUI)
+# URL: http://localhost:8081
+# Username: admin
+# Password: admin123
 ```
+
+**Note:** Ensure RabbitMQ is running on the `fincube23_network` for transaction receipt publishing.
 
 ### 3. Start Server
 
