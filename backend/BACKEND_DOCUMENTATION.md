@@ -1,4 +1,4 @@
-# FinCube Backend System - Project Context
+# FinCube Backend System - Documentation
 
 ## Table of Contents
 
@@ -697,11 +697,10 @@ The FinCube Backend seamlessly integrates with the **Web3-Kit Audit Trail Servic
 - **Database**: PostgreSQL (Port 5434) with TypeORM migrations
 - **Architecture**: Event-driven, asynchronous Pub/Sub pattern for scalability
 - **Current Implementations**: DAO governance tracking, FinCube transfer monitoring
-- **SLA Uptime**: 99.5% per month (excluding scheduled maintenance)
 
 **Enterprise Capabilities**:
 - Regulatory compliance through complete audit trails meeting AML/CTF requirements
-- Real-time monitoring with ≤3 second event capture latency
+- Real-time monitoring with low event capture latency
 - Fault tolerance via dual-source event detection with automatic reconciliation every 30 seconds
 - Scalability handling enterprise-scale transaction volumes with at-least-once delivery guarantee
 - Plug-and-play integration requiring zero configuration changes to existing systems
@@ -709,9 +708,7 @@ The FinCube Backend seamlessly integrates with the **Web3-Kit Audit Trail Servic
 - Asynchronous processing model providing non-blocking user experience with background event handling
 
 **Performance Guarantees**:
-- **Event Capture Latency**: ≤3 seconds from on-chain occurrence to RabbitMQ acknowledgement
 - **Data Sync Interval**: Every 30 seconds via scheduled cron jobs (`*/30 * * * * *`)
-- **Uptime Target**: 99.5% per month
 - **Message Delivery**: At-least-once guarantee with retry policy and dead-letter queue
 - **Incident Response**: Critical issues resolved within 4 hours
 
@@ -761,7 +758,7 @@ The FinCube Backend seamlessly integrates with the **Web3-Kit Audit Trail Servic
 
 ### Kong Gateway Integration: Zero-Configuration Event Capture
 
-**The Problem**: Traditional systems require manual event logging code in every service.
+**The Problem**: Traditional systems require reduntant API integration in every service, especially in Web3.
 
 **The Solution**: Kong Gateway's `rabbitmq-publisher` plugin automatically captures and publishes transaction events.
 
@@ -775,7 +772,7 @@ The FinCube Backend seamlessly integrates with the **Web3-Kit Audit Trail Servic
 **Integration Characteristics**:
 - Zero-configuration deployment requiring no code changes in frontend or backend
 - Complete transaction coverage with automatic tracking of all blockchain interactions
-- Real-time event publishing with ≤3 second latency from transaction occurrence
+- Real-time event publishing from transaction occurrence
 - Reliable delivery where Kong Gateway ensures event publishing even during temporary service unavailability
 - Decoupled architecture allowing services to be added or removed without affecting other components
 - Asynchronous processing providing non-blocking user experience with instant transaction hash response
@@ -879,17 +876,11 @@ Blockchain Events
 │               │   - Dedicated queue per service                     │
 │               │   - Idempotency required                            │
 │               │                                                      │
-│               ├─→ analytics-queue (Analytics Service)              │
-│               │   - Durable: Yes                                    │
-│               │   - Priority: Medium                                │
-│               │                                                      │
-│               ├─→ compliance-queue (Compliance Service)            │
+│               ├─→ fraud-detection-queue (Fraud Detection Service)  │
 │               │   - Durable: Yes                                    │
 │               │   - Priority: High                                  │
 │               │                                                      │
-│               └─→ fraud-detection-queue (Fraud Detection)          │
-│                   - Durable: Yes                                    │
-│                   - Priority: High                                  │
+│               └─→ (Additional services can subscribe as needed)    │
 │                                                                      │
 │  ┌────────────────────────────────────────────────────────────┐   │
 │  │  exchange.web3_event_hub.fanout                            │   │
@@ -909,7 +900,7 @@ Blockchain Events
 │  │  - Intercepts API calls                                     │   │
 │  │  - Extracts transaction data                                │   │
 │  │  - Publishes to exchange                                    │   │
-│  │  - Latency: ≤3 seconds                                      │   │
+│  │  - Real-time event publishing                               │   │
 │  └────────────┬───────────────────────────────────────────────┘   │
 │               │                                                      │
 │               └─→ Directly publishes to transaction-receipt exchange│
@@ -1076,21 +1067,7 @@ Audit Trail Database
 - ✅ **Background Processing**: Handles pending transactions and retries
 - ✅ **Fault Tolerance**: Automatic failover between Alchemy and TheGraph
 
-**2. Analytics Service**:
-- Transaction volume and frequency metrics
-- User behavior patterns and insights
-- Network statistics and performance
-- Trend analysis and forecasting
-- Dashboard data aggregation
-
-**3. Compliance Service**:
-- AML/CTF monitoring and alerts
-- Regulatory reporting automation
-- Suspicious activity detection
-- KYC verification tracking
-- Audit trail generation for regulators
-
-**4. Fraud Detection Service**:
+**2. Fraud Detection Service**:
 - Real-time risk assessment
 - Anomaly detection using K-NN
 - Pattern matching and analysis
@@ -1745,70 +1722,6 @@ docker-compose logs -f
 -   **Predictable Accounting**: Simplifies financial reporting
 -   **User Experience**: No price fluctuation concerns
 -   **B2B Suitability**: Ideal for business transactions
-
----
-
-## Future Enhancements
-
-### Planned Features
-
-**Multi-Token Support**:
-
--   Support multiple stablecoins simultaneously
--   Dynamic token selection per transfer
--   Automatic exchange rate handling
-
-**Batch Transfers**:
-
--   Execute multiple transfers in single transaction
--   Reduced gas costs
--   Improved efficiency
-
-**Advanced Features**:
-
--   Transaction history storage
--   Webhook notifications
--   GraphQL API
--   Mobile SDK
--   Fiat on/off ramps
-
-**Security Enhancements**:
-
--   Multi-signature wallets
--   Time-locked transfers
--   Fraud detection integration
--   Advanced rate limiting
-
-**Performance Optimizations**:
-
--   Proof caching
--   Database query optimization
--   Connection pooling improvements
--   CDN integration
-
-### Roadmap
-
-**Phase 1** (Current):
-
--   ✅ Core transfer functionality
--   ✅ ZKP proof generation
--   ✅ Blockchain integration
--   ✅ RabbitMQ events
--   ✅ Same-org optimization
-
-**Phase 2** (Next):
-
--   Multi-token support
--   Batch transfers
--   Transaction history
--   Enhanced monitoring
-
-**Phase 3** (Future):
-
--   GraphQL API
--   Mobile SDK
--   Advanced analytics
--   Fraud detection
 
 ---
 
