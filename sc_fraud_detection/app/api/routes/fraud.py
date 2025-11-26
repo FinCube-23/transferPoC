@@ -14,10 +14,15 @@ from app.services.knn_service import KNNService
 from app.services.rag_service import RAGService
 from app.utils.feature_extractor import FeatureExtractor
 from app.api.deps import get_alchemy_service, get_opensearch_service, get_rag_service
+from app.services.alchemy_service import convert_reference_to_bytes32
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/fraud", tags=["fraud"])
+
+
+
+
 
 
 @router.post("/score", response_model=ScoreResponse)
@@ -39,15 +44,35 @@ async def score_address(
     """
     try:
         settings = get_settings()
-        address = request.address.lower()
+        fincube_contract_address = settings.fincube_contract_address
+
+        reference_number = request.reference_number
         
-        logger.info(f"Scoring address: {address}")
+        # don't need it as we are querying the graph directly.
+        # reference_number=convert_reference_to_bytes32(reference_number)
+
+        
+        logger.info(f"Scoring address: {fincube_contract_address} with reference: {reference_number}")
         
         # Fetch account data from Alchemy
         logger.info("Fetching account data from Alchemy...")
-        account_data = await alchemy_service.get_account_data(address)
+        account_data = await alchemy_service.get_account_data(
+            fincube_contract_address,
+            reference_number,
+        )
 
-        # print(f"✅✅ Account Data : {account_data}")
+
+        logger.info(f"✅✅ Account Data: {account_data} \n \n")
+
+        # return ScoreResponse(None)
+
+        # Check if any transactions were found
+        total_transfers = len(account_data["sent_transfers"]) + len(account_data["received_transfers"])
+        if total_transfers == 0:
+            logger.warning(f"No transactions found for reference {reference_number}")
+            # You might want to handle this case differently
+        
+        logger.info(f"Found {total_transfers} filtered transactions")
         
         # Extract features
         logger.info("Extracting features...")
@@ -75,7 +100,7 @@ async def score_address(
         # RAG analysis with Gemini
         logger.info("Running RAG analysis...")
         rag_result = await rag_service.analyze(
-            address, 
+            fincube_contract_address, 
             knn_analysis, 
             features,
             account_data)
@@ -85,7 +110,7 @@ async def score_address(
         
         response = ScoreResponse(
             result=final_decision,
-            address=address,
+            address=fincube_contract_address,
             fraud_probability=knn_analysis["fraud_probability"],
             confidence=rag_result.get("confidence", knn_analysis["confidence"]),
             knn_analysis=KNNResult(

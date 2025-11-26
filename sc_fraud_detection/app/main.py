@@ -9,6 +9,7 @@ from app.services.opensearch_service import OpenSearchService
 from app.services.rag_service import RAGService
 from app.api import deps
 from app.api.routes import health, data, fraud
+from app.services.graph_services import GraphService
 
 # Configure logging
 logging.basicConfig(
@@ -39,9 +40,12 @@ async def lifespan(app: FastAPI):
         settings.index_name
     )
     rag_service = RAGService(settings.google_api_key)
-    
+
+    graph_service = GraphService(settings.subgraph_url)
+
     # Set services in dependency injection
-    deps.set_services(alchemy_service, opensearch_service, rag_service)
+    deps.set_services(alchemy_service, opensearch_service, rag_service, graph_service)
+    
     
     # Ensure index exists
     try:
@@ -56,6 +60,7 @@ async def lifespan(app: FastAPI):
     # Shutdown: Cleanup
     logger.info("Shutting down services...")
     await alchemy_service.close()
+    await graph_service.close()
     logger.info("Shutdown complete")
 
 
