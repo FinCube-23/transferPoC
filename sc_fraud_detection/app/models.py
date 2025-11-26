@@ -35,3 +35,10 @@ class ScoreResponse(BaseModel):
     features_extracted: Dict[str, float]
 
 
+class ScoreInfo(BaseModel):
+    user_ref_number: str
+    score: float
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+    last_result: Optional[str] = None
+    last_confidence: Optional[float] = None
