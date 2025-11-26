@@ -406,10 +406,9 @@ The B2B Membership backend seamlessly integrates with the **Audit Trail Service*
 - **Database**: PostgreSQL (Port 5434) with TypeORM migrations
 - **Current Implementations**: DAO governance tracking, FinCube transfer monitoring
 - **Scalability**: Designed to work with any blockchain use case
-- **SLA Uptime**: 99.5% per month (excluding scheduled maintenance)
 
 **Technical Capabilities**:
-- Real-time event tracking with ≤3 second latency from on-chain occurrence to RabbitMQ acknowledgement
+- Real-time event tracking from on-chain occurrence to RabbitMQ acknowledgement
 - Fault-tolerant recovery through automatic reconciliation via The Graph every 30 seconds
 - Enterprise-level indexing maintaining off-chain PostgreSQL database with business-relevant transactions only
 - Event-driven architecture using asynchronous Pub/Sub pattern for scalability
@@ -417,12 +416,6 @@ The B2B Membership backend seamlessly integrates with the **Audit Trail Service*
 - At-least-once message delivery guarantee via RabbitMQ with retry policy and dead-letter queue
 - Background processing via scheduled cron jobs (`*/30 * * * * *`) for missed transaction reconciliation
 - Database schema management using TypeORM migrations on PostgreSQL (Port 5434)
-
-**Performance Metrics**:
-- **Event Capture Latency**: ≤3 seconds from on-chain occurrence to RabbitMQ acknowledgement
-- **Data Sync Interval**: Every 30 seconds via cron job reconciliation
-- **Uptime Target**: 99.5% per month
-- **Message Delivery**: At-least-once guarantee with retry policy and dead-letter queue
 
 ### Integration Architecture
 
@@ -529,9 +522,11 @@ Blockchain Events
 │               │   - Dedicated queue per service                     │
 │               │   - Idempotency required for duplicate handling     │
 │               │                                                      │
-│               ├─→ analytics-queue (Analytics Service)              │
-│               ├─→ compliance-queue (Compliance Service)            │
-│               └─→ fraud-detection-queue (Fraud Detection)          │
+│               ├─→ fraud-detection-queue (Fraud Detection Service)  │
+│               │   - Durable: Yes                                    │
+│               │   - Priority: High                                  │
+│               │                                                      │
+│               └─→ (Additional services can subscribe as needed)    │
 │                                                                      │
 │  ┌────────────────────────────────────────────────────────────┐   │
 │  │  exchange.web3_event_hub.fanout                            │   │
@@ -582,7 +577,7 @@ Blockchain Events
 **Integration Characteristics**:
 - Zero-configuration event capture through Kong Gateway's RabbitMQ publisher plugin
 - Complete transaction coverage with automatic tracking of all blockchain interactions
-- Real-time event publishing with ≤3 second latency from transaction occurrence
+- Real-time event publishing from transaction occurrence
 - Reliable delivery mechanism where Kong ensures event publishing even during temporary service unavailability
 - Asynchronous processing model providing non-blocking user experience with immediate transaction hash response
 - Fault-tolerant message buffering where RabbitMQ queues retain events during subscriber downtime
@@ -714,7 +709,7 @@ Audit Trail Service
 
 The Audit Trail Service and other microservices consume these events for:
 
-**Audit Trail Service Functions**:
+**Audit Trail Service**:
 - Permanent transaction logging with immutable record storage of all transfers
 - On-chain verification validating transactions against blockchain state
 - Dual-source validation cross-checking data between Alchemy and TheGraph
@@ -722,23 +717,12 @@ The Audit Trail Service and other microservices consume these events for:
 - Compliance reporting generating regulatory-compliant audit reports
 - Data enrichment adding metadata, timestamps, and contextual information to transactions
 
-**Analytics Service**:
-- Transaction pattern analysis
-- Volume and frequency metrics
-- User behavior insights
-- Network statistics
-
-**Compliance Service**:
-- AML/CTF monitoring
-- Regulatory reporting
-- Suspicious activity detection
-- Audit trail generation
-
 **Fraud Detection Service**:
-- Real-time risk assessment
-- Anomaly detection
-- Pattern matching
-- Alert generation
+- Real-time risk assessment using 44-dimensional feature vectors
+- K-NN similarity search with LLM-enhanced detection
+- Anomaly detection and pattern matching
+- Alert generation for suspicious activities
+- Integration with Google Gemini AI for intelligent analysis
 
 ### Service Level Agreement (SLA)
 

@@ -10,14 +10,41 @@
 
 ## Executive Summary
 
-FinCube is a powerful integration and traceability platform that enables traditional enterprises to leverage blockchain technology (Web3) for faster, real-time money movement—without the complexity. Built on **Circle's USDC stablecoin**, FinCube serves as the bridge between traditional finance (Web2) and blockchain technology (Web3), delivering **secure, compliant, and real-time** financial operations.
+FinCube is an enterprise-grade **real-time money movement and traceability platform** that enables organizations to execute instant, privacy-preserving B2B transfers using blockchain technology—without the complexity. Built on **Circle's USDC stablecoin**, FinCube combines Zero-Knowledge Proofs (ZKP), AI-powered fraud detection, and complete audit trails to deliver **secure, compliant, and transparent** financial operations in real-time.
 
-**Target Organizations:**
-- Financial institutions
-- Global e-commerce ecosystems
-- Supply-chain networks
-- Institutional staking platforms
-- Centralized exchanges (CEX)
+### Key Capabilities
+
+- **🔐 Privacy-Preserving Transfers**: Zero-knowledge proofs enable membership verification without revealing sensitive information
+- **💰 USDC Stablecoin Integration**: Built on Circle's USDC, the world's leading digital dollar with over $40B in circulation
+- **🌍 Real-Time Global Payments**: Instant cross-border transfers 24/7/365 with complete traceability
+- **🔌 EVM Compatibility**: Plug-and-play support for any EVM-compatible blockchain (Ethereum, Polygon, Arbitrum, etc.)
+- **📈 Unlimited Scalability**: Batch-based polynomial system supports unlimited users
+- **📊 Complete Audit Trail**: Event-driven architecture with RabbitMQ integration for regulatory compliance
+- **🛡️ Enterprise Security**: BN254 curve, Poseidon2 hashing, Honk proof system
+- **🤖 AI-Powered Fraud Detection**: Real-time fraud analysis using K-NN and LLM-enhanced detection
+- **⚡ On-Chain Verification**: All cross-organization transfers verified on blockchain
+
+### Who Benefits from FinCube?
+
+**Financial Institutions**
+- Banks seeking instant cross-border settlement
+- Payment processors requiring real-time reconciliation
+- Remittance providers needing lower transaction costs
+
+**Enterprise Organizations**
+- Global e-commerce platforms with high payment volumes
+- Supply-chain networks requiring multi-party payment automation
+- Treasury departments managing cross-border liquidity
+
+**Digital Asset Platforms**
+- Centralized exchanges (CEX) needing secure custody and audit trails
+- Institutional staking platforms requiring automated reward distribution
+- DeFi protocols seeking enterprise-grade compliance
+
+**Regulated Industries**
+- Organizations requiring AML/CTF compliance
+- Businesses needing complete transaction traceability
+- Enterprises subject to regulatory audits and reporting
 
 ---
 
@@ -135,34 +162,6 @@ FinCube is built on **Circle's USD Coin (USDC)**, the world's leading digital do
 
 ---
 
-## Governance: FinCubeDAO
-
-FinCube operates under a **Decentralized Autonomous Organization (DAO)** that ensures democratic, transparent governance.
-
-### How It Works
-
-**Founding & Membership**:
-1. **Founding Member** establishes the DAO with business certificate and initial rules
-2. **New Members** submit proof of business and wallet address
-3. **Majority Vote** required for member approval
-4. **Document Review** ensures only eligible businesses join
-
-**DAO Responsibilities**:
-- ✅ **Token Selection**: Decide which stablecoins to support (USDC, EURC, etc.)
-- ✅ **Fee Structure**: Set royalty amounts for B2B currency swapping
-- ✅ **Security Requirements**: Define collateral needed for token swaps
-- ✅ **Standard Rules**: Establish regulations for monetary exchanges
-- ✅ **Member Onboarding**: Approve new organizations joining the network
-
-**Transparency & Accountability**:
-- All voting history recorded on blockchain
-- DAO rules stored on-chain (immutable and transparent)
-- Democratic decision-making protects all members
-
-**Business Impact**: Fair, transparent governance that protects all participants and builds trust.
-
----
-
 ## Audit Trail Service: Complete Transparency
 
 ### Purpose
@@ -218,6 +217,14 @@ Traditional blockchain transactions are public, exposing sensitive business info
 - ✅ **Strategic Privacy**: Protect financial strategies from competitors
 - ✅ **Compliance**: Meet regulatory requirements without data exposure
 - ✅ **Trust**: Cryptographic proof is more secure than traditional methods
+
+---
+
+## Governance: FinCubeDAO
+
+FinCube operates under a **Decentralized Autonomous Organization (DAO)** ensuring democratic, transparent governance where member organizations collectively make decisions about platform economics, token support, and operational rules through on-chain voting.
+
+**Business Impact**: Fair, transparent governance that protects all participants and builds trust through democratic decision-making.
 
 ---
 
@@ -335,14 +342,12 @@ FinCube strictly adheres to global standards:
 |---------|-------------------|----------------|
 | **Settlement Time** | 2-3 business days | Seconds |
 | **Operating Hours** | Business hours only | 24/7/365 |
-| **International Fees** | $25-$50+ per transfer | ~$0.01-$1 |
 | **Transparency** | Limited visibility | Complete on-chain audit trail |
 | **Reconciliation** | Manual, error-prone | Automated, real-time |
 | **Compliance Reporting** | Manual compilation | Automated, standardized |
 | **Fraud Detection** | Reactive | Real-time AI-powered |
 | **Privacy** | Centralized trust | Cryptographic proof |
 | **Integration** | Custom, expensive | Plug-and-play APIs |
-| **Minimum Transfer** | Often $1,000+ | No minimum |
 
 ---
 
@@ -395,31 +400,6 @@ Works with USDC on all major blockchains:
 
 ---
 
-## Future Roadmap
-
-### Near-Term (6-12 Months)
-1. **Circle API Integration**: Direct integration with Circle's enhanced features
-2. **Multi-Stablecoin Support**: Add EURC and other Circle stablecoins
-3. **Batch Transfers**: Execute multiple payments in single transaction
-4. **Mobile App**: iOS and Android applications
-5. **Advanced Analytics**: Enhanced reporting and insights
-
-### Medium-Term (12-24 Months)
-1. **Circle Account Integration**: Seamless fiat on/off ramps
-2. **Cross-Chain Transfer Protocol (CCTP)**: Instant cross-chain USDC transfers
-3. **Multi-Signature Wallets**: Enhanced security for large organizations
-4. **Time-Locked Transfers**: Scheduled and conditional payments
-5. **Webhook Notifications**: Real-time event notifications
-
-### Long-Term (24+ Months)
-1. **AI-Powered Treasury Management**: Automated liquidity optimization
-2. **Predictive Analytics**: Forecast cash flow and optimize timing
-3. **DeFi Integration**: Access to decentralized finance protocols
-4. **Regulatory Automation**: AI-powered compliance monitoring
-5. **Global Expansion**: Support for additional currencies and regions
-
----
-
 ## Business Model: DAO-Governed Economics
 
 ### Democratic Fee Structure
@@ -432,7 +412,7 @@ FinCube operates on a **decentralized governance model** where pricing and fee s
 - **Transparent Process**: All fee changes require majority approval and are recorded on-chain
 - **Flexible Adaptation**: Fee structures can evolve based on market conditions and member needs
 
-**DAO-Managed Economics**:
+**Organization Managed Economics**:
 - ✅ **Transaction Fees**: Members vote on per-transaction costs
 - ✅ **Royalty Structure**: Democratic decision on B2B currency swapping fees
 - ✅ **Collateral Requirements**: Members define security requirements for token swaps
@@ -695,11 +675,10 @@ The Audit Trail Service provides comprehensive transaction monitoring with dual-
 
 **Audit Features**:
 - Complete transaction history with timestamps
-- Real-time event tracking (≤3 second latency)
+- Real-time event tracking
 - Dual-source verification status
-- Transaction status indicators (Pending, Confirmed, Failed)
+- Transaction status indicators
 - Filter and search capabilities
-- Export functionality for compliance reporting
 
 ![Audit Trail Dashboard 1](./docs/screenshots/audit-trail-dashboard.png) 
 ![Audit Trail Dashboard 2](./docs/screenshots/audit-trail-dashboard-1.png) 
@@ -716,13 +695,13 @@ Detailed transaction view provides complete information for regulatory complianc
 - Transaction hash and block number
 - Sender and receiver reference numbers
 - Transfer amount and token details
-- ZKP proof verification status
-- Nullifier for replay protection
 - Gas usage and transaction costs
-- Memo/metadata (ISO:20022 format)
+- Complete lifecycle of cross-system communication
+- Memo/metadata
 - Timestamp and confirmation status
 - Event source (Alchemy/TheGraph)
 - Cross-validation status
+
 
 #### Transaction Overview Tab
 
@@ -741,7 +720,6 @@ Detailed transaction view provides complete information for regulatory complianc
 - **Real-Time Status**: Live updates showing transaction progression through the system
 - **Dual-Source Verification**: Cross-validation between Alchemy and TheGraph data sources
 - **Complete Audit Trail**: Every step tracked from blockchain to all consuming microservices
-- **Export Capability**: Download transaction details for compliance reporting
 - **Blockchain Explorer Integration**: Direct links to view transactions on block explorers
 
 ---

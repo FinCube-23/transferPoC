@@ -1,8 +1,16 @@
 # FinCube - Privacy-Preserving B2B Financial Infrastructure
 
-**FinCube** is a comprehensive, privacy-preserving financial infrastructure that enables secure B2B transfers using Zero-Knowledge Proofs (ZKP) and blockchain technology. Built on **Circle's USDC stablecoin**, FinCube leverages the world's most trusted digital dollar to provide instant, low-cost, and transparent cross-border payments while maintaining enterprise-grade privacy and security.
+<div align="center">
+  <img src="https://brainstation-23.com/wp-content/uploads/2025/06/image-1-1.png" alt="Brain Station 23 PLC" width="300"/>
+  
+  **Made by Web3 Team - Brain Station 23 PLC**
+</div>
 
-The system combines on-chain governance (FinCubeDAO), privacy-preserving transfers (FinCube contract), AI-powered fraud detection, and a modern web interface to deliver the next generation of B2B payment infrastructure.
+---
+
+**FinCube** is an enterprise-grade, privacy-preserving financial infrastructure enabling secure B2B transfers using Zero-Knowledge Proofs (ZKP) and blockchain technology. Built on **Circle's USDC stablecoin**, FinCube provides instant, low-cost, transparent cross-border payments with enterprise-grade privacy and security.
+
+The platform combines on-chain governance (FinCubeDAO), privacy-preserving transfers, AI-powered fraud detection, and a modern web interface to deliver next-generation B2B payment infrastructure.
 
 ## 🌟 Key Features
 
@@ -179,11 +187,11 @@ A mission-critical, plug-and-play microservice that provides enterprise-grade bl
 **Purpose**: 
 - Track and index blockchain transactions related to business operations in an enterprise-grade manner
 - Provide complete audit trails for regulatory compliance (AML/CTF, KYC)
-- Enable real-time monitoring of DAO operations and FinCube transfers with ≤3 second latency
+- Enable real-time monitoring of DAO operations and FinCube transfers with low latency
 - Scalable to any blockchain use case with 99.5% uptime guarantee
 
 **Key Features**:
-- **Real-Time Event Tracking**: Captures on-chain events with ≤3 second latency
+- **Real-Time Event Tracking**: Captures on-chain events with 
 - **Fault-Tolerant Recovery**: Automatic reconciliation via The Graph every 30 seconds
 - **Enterprise-Level Indexing**: Maintains off-chain database with only business-relevant transactions
 - **Event-Driven Architecture**: Asynchronous Pub/Sub pattern for non-blocking user experience
@@ -200,11 +208,6 @@ A mission-critical, plug-and-play microservice that provides enterprise-grade bl
 - **RabbitMQ**: Message queue with at-least-once delivery guarantee
 - **Kong Gateway**: API gateway with RabbitMQ publisher plugin
 
-**Performance Guarantees (SLA)**:
-- **Uptime**: 99.5% per month (excluding scheduled maintenance)
-- **Event Capture Latency**: ≤3 seconds from on-chain to RabbitMQ
-- **Data Sync Interval**: Every 30 seconds via cron reconciliation
-- **Incident Response**: Critical issues resolved within 4 hours
 
 **Current Implementations**:
 - DAO governance activity tracking
@@ -272,10 +275,8 @@ FinCube's backend seamlessly integrates with the **Audit Trail Service** to prov
 **Integration Characteristics**:
 - Zero-configuration event capture through Kong Gateway's RabbitMQ publisher plugin
 - Complete transaction coverage with at-least-once delivery guarantee via RabbitMQ
-- Real-time event publishing with ≤3 second latency from on-chain occurrence
 - Reliable delivery mechanism where Kong ensures event publishing even during temporary service unavailability
 - Asynchronous processing model providing non-blocking user experience with immediate transaction hash response
-- SLA-backed service with 99.5% uptime guarantee and defined incident response times
 
 **Why Event-Driven Architecture?**
 
@@ -670,63 +671,17 @@ Organization
 
 ---
 
-## 💰 Stablecoin Infrastructure: Why USDC?
+## 💰 USDC Stablecoin Integration
 
-### The Rise of Stablecoins in Global Payments
+FinCube is built on **Circle's USD Coin (USDC)**, the world's leading digital dollar:
 
-Stablecoins are rapidly becoming the **new standard for worldwide payments and currency transfers**, offering:
+- **$40+ Billion** in circulation globally
+- **1:1 USD backing** with monthly attestations by Grant Thornton LLP
+- **Available on 15+ blockchains** (Ethereum, Polygon, Arbitrum, etc.)
+- **Regulated** by U.S. state money transmitter licenses
+- **Institutional grade** - used by major financial institutions and Fortune 500 companies
 
-- **Instant Settlement**: 24/7 global transfers without banking hours or delays
-- **Low Transaction Costs**: Significantly cheaper than traditional wire transfers and remittances
-- **Price Stability**: Maintains 1:1 peg with USD, eliminating cryptocurrency volatility
-- **Programmability**: Smart contract integration enables automated, conditional payments
-- **Transparency**: On-chain verification and complete audit trails
-- **Financial Inclusion**: Access to dollar-denominated assets without traditional banking
-
-### Circle's USDC: The Industry Leader
-
-FinCube is built on **Circle's USD Coin (USDC)**, the world's leading digital dollar and most trusted stablecoin:
-
-**Market Leadership**:
-- **$40+ Billion** in circulation across multiple blockchains
-- **Highest transaction volume** among all stablecoins
-- **Most widely adopted** by institutions and enterprises
-- **Available on 15+ blockchains** including Ethereum, Polygon, Arbitrum, Solana, and more
-
-**Trust & Transparency**:
-- **Fully reserved**: Every USDC is backed 1:1 by cash and short-term U.S. Treasury bonds
-- **Monthly attestations** by Grant Thornton LLP
-- **Regulated**: Circle is a licensed money transmitter under U.S. state regulations
-- **Institutional grade**: Used by major financial institutions, payment processors, and Fortune 500 companies
-
-**Why USDC for B2B Transfers**:
-- ✅ **Predictable Accounting**: Stable $1 value simplifies financial reporting and reconciliation
-- ✅ **Instant Settlement**: Real-time transfers without 2-3 day wire transfer delays
-- ✅ **Global Reach**: Send payments anywhere in the world, 24/7/365
-- ✅ **Lower Costs**: Eliminate international wire fees and foreign exchange spreads
-- ✅ **Programmable Money**: Smart contracts enable automated payment workflows
-- ✅ **Regulatory Compliance**: Circle's regulatory framework supports enterprise adoption
-
-### Stablecoins vs Traditional Payments
-
-| Feature | USDC Stablecoins | Traditional Wire Transfers | Credit Cards |
-|---------|------------------|---------------------------|--------------|
-| **Settlement Time** | Seconds | 2-3 business days | 2-3 business days |
-| **Operating Hours** | 24/7/365 | Business hours only | 24/7 (settlement delayed) |
-| **Cross-Border Fees** | ~$0.01-$1 | $25-$50+ | 2-3% + forex |
-| **Transparency** | Full on-chain visibility | Limited | Limited |
-| **Programmability** | Smart contracts | None | Limited |
-| **Minimum Amount** | No minimum | Often $1,000+ | Varies |
-
-### The Future of B2B Payments
-
-Stablecoins like USDC are transforming B2B payments by:
-- **Reducing friction** in international trade and supply chain finance
-- **Enabling real-time treasury management** with instant liquidity
-- **Powering new payment rails** for the digital economy
-- **Bridging traditional finance and blockchain** technology
-
-FinCube leverages this stablecoin infrastructure to provide **privacy-preserving, instant, and cost-effective B2B transfers** while maintaining the trust and stability of the U.S. dollar.
+For detailed business benefits and value propositions, see [PROJECT_DESCRIPTION.md](./PROJECT_DESCRIPTION.md).
 
 ---
 
@@ -1282,31 +1237,6 @@ const calldata = iface.encodeFunctionData("setApprovedERC20", [newToken]);
 
 ---
 
-## 🚧 Future Enhancements
-
-### Planned Features
-
-1. **Circle API Integration**: Direct integration with Circle's APIs for enhanced USDC functionality
-2. **Multi-Stablecoin Support**: Support for USDC, EURC, and other Circle stablecoins
-3. **Batch Transfers**: Execute multiple transfers in single transaction
-4. **Advanced Analytics**: Enhanced transaction analytics and reporting
-5. **Mobile App**: React Native mobile application
-6. **Circle Account Integration**: Seamless fiat on/off ramps via Circle Account
-7. **Multi-Signature Wallets**: Enhanced security for organization wallets
-8. **Time-Locked Transfers**: Scheduled and delayed transfers
-9. **Webhook Notifications**: Real-time transfer notifications
-10. **Cross-Chain USDC Transfers**: Leverage Circle's Cross-Chain Transfer Protocol (CCTP)
-
-### Technical Improvements
-
-1. **Testing**: Comprehensive unit and integration tests
-2. **Performance Optimization**: Proof caching and query optimization
-3. **Monitoring**: Enhanced observability and alerting
-4. **Documentation**: Interactive API documentation
-5. **CI/CD**: Automated testing and deployment pipelines
-
----
-
 ## 🤝 Contributing
 
 We welcome contributions! Please follow these guidelines:
@@ -1363,11 +1293,36 @@ MIT License - see LICENSE file for details
 
 ---
 
-## 👥 Team
+## 👥 About Brain Station 23 PLC
 
-**FinCube Development Team**
+<div align="center">
+  <img src="https://brainstation-23.com/wp-content/uploads/2025/06/image-1-1.png" alt="Brain Station 23 PLC" width="250"/>
+</div>
 
-Built with ❤️ for privacy-preserving B2B financial infrastructure
+**Brain Station 23 PLC** is a leading technology company specializing in enterprise blockchain solutions, Web3 integration, and digital transformation services. Our Web3 Team brings together expertise in:
+
+- **Blockchain Development**: Smart contracts, DeFi protocols, and Web3 infrastructure
+- **Enterprise Integration**: Seamless connection between traditional systems and blockchain
+- **Cryptographic Security**: Zero-knowledge proofs and advanced privacy solutions
+- **Regulatory Compliance**: AML/KYC integration and audit-ready systems
+- **AI & Machine Learning**: Fraud detection and predictive analytics
+
+**FinCube** represents our commitment to making blockchain technology accessible and practical for enterprise adoption, bridging the gap between Web2 and Web3 with security, compliance, and ease of use.
+
+### Contact Brain Station 23
+- **Website**: [https://brainstation-23.com](https://brainstation-23.com)
+- **Email**: info@brainstation-23.com
+- **Location**: Dhaka, Bangladesh
+
+---
+
+<div align="center">
+
+**Made by Web3 Team - Brain Station 23 PLC**
+
+*Built with ❤️ for privacy-preserving B2B financial infrastructure*
+
+</div>
 
 ---
 
