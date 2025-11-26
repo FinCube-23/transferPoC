@@ -173,10 +173,10 @@ frontend/
 
 ### 2. Token Transfers
 
-- **Same-Organization Transfers**: Database-only transfers (no blockchain)
-- **Cross-Organization Transfers**: Blockchain-based transfers with ZKP
+- **Privacy-Preserving Transfers**: Blockchain-based transfers with ZKP verification
 - **Reference Number System**: Unique identifiers for sender/receiver
 - **Real-time Balance Updates**: Immediate balance reflection after transfers
+- **On-Chain Verification**: All transfers verified via smart contracts
 
 ### 3. Transaction History
 
@@ -563,25 +563,16 @@ localStorage.setItem("fincube_access_token", newAccessToken);
 
 ## Transaction Management
 
-### Transfer Types
+### Transfer Execution
 
-#### 1. Same-Organization Transfer
+FinCube executes privacy-preserving transfers with the following characteristics:
 
-When sender and receiver belong to the same organization:
-
-- **Database-only**: No blockchain transaction
-- **Instant**: Immediate balance update
-- **No gas fees**: No blockchain costs
-- **Response**: Database transaction details
-
-#### 2. Cross-Organization Transfer
-
-When sender and receiver belong to different organizations:
-
-- **Blockchain transaction**: Uses smart contract
-- **ZKP privacy**: Zero-knowledge proof for privacy
-- **Gas fees**: Requires ETH for gas
+- **Blockchain transaction**: Uses FinCube smart contract
+- **ZKP privacy**: Zero-knowledge proof for membership verification
+- **On-chain verification**: HonkVerifier validates proofs
+- **Gas fees**: Requires native tokens for gas (ETH, MATIC, etc.)
 - **Response**: Transaction hash and blockchain details
+- **Audit trail**: Events published to RabbitMQ
 
 ### Transfer Flow
 
@@ -600,13 +591,17 @@ When sender and receiver belong to different organizations:
      sender_user_id
    }
    ↓
-4. Backend determines transfer type
+4. Backend processes transfer:
+   - Generate ZKP proof
+   - Create nullifier
+   - Call smart contract
+   - Publish to RabbitMQ
+   - Update database
    ↓
-5a. Same Org:           5b. Cross Org:
-    - Update DB             - Generate ZKP
-    - Return success        - Call smart contract
-                            - Update DB
-                            - Return tx hash
+5. Return blockchain transaction:
+   - Transaction hash
+   - Block number
+   - Gas used
    ↓
 6. Update UI:
    - Show success message

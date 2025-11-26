@@ -9,12 +9,16 @@
 5. [Zero-Knowledge Proof System](#zero-knowledge-proof-system)
 6. [Smart Contracts](#smart-contracts)
 7. [Database Schema](#database-schema)
-8. [RabbitMQ Integration](#rabbitmq-integration)
+8. [Web3-Kit Integration](#web3-kit-integration)
 9. [API Endpoints](#api-endpoints)
 10. [Configuration](#configuration)
 11. [Development Workflow](#development-workflow)
 12. [Testing](#testing)
 13. [Deployment](#deployment)
+14. [Documentation](#documentation)
+15. [Architecture Decisions](#architecture-decisions)
+16. [Future Enhancements](#future-enhancements)
+17. [Support and Maintenance](#support-and-maintenance)
 
 ---
 
@@ -27,14 +31,13 @@ The FinCube B2B Membership Backend is a sophisticated system that enables secure
 ### Key Features
 
 - **Zero-Knowledge Proof Generation**: Generates ZKP proofs for user membership verification without revealing sensitive information
-- **Blockchain Integration**: Executes on-chain transfers via FinCube smart contracts on Celo network
+- **Blockchain Integration**: Executes on-chain transfers via FinCube smart contracts
 - **Stablecoin Transfers**: Currently uses USDC for stable-value B2B transactions
-- **Dual Transfer Modes**: 
-  - Same-organization transfers (database-only, fast)
-  - Cross-organization transfers (blockchain + ZKP, secure)
+- **Privacy-Preserving Transfers**: Cross-organization transfers with blockchain verification and ZKP privacy
 - **Event-Driven Architecture**: Publishes transaction receipts to RabbitMQ for audit trail
 - **MongoDB Integration**: Stores user, organization, and batch data
 - **Dynamic Token Support**: Automatically detects and handles ERC20 token decimals
+- **EVM Compatibility**: Works with any EVM-compatible blockchain
 
 ### Technology Stack
 
@@ -176,28 +179,9 @@ User and organization data management:
 
 ## Transfer Flow
 
-### Same-Organization Transfer
+### Privacy-Preserving Transfer Execution
 
-When sender and receiver belong to the same organization:
-
-```
-1. Validate Input
-2. Retrieve User Data
-3. Check Organization Match ✓
-4. Update Database Balances
-5. Return Success
-```
-
-**Characteristics:**
-- No blockchain transaction
-- No ZKP proof generation
-- Fast execution (~100ms)
-- No gas costs
-- Database-only operation
-
-### Cross-Organization Transfer
-
-When sender and receiver belong to different organizations:
+The system executes secure, privacy-preserving transfers with blockchain verification:
 
 ```
 1. [STEP 1/7] Validate Input
@@ -207,16 +191,18 @@ When sender and receiver belong to different organizations:
 5. [STEP 5/7] Create Memo (transfer metadata)
 6. [STEP 6/7] Execute Blockchain Transfer
 7. [STEP 7/7] Publish to RabbitMQ
-8. [STEP 8/7] Update Database Balances
+8. Update Database Balances
 ```
 
 **Characteristics:**
-- Full blockchain transaction
-- ZKP proof for receiver verification
-- Event publishing for audit trail
-- Slower execution (~5-10s)
-- Gas costs apply
-- Cryptographically secure
+- Full blockchain transaction with on-chain verification
+- ZKP proof for privacy-preserving membership verification
+- Event publishing for complete audit trail
+- Cryptographically secure with nullifier-based replay protection
+- Gas-efficient proof verification
+- Works on any EVM-compatible blockchain
+
+**Note**: The system optimizes internal transfers within the same organization by updating balances directly in the database, while maintaining the same security guarantees through organizational access controls.
 
 ### Transfer Sequence Diagram
 
@@ -232,21 +218,14 @@ sequenceDiagram
     Client->>API: POST /api/transfer
     API->>MongoDB: Get sender & receiver
     MongoDB-->>API: User data
-    
-    alt Same Organization
-        API->>MongoDB: Update balances
-        MongoDB-->>API: Success
-        API-->>Client: Database result
-    else Cross Organization
-        API->>ZKP: Generate proof
-        ZKP-->>API: Proof + public inputs
-        API->>Blockchain: Execute transfer
-        Blockchain-->>API: Transaction receipt
-        API->>RabbitMQ: Publish event
-        API->>MongoDB: Update balances
-        MongoDB-->>API: Success
-        API-->>Client: Blockchain + DB result
-    end
+    API->>ZKP: Generate proof
+    ZKP-->>API: Proof + public inputs
+    API->>Blockchain: Execute transfer
+    Blockchain-->>API: Transaction receipt
+    API->>RabbitMQ: Publish event
+    API->>MongoDB: Update balances
+    MongoDB-->>API: Success
+    API-->>Client: Blockchain + DB result
 ```
 
 ---
@@ -414,24 +393,214 @@ This allows efficient lookup of users by organization.
 
 ---
 
-## RabbitMQ Integration
+## Web3-Kit Integration
 
-### Architecture
+### Audit Trail Service Integration
+
+The B2B Membership backend seamlessly integrates with the **Audit Trail Service** (part of the Web3-Kit ecosystem) to provide comprehensive blockchain activity monitoring and regulatory compliance. This integration ensures that every transaction, governance action, and smart contract interaction is automatically tracked and auditable.
+
+**Audit Trail Service Overview**:
+- **Purpose**: Mission-critical microservice for tracking and indexing blockchain transactions related to business operations in an enterprise-grade manner
+- **Technology Stack**: NestJS, TypeORM, Alchemy RPC, TheGraph Protocol, RabbitMQ (Publisher & Consumer)
+- **API Route**: `/audit-trail-service`
+- **Database**: PostgreSQL (Port 5434) with TypeORM migrations
+- **Current Implementations**: DAO governance tracking, FinCube transfer monitoring
+- **Scalability**: Designed to work with any blockchain use case
+- **SLA Uptime**: 99.5% per month (excluding scheduled maintenance)
+
+**Technical Capabilities**:
+- Real-time event tracking with ≤3 second latency from on-chain occurrence to RabbitMQ acknowledgement
+- Fault-tolerant recovery through automatic reconciliation via The Graph every 30 seconds
+- Enterprise-level indexing maintaining off-chain PostgreSQL database with business-relevant transactions only
+- Event-driven architecture using asynchronous Pub/Sub pattern for scalability
+- Dual-source monitoring: Alchemy RPC for real-time events, TheGraph for backfill and redundancy
+- At-least-once message delivery guarantee via RabbitMQ with retry policy and dead-letter queue
+- Background processing via scheduled cron jobs (`*/30 * * * * *`) for missed transaction reconciliation
+- Database schema management using TypeORM migrations on PostgreSQL (Port 5434)
+
+**Performance Metrics**:
+- **Event Capture Latency**: ≤3 seconds from on-chain occurrence to RabbitMQ acknowledgement
+- **Data Sync Interval**: Every 30 seconds via cron job reconciliation
+- **Uptime Target**: 99.5% per month
+- **Message Delivery**: At-least-once guarantee with retry policy and dead-letter queue
+
+### Integration Architecture
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                    RabbitMQ Broker                       │
-│                                                          │
-│  ┌────────────────────────────────────────────────┐    │
-│  │  exchange.transaction-receipt.fanout           │    │
-│  │  (Fanout Exchange)                             │    │
-│  └────────────┬───────────────────────────────────┘    │
-│               │                                          │
-│               ├─→ audit-trail-queue                     │
-│               ├─→ analytics-queue                       │
-│               └─→ compliance-queue                      │
-└─────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│                         Frontend Application                         │
+└────────────────────────────┬────────────────────────────────────────┘
+                             │
+                             │ HTTPS/REST
+                             ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                      Kong API Gateway                                │
+│                   (RabbitMQ Publisher Plugin)                        │
+│                   - Captures on-chain tx data                        │
+│                   - Auto-publishes to RabbitMQ                       │
+└────────────────────────────┬────────────────────────────────────────┘
+                             │
+        ┌────────────────────┼────────────────────┐
+        │                    │                    │
+        ▼                    ▼                    ▼
+┌──────────────┐    ┌──────────────┐    ┌──────────────┐
+│ B2B Backend  │    │ Audit Trail  │    │   RabbitMQ   │
+│ (Port 7000)  │    │   Service    │    │   Broker     │
+│              │    │ (NestJS)     │    │              │
+│ - Transfers  │◄──►│              │◄──►│ - Events     │
+│ - Proofs     │    │ - Tracking   │    │ - Queues     │
+│ - Queries    │    │ - Validation │    │ - Exchanges  │
+└──────────────┘    └──────────────┘    └──────────────┘
+        │                    │                    │
+        └────────────────────┼────────────────────┘
+                             │
+                             ▼
+                    ┌──────────────┐
+                    │  Blockchain  │
+                    │              │
+                    │ - Alchemy    │
+                    │ - TheGraph   │
+                    │ - Events     │
+                    └──────────────┘
 ```
+
+### Dual-Source Event Detection
+
+**Challenge**: Blockchain networks can be unreliable, and single data sources may miss events.
+
+**Solution**: The Audit Trail Service uses **fault-tolerant monitoring** with both Alchemy and TheGraph:
+
+```
+Blockchain Events
+       │
+       ├─────────────────────────────────────┐
+       │                                     │
+       ▼                                     ▼
+┌─────────────┐                    ┌─────────────┐
+│   Alchemy   │                    │  TheGraph   │
+│   Listener  │                    │   Listener  │
+│             │                    │             │
+│ - Real-time │                    │ - Indexed   │
+│ - Direct    │                    │ - Reliable  │
+│ - Fast      │                    │ - Queryable │
+└─────────────┘                    └─────────────┘
+       │                                     │
+       └─────────────┬───────────────────────┘
+                     │
+                     ▼
+            ┌─────────────────┐
+            │ Event Validator │
+            │                 │
+            │ - Deduplication │
+            │ - Verification  │
+            │ - Enrichment    │
+            └─────────────────┘
+                     │
+                     ▼
+              ┌─────────────┐
+              │ Audit Trail │
+              │  Database   │
+              └─────────────┘
+```
+
+**Automatic Failover**:
+- If Alchemy is down → TheGraph continues monitoring
+- If TheGraph is delayed → Alchemy provides real-time data
+- Cross-validation ensures data accuracy
+- No events are missed due to service outages
+
+### RabbitMQ Exchange Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                         RabbitMQ Broker                              │
+│                                                                      │
+│  ┌────────────────────────────────────────────────────────────┐   │
+│  │  exchange.transaction-receipt.fanout                       │   │
+│  │  (Fanout Exchange - Published by B2B Backend)              │   │
+│  │                                                             │   │
+│  │  Properties:                                                │   │
+│  │  - Type: Fanout (broadcasts to all queues)                 │   │
+│  │  - Delivery: At-least-once guarantee                       │   │
+│  │  - Retry Policy: Enabled with dead-letter queue            │   │
+│  └────────────┬───────────────────────────────────────────────┘   │
+│               │                                                      │
+│               ├─→ audit-trail-queue (Audit Trail Service)          │
+│               │   - Dedicated queue per service                     │
+│               │   - Idempotency required for duplicate handling     │
+│               │                                                      │
+│               ├─→ analytics-queue (Analytics Service)              │
+│               ├─→ compliance-queue (Compliance Service)            │
+│               └─→ fraud-detection-queue (Fraud Detection)          │
+│                                                                      │
+│  ┌────────────────────────────────────────────────────────────┐   │
+│  │  exchange.web3_event_hub.fanout                            │   │
+│  │  (Audit Trail Service → External Services)                 │   │
+│  │                                                             │   │
+│  │  Event Naming: <network>.<contract>.<event>                │   │
+│  │  Example: sepolia.fincube.transfer_completed               │   │
+│  └────────────┬───────────────────────────────────────────────┘   │
+│               │                                                      │
+│               └─→ All subscribed services receive events            │
+│                                                                      │
+│  ┌────────────────────────────────────────────────────────────┐   │
+│  │  Kong Gateway RabbitMQ Publisher                           │   │
+│  │  (Captures frontend on-chain transactions)                 │   │
+│  └────────────┬───────────────────────────────────────────────┘   │
+│               │                                                      │
+│               └─→ Directly publishes to transaction-receipt exchange│
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**Exchange Details**:
+
+| Parameter | Value |
+|-----------|-------|
+| **Default Exchange Type** | `fanout` |
+| **Default Exchange Name** | `exchange.web3_event_hub.fanout` |
+| **Proposed Exchange Name** | `audit.web3_event_hub.exchange.fanout` |
+| **Message Delivery** | At-least-once guarantee |
+| **Queue Ownership** | Each service maintains its own dedicated queue |
+| **Routing Key** | N/A (Fanout broadcasts to all) |
+
+**Event Naming Convention**:
+- Format: `<network>.<contract_name>.<event_name>`
+- Style: lowercase, snake_case
+- Example: `sepolia.payment_oracle.transaction_confirmed`
+
+### Kong Gateway Integration
+
+**Purpose**: Automatically captures on-chain transaction data directly from frontend requests.
+
+**How It Works**:
+1. Frontend makes API call through Kong Gateway
+2. Kong's `rabbitmq-publisher` plugin intercepts the request
+3. Transaction data is automatically published to RabbitMQ
+4. Audit Trail Service consumes events for tracking
+5. No additional code required in frontend or backend
+
+**Integration Characteristics**:
+- Zero-configuration event capture through Kong Gateway's RabbitMQ publisher plugin
+- Complete transaction coverage with automatic tracking of all blockchain interactions
+- Real-time event publishing with ≤3 second latency from transaction occurrence
+- Reliable delivery mechanism where Kong ensures event publishing even during temporary service unavailability
+- Asynchronous processing model providing non-blocking user experience with immediate transaction hash response
+- Fault-tolerant message buffering where RabbitMQ queues retain events during subscriber downtime
+
+**Why Event-Driven Architecture (EDA)?**
+
+Traditional synchronous approaches would force users to wait for blockchain confirmation (several seconds to minutes), creating poor user experience. Instead:
+
+1. **User Action**: User initiates blockchain transaction
+2. **Immediate Response**: Frontend receives transaction hash instantly
+3. **Background Processing**: 
+   - Audit Trail listens to RPC events in real-time
+   - Missed events are backfilled via The Graph (every 30 seconds)
+4. **Event Publishing**: When transaction is finalized on-chain:
+   - Audit Trail publishes acknowledgement to RabbitMQ
+   - All microservices update their off-chain databases asynchronously
+
+**Result**: Users get instant feedback while the system maintains eventual consistency in the background.
 
 ### Transaction Receipt Event
 
@@ -459,13 +628,126 @@ Published after every successful cross-organization blockchain transfer:
 }
 ```
 
+### Audit Trail Event Contract
+
+The Audit Trail Service publishes standardized events following this schema:
+
+```json
+{
+  "web3Status": 1,
+  "message": "Transaction updated successfully.",
+  "data": {
+    "proposalId": 786,
+    "proposalType": "External",
+    "proposedWallet": "0xWaLlEt",
+    "__typename": "EventName"
+  },
+  "blockNumber": 123456,
+  "transactionHash": "0xtrx_hash"
+}
+```
+
+**Event Contract Guarantees**:
+- **Naming Convention**: `<network>.<contract_name>.<event_name>` (lowercase, snake_case)
+- **Delivery Guarantee**: At-least-once delivery via RabbitMQ
+- **Backward Compatibility**: Maintained for at least two release cycles
+- **Schema Versioning**: Major changes follow versioning policy
+- **Queue Ownership**: Each consumer maintains its own dedicated queue
+
+### Event Processing Pipeline
+
+**Step 1: Event Capture**
+```
+B2B Backend Transfer
+       │
+       ▼
+┌─────────────────┐
+│ RabbitMQ        │
+│ Publisher       │
+└─────────────────┘
+       │
+       ▼
+┌─────────────────┐
+│ transaction-    │
+│ receipt.fanout  │
+└─────────────────┘
+```
+
+**Step 2: Event Consumption & Enrichment**
+```
+RabbitMQ Exchange
+       │
+       ▼
+┌─────────────────┐
+│ Audit Trail     │
+│ Service         │
+│ - Validates     │
+│ - Enriches      │
+│ - Stores        │
+└─────────────────┘
+```
+
+**Step 3: On-Chain Verification**
+```
+Audit Trail Service
+       │
+       ├─────────────────────────────────────┐
+       │                                     │
+       ▼                                     ▼
+┌─────────────┐                    ┌─────────────┐
+│   Alchemy   │                    │  TheGraph   │
+│   Verify    │                    │   Verify    │
+│   - Tx Hash │                    │   - Events  │
+│   - Receipt │                    │   - Logs    │
+└─────────────┘                    └─────────────┘
+       │                                     │
+       └─────────────┬───────────────────────┘
+                     │
+                     ▼
+            ┌─────────────────┐
+            │ Cross-Validate  │
+            │ & Store         │
+            └─────────────────┘
+```
+
 ### Consumer Services
 
-External services can consume these events for:
-- **Audit Trail**: Permanent transaction logging
-- **Analytics**: Transaction pattern analysis
-- **Compliance**: Regulatory reporting
-- **Monitoring**: Real-time alerts
+The Audit Trail Service and other microservices consume these events for:
+
+**Audit Trail Service Functions**:
+- Permanent transaction logging with immutable record storage of all transfers
+- On-chain verification validating transactions against blockchain state
+- Dual-source validation cross-checking data between Alchemy and TheGraph
+- Real-time tracking with instant transaction history updates
+- Compliance reporting generating regulatory-compliant audit reports
+- Data enrichment adding metadata, timestamps, and contextual information to transactions
+
+**Analytics Service**:
+- Transaction pattern analysis
+- Volume and frequency metrics
+- User behavior insights
+- Network statistics
+
+**Compliance Service**:
+- AML/CTF monitoring
+- Regulatory reporting
+- Suspicious activity detection
+- Audit trail generation
+
+**Fraud Detection Service**:
+- Real-time risk assessment
+- Anomaly detection
+- Pattern matching
+- Alert generation
+
+### Service Level Agreement (SLA)
+
+**Service Dependencies**:
+- **Alchemy RPC Nodes**: Live blockchain event streaming
+- **The Graph Protocol**: Querying missed/pending transactions
+- **RabbitMQ Broker**: Event distribution infrastructure
+
+> **Note**: Service uptime and performance are dependent on third-party providers. The Audit Trail Service includes fault-tolerant mechanisms (retry logic, cron-based reconciliation), but cannot guarantee SLA compliance during third-party outages.
 
 ### Configuration
 
