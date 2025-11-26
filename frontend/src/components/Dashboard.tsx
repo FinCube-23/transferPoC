@@ -26,6 +26,7 @@ const Dashboard: React.FC = () => {
 
   const [isTransferring, setIsTransferring] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const [fraudResults, setFraudResults] = useState<
     Record<
@@ -118,13 +119,22 @@ const Dashboard: React.FC = () => {
     }
   }, [transactions, currentPage]);
 
-  // Load transactions on mount
+  // Load transactions when user data is available
   useEffect(() => {
-    // Load transactions for demo purposes
-    // In production, this would be based on authenticated user
-    const demoAccount = "0x0000000000000000000000000000000000000000";
-    loadTransactions(demoAccount);
-  }, [loadTransactions]);
+    if (zkpUser?.reference_number) {
+      loadTransactions(zkpUser.reference_number);
+    }
+  }, [zkpUser?.reference_number, loadTransactions]);
+
+  // Refresh transactions
+  const refreshTransactions = async () => {
+    if (zkpUser?.reference_number) {
+      setIsRefreshing(true);
+      await loadTransactions(zkpUser.reference_number);
+      // Keep spinning for at least 500ms for visual feedback
+      setTimeout(() => setIsRefreshing(false), 500);
+    }
+  };
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text).then(
@@ -141,6 +151,18 @@ const Dashboard: React.FC = () => {
 
   return (
     <>
+      <style>
+        {`
+          @keyframes spin {
+            from {
+              transform: rotate(0deg);
+            }
+            to {
+              transform: rotate(360deg);
+            }
+          }
+        `}
+      </style>
       {/* Two Column Layout */}
       <div
         style={{
@@ -823,7 +845,58 @@ const Dashboard: React.FC = () => {
           <h3 className="transactions-title" style={{ margin: 0 }}>
             Recent Transactions
           </h3>
-          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+          <div
+            style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}
+          >
+            <button
+              type="button"
+              onClick={refreshTransactions}
+              title="Refresh transactions"
+              disabled={isRefreshing}
+              style={{
+                background: "rgba(16, 185, 129, 0.2)",
+                color: "#10b981",
+                border: "1px solid rgba(16, 185, 129, 0.3)",
+                padding: "0.5rem",
+                borderRadius: "0.5rem",
+                cursor: isRefreshing ? "not-allowed" : "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                transition: "all 0.2s ease",
+                opacity: isRefreshing ? 0.7 : 1,
+              }}
+              onMouseEnter={(e) => {
+                if (!isRefreshing) {
+                  e.currentTarget.style.background = "rgba(16, 185, 129, 0.3)";
+                  e.currentTarget.style.transform = "scale(1.05)";
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!isRefreshing) {
+                  e.currentTarget.style.background = "rgba(16, 185, 129, 0.2)";
+                  e.currentTarget.style.transform = "scale(1)";
+                }
+              }}
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                style={{
+                  animation: isRefreshing ? "spin 1s linear infinite" : "none",
+                }}
+              >
+                <polyline points="23 4 23 10 17 10" />
+                <polyline points="1 20 1 14 7 14" />
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+              </svg>
+            </button>
             <button
               type="button"
               onClick={() => {
