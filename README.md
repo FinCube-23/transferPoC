@@ -1,4 +1,4 @@
-# FinCube - Privacy-Preserving B2B Financial Infrastructure
+# FinCube - Privacy-Preserving B2B Financial Infrastructure for Enterprise Platforms
 
 <div align="center">
   <img src="https://brainstation-23.com/wp-content/uploads/2025/06/image-1-1.png" alt="Brain Station 23 PLC" width="300"/>
