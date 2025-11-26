@@ -10,7 +10,7 @@ class FraudResult(str, Enum):
 
 
 class ScoreRequest(BaseModel):
-    address: str = Field(..., description="Ethereum address to check")
+    reference_number: str = Field(..., description="Reference number to filter transactions")
 
 
 class KNNResult(BaseModel):

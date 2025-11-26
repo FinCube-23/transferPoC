@@ -6,6 +6,12 @@ class Settings(BaseSettings):
     # API Keys
     alchemy_api_key: str
     google_api_key: str
+
+    # Blockchain
+    fincube_contract_address: str
+
+    # The Graph Subgraph
+    subgraph_url: str = "https://api.studio.thegraph.com/query/93678/fincube-subgraph/v0.0.2"
     
     # Kaggle
     kaggle_username: str = ""
