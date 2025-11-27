@@ -87,6 +87,14 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  // Extract wallet address from reference number (format: 0xAddress_uuid)
+  const extractWalletAddress = (refNumber: string): string => {
+    if (refNumber.includes("_")) {
+      return refNumber.split("_")[0];
+    }
+    return refNumber; // Fallback if it's already just an address
+  };
+
   // Fetch fraud detection for all visible transactions in parallel
   useEffect(() => {
     if (transactions.length === 0) return;
@@ -100,13 +108,15 @@ const Dashboard: React.FC = () => {
     // Skip if already loading or has valid result (not error)
     const fetchPromises = page
       .filter((tx) => {
-        const existing = fraudResults[tx.sender];
+        const walletAddress = extractWalletAddress(tx.sender);
+        const existing = fraudResults[walletAddress];
         // Refetch if error or doesn't exist
-        return tx.sender && (!existing || existing.error);
+        return walletAddress && (!existing || existing.error);
       })
       .map((tx) => {
-        console.log("Fetching fraud detection for:", tx.sender);
-        return fetchFraudDetection(tx.sender, tx.sender);
+        const walletAddress = extractWalletAddress(tx.sender);
+        console.log("Fetching fraud detection for:", walletAddress);
+        return fetchFraudDetection(walletAddress, walletAddress);
       });
 
     console.log(
@@ -903,12 +913,12 @@ const Dashboard: React.FC = () => {
                 const FINCUBE_ADDRESS =
                   "0x8a263DcEfee44B9Abe968C1B18e370f6A0A5F878";
                 window.open(
-                  `https://sepolia.etherscan.io/address/${FINCUBE_ADDRESS}`,
+                  `https://celo-sepolia.blockscout.com/address/${FINCUBE_ADDRESS}`,
                   "_blank",
                   "noopener"
                 );
               }}
-              title="View latest transaction on Etherscan (Sepolia)"
+              title="View latest transaction on Blockscout (Celo Sepolia)"
               style={{
                 background: "transparent",
                 color: "#21325b",
@@ -966,53 +976,105 @@ const Dashboard: React.FC = () => {
     const start = currentPage * ITEMS_PER_PAGE;
     const page = sorted.slice(start, start + ITEMS_PER_PAGE);
 
-    const shorten = (addr: string): string => {
-      return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+    // Shorten reference number for display (show first 10 and last 10 characters)
+    const shortenRefNumber = (refNum: string): string => {
+      if (refNum.length > 25) {
+        return `${refNum.slice(0, 10)}...${refNum.slice(-10)}`;
+      }
+      return refNum;
     };
 
-    const etherscanIcon =
+    // Extract wallet address from reference number for fraud detection only
+    const extractWalletAddress = (refNumber: string): string => {
+      if (refNumber.includes("_")) {
+        return refNumber.split("_")[0];
+      }
+      return refNumber; // Fallback if it's already just an address
+    };
+
+    const blockExplorerIcon =
       '<svg width="14" height="14" viewBox="0 0 293.775 293.667" xmlns="http://www.w3.org/2000/svg"><g fill="#21325b"><path d="M146.8 0C65.777 0 0 65.777 0 146.834 0 227.86 65.777 293.667 146.8 293.667c81.056 0 146.833-65.808 146.833-146.833C293.633 65.777 227.856 0 146.8 0zm-3.177 238.832c-22.155 0-40.124-17.969-40.124-40.124s17.969-40.124 40.124-40.124 40.124 17.969 40.124 40.124-17.969 40.124-40.124 40.124zm58.63-82.585c-22.155 0-40.124-17.969-40.124-40.124s17.969-40.124 40.124-40.124 40.124 17.969 40.124 40.124-17.969 40.124-40.124 40.124zm-117.26 0c-22.155 0-40.124-17.969-40.124-40.124s17.969-40.124 40.124-40.124 40.124 17.969 40.124 40.124-17.969 40.124-40.124 40.124z"/></g></svg>';
 
     return page.map((tx, index) => {
-      const displayedPurpose =
-        tx.purpose && tx.purpose.trim() ? tx.purpose.trim() : "Refund";
       const FINCUBE_ADDRESS = "0x8a263DcEfee44B9Abe968C1B18e370f6A0A5F878";
 
       const rawCandidate = tx.txHash || "";
       const match = String(rawCandidate).match(/0x[a-fA-F0-9]{64}/);
       const txHashForUrl = match ? match[0] : undefined;
       const txUrl = txHashForUrl
-        ? `https://sepolia.etherscan.io/tx/${txHashForUrl}`
-        : `https://sepolia.etherscan.io/address/${FINCUBE_ADDRESS}#events`;
+        ? `https://celo-sepolia.blockscout.com/tx/${txHashForUrl}?tab=index`
+        : `https://celo-sepolia.blockscout.com/address/${FINCUBE_ADDRESS}`;
 
-      const fraudData = fraudResults[tx.sender];
+      // Extract wallet address for fraud detection
+      const senderWalletAddress = extractWalletAddress(tx.sender);
+      const fraudData = fraudResults[senderWalletAddress];
+
+      // Parse memo to display essential info
+      let senderWallet = "N/A";
+      let receiverWallet = "N/A";
+      let memoTimestamp = "N/A";
+      
+      if (tx.memo) {
+        try {
+          // Convert hex to string if needed
+          let memoString = tx.memo;
+          if (memoString.startsWith("0x")) {
+            try {
+              const bytes = [];
+              for (let i = 2; i < memoString.length; i += 2) {
+                bytes.push(parseInt(memoString.substr(i, 2), 16));
+              }
+              memoString = new TextDecoder().decode(new Uint8Array(bytes));
+            } catch (e) {
+              console.log("Hex conversion failed, using raw memo");
+            }
+          }
+          
+          // Parse JSON memo
+          const memoData = JSON.parse(memoString);
+          senderWallet = memoData?.sender_wallet_address || "N/A";
+          receiverWallet = memoData?.receiver_wallet_address || "N/A";
+          
+          // Format timestamp
+          if (memoData?.timestamp) {
+            const date = new Date(memoData.timestamp);
+            memoTimestamp = date.toLocaleString();
+          }
+        } catch (e) {
+          console.log("Failed to parse memo:", e);
+        }
+      }
+
+      // Shorten wallet addresses for display
+      const shortenWallet = (addr: string): string => {
+        if (addr === "N/A" || addr.length < 10) return addr;
+        return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+      };
 
       return (
         <div key={`${tx.txHash || ""}-${index}`} className="transaction-row">
-          <div className="tx-address">{shorten(tx.sender)}</div>
-          <div className="tx-address">{shorten(tx.recipient)}</div>
+          <div className="tx-address" title={tx.sender}>{shortenRefNumber(tx.sender)}</div>
+          <div className="tx-address" title={tx.recipient}>{shortenRefNumber(tx.recipient)}</div>
           <div className="tx-amount">{tx.amount}</div>
           <div className="tx-memo">
             <div
-              style={{ fontSize: "0.75em", lineHeight: 1.2, color: "#6b7280" }}
+              style={{ 
+                fontSize: "0.75em", 
+                lineHeight: 1.4, 
+                color: "#6b7280"
+              }}
             >
               <div>
-                <span className="label-green" style={{ color: "#10b981" }}>
-                  Reference
-                </span>
-                : {shorten(FINCUBE_ADDRESS)}
+                <span style={{ color: "#10b981", fontWeight: 600 }}>From:</span>{" "}
+                <span title={senderWallet}>{shortenWallet(senderWallet)}</span>
               </div>
               <div>
-                <span className="label-green" style={{ color: "#10b981" }}>
-                  Purpose
-                </span>
-                : {displayedPurpose}
+                <span style={{ color: "#10b981", fontWeight: 600 }}>To:</span>{" "}
+                <span title={receiverWallet}>{shortenWallet(receiverWallet)}</span>
               </div>
               <div>
-                <span className="label-green" style={{ color: "#10b981" }}>
-                  Description
-                </span>
-                : Transferred
+                <span style={{ color: "#10b981", fontWeight: 600 }}>Time:</span>{" "}
+                {memoTimestamp}
               </div>
             </div>
           </div>
@@ -1081,8 +1143,8 @@ const Dashboard: React.FC = () => {
               href={txUrl}
               target="_blank"
               rel="noopener"
-              title="View on Etherscan"
-              dangerouslySetInnerHTML={{ __html: etherscanIcon }}
+              title="View on Blockscout (Celo Sepolia)"
+              dangerouslySetInnerHTML={{ __html: blockExplorerIcon }}
             />
           </div>
         </div>

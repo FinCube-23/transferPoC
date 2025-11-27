@@ -77,14 +77,33 @@ const Header: React.FC<HeaderProps> = ({
             </h1>
           </div>
         </div>
+      </div>
 
-        {/* Sign Out Button */}
-        {isSignedIn && (
+      {/* Right: Sign In / Sign Out Button */}
+      <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
+        {!isSignedIn ? (
+          <button
+            id="sign-in-top"
+            onClick={onSignInClick}
+            style={{
+              padding: "0.6rem 1.2rem",
+              background: "linear-gradient(135deg, #10b981 0%, #06b6d4 100%)",
+              color: "#fff",
+              border: "none",
+              borderRadius: "0.6rem",
+              fontWeight: 600,
+              cursor: "pointer",
+              boxShadow: "0 4px 12px rgba(16, 185, 129, 0.25)",
+            }}
+          >
+            Sign In
+          </button>
+        ) : (
           <button
             id="sign-out"
             onClick={onSignOutClick}
             style={{
-              padding: "0.25rem 0.6rem",
+              padding: "0.5rem 1rem",
               background: "#ef4444",
               color: "#fff",
               border: "none",
@@ -92,34 +111,19 @@ const Header: React.FC<HeaderProps> = ({
               fontWeight: 600,
               cursor: "pointer",
               boxShadow: "0 4px 12px rgba(239, 68, 68, 0.25)",
+              transition: "all 0.2s ease",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "#dc2626";
+              e.currentTarget.style.transform = "translateY(-1px)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "#ef4444";
+              e.currentTarget.style.transform = "translateY(0)";
             }}
           >
             Sign Out
           </button>
-        )}
-      </div>
-
-      {/* Right: Sign In Button */}
-      <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
-        {!isSignedIn && (
-          <div>
-            <button
-              id="sign-in-top"
-              onClick={onSignInClick}
-              style={{
-                padding: "0.6rem 1.2rem",
-                background: "linear-gradient(135deg, #10b981 0%, #06b6d4 100%)",
-                color: "#fff",
-                border: "none",
-                borderRadius: "0.6rem",
-                fontWeight: 600,
-                cursor: "pointer",
-                boxShadow: "0 4px 12px rgba(16, 185, 129, 0.25)",
-              }}
-            >
-              Sign In
-            </button>
-          </div>
         )}
       </div>
     </header>
