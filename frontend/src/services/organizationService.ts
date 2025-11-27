@@ -41,6 +41,29 @@ export interface JoinOrganizationPayload {
   organization_id: number;
 }
 
+/**
+ * Parse error message to extract clean string from ErrorDetail format
+ * Example: "{'field': [ErrorDetail(string='Error message', code='invalid')]}" -> "Error message"
+ */
+function parseErrorMessage(message: string): string {
+  if (!message) return "An error occurred";
+
+  // Try to extract string from ErrorDetail format
+  const errorDetailMatch = message.match(/string='([^']+)'/);
+  if (errorDetailMatch && errorDetailMatch[1]) {
+    return errorDetailMatch[1];
+  }
+
+  // Try to extract from simple array format
+  const simpleMatch = message.match(/:\s*\[['"]([^'"]+)['"]\]/);
+  if (simpleMatch && simpleMatch[1]) {
+    return simpleMatch[1];
+  }
+
+  // Return original message if no pattern matches
+  return message;
+}
+
 class OrganizationService {
   private baseUrl: string;
 
@@ -74,9 +97,10 @@ class OrganizationService {
       return data;
     } catch (error: any) {
       console.error("Get organizations error:", error);
-      throw new Error(
+      const cleanMessage = parseErrorMessage(
         error.message || "Failed to fetch organizations. Please try again."
       );
+      throw new Error(cleanMessage);
     }
   }
 
@@ -101,7 +125,11 @@ class OrganizationService {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || "Failed to join organization");
+        // Parse the error message to extract clean string
+        const errorMessage = parseErrorMessage(
+          data.message || JSON.stringify(data) || "Failed to join organization"
+        );
+        throw new Error(errorMessage);
       }
 
       return {
@@ -110,9 +138,11 @@ class OrganizationService {
       };
     } catch (error: any) {
       console.error("Join organization error:", error);
-      throw new Error(
+      // Parse error message if it's in ErrorDetail format
+      const cleanMessage = parseErrorMessage(
         error.message || "Failed to join organization. Please try again."
       );
+      throw new Error(cleanMessage);
     }
   }
 }
