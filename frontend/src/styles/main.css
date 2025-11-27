@@ -264,13 +264,13 @@ button,
 
     .transactions-table-header,
     .transaction-row {
-        grid-template-columns: 1fr 1fr 0.9fr 1fr 1.2fr 40px;
+        grid-template-columns: 1fr 1fr 0.9fr 1.8fr 1.2fr 40px;
         gap: 1rem;
         padding: 0.65rem 1rem;
     }
 
     .tx-memo {
-        max-width: 120px;
+        max-width: 150px;
     }
 }
 
@@ -283,14 +283,14 @@ button,
 
     .transactions-table-header,
     .transaction-row {
-        grid-template-columns: 1fr 1fr 0.8fr 1fr 1.2fr 36px;
+        grid-template-columns: 1fr 1fr 0.8fr 1.6fr 1.2fr 36px;
         gap: 0.75rem;
         padding: 0.6rem 0.8rem;
         font-size: 0.9rem;
     }
 
     .tx-memo {
-        max-width: 100px;
+        max-width: 120px;
         font-size: 0.8rem;
     }
 
@@ -329,30 +329,28 @@ button,
         padding: 0 0.5rem;
     }
 
-    /* Mobile transactions table - hide some columns */
+    /* Mobile transactions table - hide memo column */
     .transactions-table-header,
     .transaction-row {
-        grid-template-columns: 1fr 1fr 0.7fr minmax(100px, 1fr) 32px;
-        gap: 0.25rem;
+        grid-template-columns: 1fr 1fr 0.8fr 1fr 32px;
+        gap: 0.5rem;
         padding: 0.5rem;
     }
 
-    /* Hide Purpose and Nullifier columns on mobile */
+    /* Hide Memo column on mobile */
     .transactions-table-header>div:nth-child(4),
-    .transactions-table-header>div:nth-child(5),
-    .transaction-row>div:nth-child(4),
-    .transaction-row>div:nth-child(5) {
+    .transaction-row>div:nth-child(4) {
         display: none;
     }
 
     /* Adjust remaining columns */
-    .transactions-table-header>div:nth-child(6),
-    .transaction-row>div:nth-child(6) {
+    .transactions-table-header>div:nth-child(5),
+    .transaction-row>div:nth-child(5) {
         grid-column: 4;
     }
 
-    .transactions-table-header>div:nth-child(7),
-    .transaction-row>div:nth-child(7) {
+    .transactions-table-header>div:nth-child(6),
+    .transaction-row>div:nth-child(6) {
         grid-column: 5;
     }
 }
@@ -377,21 +375,19 @@ button,
         font-size: 0.8rem;
     }
 
-    /* Hide amount and fraud detection columns on very small screens, keep only addresses and date */
+    /* Hide amount column on very small screens, keep only addresses and date */
     .transactions-table-header>div:nth-child(3),
-    .transaction-row>div:nth-child(3),
+    .transaction-row>div:nth-child(3) {
+        display: none;
+    }
+
     .transactions-table-header>div:nth-child(5),
     .transaction-row>div:nth-child(5) {
-        display: none;
+        grid-column: 3;
     }
 
     .transactions-table-header>div:nth-child(6),
     .transaction-row>div:nth-child(6) {
-        grid-column: 3;
-    }
-
-    .transactions-table-header>div:nth-child(7),
-    .transaction-row>div:nth-child(7) {
         grid-column: 4;
     }
 
@@ -536,9 +532,9 @@ button,
 
 .transactions-table-header {
     display: grid;
-    /* Sender | Recipient | Amount | Memo | Fraud Detection | Date | Etherscan (fixed) */
-    grid-template-columns: 1fr 1fr 1fr 1.5fr 1fr 1.2fr 48px;
-    column-gap: 2rem;
+    /* Sender | Recipient | Amount | Memo | Date | Etherscan (fixed) */
+    grid-template-columns: 1.2fr 1.2fr 1fr 2fr 1.3fr 48px;
+    column-gap: 1.5rem;
     padding: 0.75rem 1.5rem;
     align-items: center;
     font-weight: 700;
@@ -561,9 +557,9 @@ button,
 /* Transaction Row Styling */
 .transaction-row {
     display: grid;
-    /* match header columns exactly - Sender | Recipient | Amount | Memo | Fraud Detection | Date | Etherscan */
-    grid-template-columns: 1fr 1fr 1fr 1.5fr 1fr 1.2fr 48px;
-    gap: 2rem;
+    /* match header columns exactly - Sender | Recipient | Amount | Memo | Date | Etherscan */
+    grid-template-columns: 1.2fr 1.2fr 1fr 2fr 1.3fr 48px;
+    gap: 1.5rem;
     padding: 0.75rem 1.5rem;
     align-items: center;
     border-top: 1px solid rgba(229, 231, 235, 0.6);
