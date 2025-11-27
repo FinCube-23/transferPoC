@@ -44,8 +44,8 @@ services:
     env_file:
       - .env
     depends_on:
-      - opensearch
-      - mongodb
+      mongodb:
+        condition: service_healthy
     networks:
       - fincube23_network
     volumes:

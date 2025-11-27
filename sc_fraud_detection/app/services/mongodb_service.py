@@ -29,7 +29,7 @@ class MongoDBService:
 
     async def connect(self):
         try:
-            connection_string= f"mongodb://{self.username}:{self.password}@{self.host}:{self.port}/"
+            connection_string= f"mongodb://{self.username}:{self.password}@{self.host}:{self.port}/?authSource=admin"
             self.client=AsyncIOMotorClient(connection_string)
             self.db=self.client[self.database_name]
             self.collection=self.db[self.collection_name]
