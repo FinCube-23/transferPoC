@@ -93,15 +93,17 @@ class MongoDBService:
             Returns:
                 True if successful, False otherwise
         """
+
+        s_val=0.1
         try:
             # Get current score or default to  0
             current_doc=await self.get_score(user_ref_number)
             current_score=current_doc.get("score",0.0) if current_doc else 0.0
 
             if is_fraud:
-                new_score=min(1.0,current_score+confidance)
+                new_score=min(1.0,current_score+(confidance*s_val))
             else:
-                new_score=max(0.0,current_score-confidance)
+                new_score=max(0.0,current_score-(confidance*s_val))
             
             # update or insert document
             document={
