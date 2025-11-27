@@ -160,9 +160,10 @@ Solidity contracts deployed on EVM-compatible chains.
 
 **Contracts**:
 
--   **FinCubeDao**: DAO contract to manage memberships
+-   **FinCubeDAO**: Decentralized Autonomous Organization (DAO) for governance
 -   **FinCube**: Main transfer contract with ZKP verification
 -   **HonkVerifier**: On-chain proof verification
+-   **Modular Verifier Components**: Optimized verification libraries
 
 **Location**: `web3/contracts/`
 
@@ -492,6 +493,143 @@ The system executes secure, privacy-preserving transfers with blockchain verific
 
 ## Smart Contracts
 
+### FinCubeDAO Contract
+
+**Purpose**: Decentralized Autonomous Organization (DAO) for managing community members and governance proposals
+
+**Architecture**: Hybrid implementation combining EIP-4824 (Common Interfaces for DAOs) and OpenZeppelin's Governance patterns, simplified for core functionality
+
+**Contract Type**: Upgradeable (UUPS pattern) with ReentrancyGuard
+
+**Key Features**:
+
+-   ✅ Member registration and approval system
+-   ✅ Proposal creation and voting mechanism
+-   ✅ Two proposal types: New Member Approval and General Proposals
+-   ✅ Configurable voting delay and voting period
+-   ✅ Majority-based proposal execution (threshold: (memberCount + 1) / 2)
+-   ✅ Proposal cancellation by proposer
+-   ✅ Upgradeable contract design for future enhancements
+
+**Member Management**:
+
+```solidity
+struct Member {
+    bool status;        // Approval status
+    string memberURI;   // Member identifier/metadata
+}
+
+function registerMember(address _newMember, string memory _memberURI) external
+function approveMember(address newMember) private  // Called via proposal execution
+```
+
+**Proposal System**:
+
+```solidity
+enum ProposalType {
+    NewMemberProposal,    // Approve new members
+    GeneralProposal       // Execute arbitrary contract calls
+}
+
+struct Proposal {
+    bool executed;
+    bool canceled;
+    address proposer;
+    bytes data;
+    address target;
+    uint48 voteStart;
+    uint48 voteDuration;
+    uint256 yesvotes;
+    uint256 novotes;
+    string proposalURI;   // Proposal description
+    uint256 proposalId;
+}
+```
+
+**Key Functions**:
+
+```solidity
+// Create proposal to approve new member
+function newMemberApprovalProposal(
+    address _newMember,
+    string memory description
+) external
+
+// Create general proposal (can invoke any public function)
+function propose(
+    address[] memory targets,
+    uint256[] memory values,
+    bytes[] memory calldatas,
+    string memory description
+) external returns (uint256 proposalId)
+
+// Cast vote on proposal
+function castVote(uint256 proposalId, bool support) external
+
+// Execute approved proposal
+function executeProposal(uint256 proposalId) external
+
+// Cancel proposal (proposer only)
+function cancelProposal(uint256 proposalId) public
+```
+
+**Governance Parameters**:
+
+-   **Voting Delay**: Configurable delay before voting starts (set by owner)
+-   **Voting Period**: Configurable duration for voting (set by owner)
+-   **Proposal Threshold**: (memberCount + 1) / 2 (majority vote required)
+-   **Vote Weight**: Equal voting power for all members (1 vote per member)
+
+**Query Functions**:
+
+```solidity
+// Get proposal by ID
+function getProposalsById(uint256 proposalId) public view returns (Proposal memory)
+
+// Get paginated proposals
+function getProposalsByPage(uint256 cursor, uint256 howMany) public view
+
+// Get proposals filtered by type
+function getProposalsByType(ProposalType proposalTypeFilter) public view
+
+// Check member approval status
+function checkIsMemberApproved(address _member) public view returns (bool)
+```
+
+**Events**:
+
+-   `MemberRegistered(address indexed _newMember, string _memberURI)`
+-   `MemberApproved(address indexed member)`
+-   `ProposalAdded(ProposalType indexed proposalType, uint256 indexed proposalId, bytes data)`
+-   `ProposalCreated(uint256 proposalId, address proposer, ...)`
+-   `VoteCast(address indexed voter, uint256 proposalId, uint8 support, uint256 weight, string reason)`
+-   `ProposalExecuted(uint256 indexed proposalId)`
+-   `ProposalCanceled(uint256 indexed proposalId)`
+
+**Security Features**:
+
+-   ✅ ReentrancyGuard on proposal execution
+-   ✅ Owner-only upgrade authorization (UUPS)
+-   ✅ Member-only proposal creation and voting
+-   ✅ Proposer-only cancellation rights
+-   ✅ Time-based voting windows
+-   ✅ Duplicate vote prevention
+
+**Use Cases**:
+
+1. **Member Onboarding**: Existing members vote to approve new members
+2. **Governance Decisions**: Execute arbitrary contract calls via proposals
+3. **Parameter Updates**: Change voting delay/period through governance
+4. **Contract Upgrades**: Upgrade DAO implementation via proposals
+5. **Treasury Management**: Control funds through governance proposals
+
+**Integration with FinCube**:
+
+-   DAO members can be organization administrators
+-   Governance proposals can update FinCube contract parameters
+-   Member approval process ensures trusted network participants
+-   Audit trail integration tracks all governance activities
+
 ### FinCube Contract
 
 **Purpose**: Main transfer contract with ZKP verification
@@ -691,26 +829,29 @@ User.reference_number format:
 The FinCube Backend seamlessly integrates with the **Web3-Kit Audit Trail Service**, a plug-and-play module that provides comprehensive blockchain activity monitoring and regulatory compliance. This integration is a cornerstone of FinCube's enterprise-grade infrastructure.
 
 **Audit Trail Service Overview**:
-- **Purpose**: Mission-critical microservice for tracking and indexing blockchain transactions in an enterprise-grade manner
-- **Technology**: NestJS, TypeORM, PostgreSQL, Alchemy RPC, TheGraph Protocol, RabbitMQ
-- **API Route**: `/audit-trail-service`
-- **Database**: PostgreSQL (Port 5434) with TypeORM migrations
-- **Architecture**: Event-driven, asynchronous Pub/Sub pattern for scalability
-- **Current Implementations**: DAO governance tracking, FinCube transfer monitoring
+
+-   **Purpose**: Mission-critical microservice for tracking and indexing blockchain transactions in an enterprise-grade manner
+-   **Technology**: NestJS, TypeORM, PostgreSQL, Alchemy RPC, TheGraph Protocol, RabbitMQ
+-   **API Route**: `/audit-trail-service`
+-   **Database**: PostgreSQL (Port 5434) with TypeORM migrations
+-   **Architecture**: Event-driven, asynchronous Pub/Sub pattern for scalability
+-   **Current Implementations**: DAO governance tracking, FinCube transfer monitoring
 
 **Enterprise Capabilities**:
-- Regulatory compliance through complete audit trails meeting AML/CTF requirements
-- Real-time monitoring with low event capture latency
-- Fault tolerance via dual-source event detection with automatic reconciliation every 30 seconds
-- Scalability handling enterprise-scale transaction volumes with at-least-once delivery guarantee
-- Plug-and-play integration requiring zero configuration changes to existing systems
-- Enterprise-level indexing using off-chain PostgreSQL database storing only business-relevant transactions
-- Asynchronous processing model providing non-blocking user experience with background event handling
+
+-   Regulatory compliance through complete audit trails meeting AML/CTF requirements
+-   Real-time monitoring with low event capture latency
+-   Fault tolerance via dual-source event detection with automatic reconciliation every 30 seconds
+-   Scalability handling enterprise-scale transaction volumes with at-least-once delivery guarantee
+-   Plug-and-play integration requiring zero configuration changes to existing systems
+-   Enterprise-level indexing using off-chain PostgreSQL database storing only business-relevant transactions
+-   Asynchronous processing model providing non-blocking user experience with background event handling
 
 **Performance Guarantees**:
-- **Data Sync Interval**: Every 30 seconds via scheduled cron jobs (`*/30 * * * * *`)
-- **Message Delivery**: At-least-once guarantee with retry policy and dead-letter queue
-- **Incident Response**: Critical issues resolved within 4 hours
+
+-   **Data Sync Interval**: Every 30 seconds via scheduled cron jobs (`*/30 * * * * *`)
+-   **Message Delivery**: At-least-once guarantee with retry policy and dead-letter queue
+-   **Incident Response**: Critical issues resolved within 4 hours
 
 ### Integration Architecture
 
@@ -763,6 +904,7 @@ The FinCube Backend seamlessly integrates with the **Web3-Kit Audit Trail Servic
 **The Solution**: Kong Gateway's `rabbitmq-publisher` plugin automatically captures and publishes transaction events.
 
 **How It Works**:
+
 1. **Frontend Request**: User initiates transfer through frontend
 2. **Kong Intercepts**: Gateway intercepts the API call
 3. **Auto-Publish**: Plugin automatically publishes transaction data to RabbitMQ
@@ -770,12 +912,13 @@ The FinCube Backend seamlessly integrates with the **Web3-Kit Audit Trail Servic
 5. **Audit Trail**: Service consumes and processes events
 
 **Integration Characteristics**:
-- Zero-configuration deployment requiring no code changes in frontend or backend
-- Complete transaction coverage with automatic tracking of all blockchain interactions
-- Real-time event publishing from transaction occurrence
-- Reliable delivery where Kong Gateway ensures event publishing even during temporary service unavailability
-- Decoupled architecture allowing services to be added or removed without affecting other components
-- Asynchronous processing providing non-blocking user experience with instant transaction hash response
+
+-   Zero-configuration deployment requiring no code changes in frontend or backend
+-   Complete transaction coverage with automatic tracking of all blockchain interactions
+-   Real-time event publishing from transaction occurrence
+-   Reliable delivery where Kong Gateway ensures event publishing even during temporary service unavailability
+-   Decoupled architecture allowing services to be added or removed without affecting other components
+-   Asynchronous processing providing non-blocking user experience with instant transaction hash response
 
 **Why Event-Driven Architecture (EDA)?**
 
@@ -786,14 +929,15 @@ Traditional synchronous approaches would force users to wait for blockchain conf
 **The Solution**: Asynchronous Pub/Sub flow that provides instant user feedback while processing confirmations in the background.
 
 **Flow**:
+
 1. **User Action**: User initiates blockchain transaction
 2. **Immediate Acknowledgement**: Frontend receives transaction hash instantly - no waiting for blockchain confirmation
 3. **Background Processing**:
-   - Audit Trail listens to RPC events in real-time
-   - If RPC event is missed, The Graph backfills via cron jobs (`*/30 * * * * *`)
+    - Audit Trail listens to RPC events in real-time
+    - If RPC event is missed, The Graph backfills via cron jobs (`*/30 * * * * *`)
 4. **Event Publishing**: When transaction is finalized on-chain:
-   - Audit Trail publishes acknowledgement event to RabbitMQ
-   - All relevant microservices consume and update their off-chain databases
+    - Audit Trail publishes acknowledgement event to RabbitMQ
+    - All relevant microservices consume and update their off-chain databases
 
 **Result**: Users get instant feedback while the system maintains eventual consistency in the background, providing both excellent UX and data integrity.
 
@@ -839,18 +983,20 @@ Blockchain Events
 ```
 
 **Automatic Failover Mechanism**:
-- **Alchemy Down**: TheGraph continues monitoring, no events missed
-- **TheGraph Delayed**: Alchemy provides real-time data immediately
-- **Cross-Validation**: Both sources verify each other's data
-- **Consensus**: Events confirmed by both sources are marked as verified
-- **Alerting**: System alerts if sources disagree or one fails
+
+-   **Alchemy Down**: TheGraph continues monitoring, no events missed
+-   **TheGraph Delayed**: Alchemy provides real-time data immediately
+-   **Cross-Validation**: Both sources verify each other's data
+-   **Consensus**: Events confirmed by both sources are marked as verified
+-   **Alerting**: System alerts if sources disagree or one fails
 
 **Technical Implementation**:
-- **Primary Source**: Alchemy (real-time WebSocket connection)
-- **Secondary Source**: TheGraph (indexed GraphQL queries)
-- **Deduplication**: Events matched by transaction hash
-- **Verification**: Cross-check block number, timestamp, and event data
-- **Storage**: Only verified events stored in audit database
+
+-   **Primary Source**: Alchemy (real-time WebSocket connection)
+-   **Secondary Source**: TheGraph (indexed GraphQL queries)
+-   **Deduplication**: Events matched by transaction hash
+-   **Verification**: Cross-check block number, timestamp, and event data
+-   **Storage**: Only verified events stored in audit database
 
 ### RabbitMQ Exchange Architecture
 
@@ -909,21 +1055,22 @@ Blockchain Events
 
 **Exchange Configuration Details**:
 
-| Parameter | Value |
-|-----------|-------|
-| **Default Exchange Type** | `fanout` |
-| **Default Exchange Name** | `exchange.web3_event_hub.fanout` |
-| **Proposed Exchange Name** | `audit.web3_event_hub.exchange.fanout` |
-| **Message Delivery** | At-least-once guarantee |
-| **Queue Ownership** | Each service maintains its own dedicated queue |
-| **Routing Key** | N/A (Fanout broadcasts to all bound queues) |
-| **Dead-Letter Queue** | Enabled for failed message handling |
+| Parameter                  | Value                                          |
+| -------------------------- | ---------------------------------------------- |
+| **Default Exchange Type**  | `fanout`                                       |
+| **Default Exchange Name**  | `exchange.web3_event_hub.fanout`               |
+| **Proposed Exchange Name** | `audit.web3_event_hub.exchange.fanout`         |
+| **Message Delivery**       | At-least-once guarantee                        |
+| **Queue Ownership**        | Each service maintains its own dedicated queue |
+| **Routing Key**            | N/A (Fanout broadcasts to all bound queues)    |
+| **Dead-Letter Queue**      | Enabled for failed message handling            |
 
 **Event Naming Convention**:
-- **Format**: `<network>.<contract_name>.<event_name>`
-- **Style**: lowercase, snake_case
-- **Example**: `sepolia.payment_oracle.transaction_confirmed`
-- **Versioning**: Backward compatibility maintained for at least two release cycles
+
+-   **Format**: `<network>.<contract_name>.<event_name>`
+-   **Style**: lowercase, snake_case
+-   **Example**: `sepolia.payment_oracle.transaction_confirmed`
+-   **Versioning**: Backward compatibility maintained for at least two release cycles
 
 ### Transaction Receipt Event
 
@@ -954,6 +1101,7 @@ Published after every successful cross-organization blockchain transfer:
 ### Complete Event Processing Pipeline
 
 **Step 1: Event Capture (B2B Backend)**
+
 ```
 Transfer Execution
        │
@@ -981,6 +1129,7 @@ Transfer Execution
 ```
 
 **Step 2: Event Distribution (RabbitMQ)**
+
 ```
 Fanout Exchange
        │
@@ -1000,6 +1149,7 @@ Fanout Exchange
 ```
 
 **Step 3: Event Consumption & Verification (Audit Trail Service)**
+
 ```
 Audit Trail Service
        │
@@ -1039,6 +1189,7 @@ Audit Trail Service
 ```
 
 **Step 4: Real-Time Tracking & Background Processing**
+
 ```
 Audit Trail Database
        │
@@ -1058,21 +1209,23 @@ Audit Trail Database
 ### Event Consumers & Their Roles
 
 **1. Audit Trail Service** (Primary Consumer):
-- ✅ **Permanent Transaction Logging**: Immutable record of all transfers
-- ✅ **On-Chain Verification**: Validates transactions against blockchain using dual sources
-- ✅ **Real-Time Tracking**: Updates transaction history instantly
-- ✅ **Data Enrichment**: Adds metadata, timestamps, and context
-- ✅ **Compliance Reporting**: Generates regulatory-compliant audit reports
-- ✅ **API Access**: Provides `/audit-trail-service` endpoints for queries
-- ✅ **Background Processing**: Handles pending transactions and retries
-- ✅ **Fault Tolerance**: Automatic failover between Alchemy and TheGraph
+
+-   ✅ **Permanent Transaction Logging**: Immutable record of all transfers
+-   ✅ **On-Chain Verification**: Validates transactions against blockchain using dual sources
+-   ✅ **Real-Time Tracking**: Updates transaction history instantly
+-   ✅ **Data Enrichment**: Adds metadata, timestamps, and context
+-   ✅ **Compliance Reporting**: Generates regulatory-compliant audit reports
+-   ✅ **API Access**: Provides `/audit-trail-service` endpoints for queries
+-   ✅ **Background Processing**: Handles pending transactions and retries
+-   ✅ **Fault Tolerance**: Automatic failover between Alchemy and TheGraph
 
 **2. Fraud Detection Service**:
-- Real-time risk assessment
-- Anomaly detection using K-NN
-- Pattern matching and analysis
-- Alert generation for suspicious activities
-- Integration with AI/ML models
+
+-   Real-time risk assessment
+-   Anomaly detection using K-NN
+-   Pattern matching and analysis
+-   Alert generation for suspicious activities
+-   Integration with AI/ML models
 
 ### Service Level Agreement (SLA)
 
@@ -1081,26 +1234,30 @@ The Audit Trail Service operates under a comprehensive SLA to ensure enterprise-
 **Service Dependencies**:
 
 The Audit Trail Service relies on the following third-party providers:
-- **Alchemy RPC Nodes**: Used for live blockchain event streaming
-- **The Graph Protocol**: Used for querying missed or pending transactions
-- **RabbitMQ Broker**: Event distribution infrastructure
+
+-   **Alchemy RPC Nodes**: Used for live blockchain event streaming
+-   **The Graph Protocol**: Used for querying missed or pending transactions
+-   **RabbitMQ Broker**: Event distribution infrastructure
 
 > **Important**: Service uptime and performance metrics are dependent on these third-party providers. The Audit Trail Service includes internal fault-tolerant mechanisms (retry logic, cron-based reconciliation), but **cannot guarantee SLA compliance during third-party outages**.
 
 **Security & Compliance**:
-- Secure RPC endpoints with proper authentication and access control
-- Enforce RabbitMQ access with role-based credentials and SSL encryption
-- Maintain audit logs for all published and consumed events
-- Comply with relevant blockchain and enterprise data handling regulations
+
+-   Secure RPC endpoints with proper authentication and access control
+-   Enforce RabbitMQ access with role-based credentials and SSL encryption
+-   Maintain audit logs for all published and consumed events
+-   Comply with relevant blockchain and enterprise data handling regulations
 
 **Change Management**:
-- Major changes to event schemas follow a **versioning policy**
-- Backward compatibility maintained for at least **two release cycles**
-- Consumers notified of changes with migration guides
+
+-   Major changes to event schemas follow a **versioning policy**
+-   Backward compatibility maintained for at least **two release cycles**
+-   Consumers notified of changes with migration guides
 
 **Service Termination**:
-- If service is deprecated, consumers notified **90 days in advance**
-- Migration plan provided with data export options
+
+-   If service is deprecated, consumers notified **90 days in advance**
+-   Migration plan provided with data export options
 
 ### Configuration
 
@@ -1117,9 +1274,9 @@ The Audit Trail Service relies on the following third-party providers:
 
 **Routing Keys**:
 
--   `user.created`
--   `user.updated`
--   `user.deleted`
+-   `organization.created`
+-   `organization.user.created`
+-   `ums.sync`
 
 **Event Handlers**: Process user lifecycle events for synchronization
 
@@ -1338,7 +1495,7 @@ Response:
 **API Security**:
 
 -   Input validation on all endpoints
--   Rate limiting to prevent abuse
+-   Rate limiting to prevent abuse (future enhancement)
 -   HTTPS/TLS for all communications
 -   Authentication and authorization (future enhancement)
 
@@ -1366,7 +1523,7 @@ Response:
 
 1. **Choose Network**: Select any EVM-compatible blockchain
 
-2. **Deploy Contracts**: Deploy FinCube and HonkVerifier contracts
+2. **Deploy Contracts**: Deploy FinCubeDAO, FinCube and HonkVerifier contracts
 
 3. **Configure RPC**: Update `.env` with network RPC endpoint
 
@@ -1388,14 +1545,14 @@ Response:
 
 ### Scalability Architecture
 
-**Horizontal Scaling**:
+**Horizontal Scaling (Future Enhancement)**:
 
 -   Stateless API servers (can run multiple instances)
 -   Load balancer distribution
 -   MongoDB replica sets
 -   RabbitMQ clustering
 
-**Vertical Scaling**:
+**Vertical Scaling (Future Enhancement)**:
 
 -   Increase server resources for proof generation
 -   Optimize database queries with indexes
@@ -1459,7 +1616,7 @@ Response:
 -   High error rates
 -   Performance degradation
 
-### Production Considerations
+### Production Considerations (Future Enhancement)
 
 **High Availability**:
 
@@ -1489,6 +1646,28 @@ Response:
 
 ### Environment Setup
 
+> **Important Note on System Architecture**:
+>
+> This project represents the **B2C (Business-to-Consumer) system** component of the FinCube ecosystem. It currently has **tight coupling** with two external services from the **B2B (Business-to-Business) system**:
+>
+> 1. **Audit Trail Service** (`/audit-trail-service`): Enterprise-grade blockchain transaction monitoring and regulatory compliance service
+> 2. **User Management Service (UMS)** (`exchange.ums.events`): Centralized user lifecycle management and organization administration
+>
+> **Implications**:
+>
+> -   The B2C system consumes events from UMS via RabbitMQ for user synchronization
+> -   The B2C system publishes transaction events to the Audit Trail Service for compliance tracking
+> -   Both external services must be running and accessible for full system functionality
+> -   Future roadmap includes decoupling these dependencies for standalone B2C deployment
+>
+> **Current Dependencies**:
+>
+> -   **RabbitMQ Exchange**: `exchange.ums.events` (UMS → B2C)
+> -   **RabbitMQ Exchange**: `exchange.transaction-receipt.fanout` (B2C → Audit Trail)
+> -   **API Integration**: `/audit-trail-service` endpoints for transaction verification
+>
+> For development and testing purposes, ensure both B2B services are operational or use mock implementations.
+
 ```bash
 # 1. Clone repository
 git clone <repository-url>
@@ -1507,10 +1686,11 @@ cp .env.example .env
 # Edit .env with your configuration
 
 # 4. Start MongoDB
-docker-compose up -d mongodb
+docker-compose up -d
 
-# 5. Start RabbitMQ
-docker-compose up -d rabbitmq
+# 5. Ensure external B2B services are running
+# - Audit Trail Service
+# - User Management Service
 
 # 6. Start application
 npm start
@@ -1530,7 +1710,7 @@ HONK_VERIFIER_CONTRACT_ADDRESS=0x...
 FINCUBE_CONTRACT_ADDRESS=0x...
 
 # Wallet
-WALLET_PRIVATE_KEY=your_private_key
+WALLET_PRIVATE_KEY=your_private_key # Currently, the private key of the sender/host organization
 
 # Server
 PORT=7000
@@ -1791,10 +1971,8 @@ For technical support, questions, or contributions:
 
 ---
 
-**Last Updated**: 2024-01-21
-
 **Maintained By**: FinCube Development Team
 
 ---
 
-**Built with ❤️ for privacy-preserving B2B financial infrastructure**
+**Built with ❤️ for privacy-preserving financial infrastructure**
