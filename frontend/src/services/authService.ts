@@ -80,21 +80,23 @@ class AuthService {
   constructor() {
     // User management service (port 3000)
     this.userManagementUrl =
-      import.meta.env.VITE_USER_MANAGEMENT_URL || "http://localhost:3000";
+      import.meta.env.VITE_USER_MANAGEMENT_URL || "http://localhost:3001";
     // ZKP query service (port 7000)
     this.zkpApiUrl =
       import.meta.env.VITE_ZKP_API_URL || "http://localhost:7000";
   }
 
   /**
-   * Login with email and password
-   * Endpoint: POST /user-management-service/api/users/login
+   * Login with email and password (for registration flow - skips ZKP)
+   * Only fetches tokens and profile, not ZKP data
    */
-  async login(credentials: LoginCredentials): Promise<AuthResponse> {
+  async loginForRegistration(
+    credentials: LoginCredentials
+  ): Promise<AuthResponse> {
     try {
       // Step 1: Login and get tokens
       const loginResponse = await fetch(
-        `${this.userManagementUrl}/user-management-service/api/users/login`,
+        `${this.userManagementUrl}/api/users/login`,
         {
           method: "POST",
           headers: {
@@ -121,7 +123,84 @@ class AuthService {
 
       // Step 2: Fetch user profile using access token
       const profileResponse = await fetch(
-        `${this.userManagementUrl}/user-management-service/api/users/profile`,
+        `${this.userManagementUrl}/api/users/profile`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${tokens.access}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (!profileResponse.ok) {
+        throw new Error("Failed to fetch user profile");
+      }
+
+      const userProfile: UserProfile = await profileResponse.json();
+
+      // Store user profile
+      localStorage.setItem("fincube_user_profile", JSON.stringify(userProfile));
+
+      // Return without ZKP data (will be fetched after org selection)
+      return {
+        success: true,
+        tokens,
+        userProfile,
+        message: "Login successful",
+      };
+    } catch (error: any) {
+      console.error("Login error:", error);
+
+      // Clean up any partial data
+      this.clearStoredData();
+
+      if (error.name === "TypeError" && error.message.includes("fetch")) {
+        throw new Error(
+          "Cannot connect to authentication service. Please ensure the services are running."
+        );
+      }
+
+      throw new Error(error.message || "Failed to authenticate");
+    }
+  }
+
+  /**
+   * Login with email and password
+   * Endpoint: POST /user-management-service/api/users/login
+   */
+  async login(credentials: LoginCredentials): Promise<AuthResponse> {
+    try {
+      // Step 1: Login and get tokens
+      const loginResponse = await fetch(
+        `${this.userManagementUrl}/api/users/login`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            email: credentials.email,
+            password: credentials.password,
+          }),
+        }
+      );
+
+      const loginData = await loginResponse.json();
+
+      if (!loginResponse.ok || loginData.status !== "success") {
+        throw new Error(loginData.message || "Login failed");
+      }
+
+      const tokens = loginData.tokens;
+
+      // Store tokens
+      localStorage.setItem("fincube_access_token", tokens.access);
+      localStorage.setItem("fincube_refresh_token", tokens.refresh);
+
+      // Step 2: Fetch user profile using access token
+      const profileResponse = await fetch(
+        `${this.userManagementUrl}/api/users/profile`,
         {
           method: "GET",
           headers: {
@@ -194,7 +273,7 @@ class AuthService {
   async register(data: RegisterData): Promise<AuthResponse> {
     try {
       const response = await fetch(
-        `${this.userManagementUrl}/user-management-service/api/users/registration`,
+        `${this.userManagementUrl}/api/users/register`,
         {
           method: "POST",
           headers: {
@@ -214,28 +293,32 @@ class AuthService {
       const result = await response.json();
 
       if (!response.ok) {
-        // Parse field-specific errors
-        const errors: string[] = [];
+        // Extract clean error message from the response
+        let errorMessage = "Registration failed";
 
-        if (typeof result === "object" && result !== null) {
-          for (const [field, messages] of Object.entries(result)) {
-            if (Array.isArray(messages)) {
-              errors.push(
-                `${field.replace(/_/g, " ")}: ${messages.join(", ")}`
-              );
-            } else if (typeof messages === "string") {
-              errors.push(`${field.replace(/_/g, " ")}: ${messages}`);
+        if (result.message) {
+          // Parse error message like: "{'contact_number': [ErrorDetail(string='User with this Phone Number already exists.', code='unique')]}"
+          const messageStr = result.message;
+
+          // Try to extract the string value from ErrorDetail
+          const stringMatch = messageStr.match(/string='([^']+)'/);
+          if (stringMatch && stringMatch[1]) {
+            errorMessage = stringMatch[1];
+          } else {
+            // If no ErrorDetail format, try to extract from simple dict format
+            const simpleMatch = messageStr.match(/:\s*\[['"]([^'"]+)['"]\]/);
+            if (simpleMatch && simpleMatch[1]) {
+              errorMessage = simpleMatch[1];
+            } else {
+              // Fallback to the raw message
+              errorMessage = messageStr;
             }
           }
+        } else if (result.error) {
+          errorMessage = result.error;
         }
 
-        if (errors.length > 0) {
-          throw new Error(errors.join("\n"));
-        }
-
-        throw new Error(
-          result.message || result.error || "Registration failed"
-        );
+        throw new Error(errorMessage);
       }
 
       return {
