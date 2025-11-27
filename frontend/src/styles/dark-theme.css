@@ -1102,24 +1102,22 @@
 @media (max-width: 768px) {
     #app.dark-theme .transactions-table-header,
     #app.dark-theme .transaction-row {
-        grid-template-columns: 1fr 1fr 0.7fr minmax(100px, 1fr) 32px;
+        grid-template-columns: 1fr 1fr 0.8fr 1fr 32px;
     }
 
-    /* Hide Memo and Fraud Detection columns on mobile in dark theme */
+    /* Hide Memo column on mobile in dark theme */
     #app.dark-theme .transactions-table-header > div:nth-child(4),
-    #app.dark-theme .transactions-table-header > div:nth-child(5),
-    #app.dark-theme .transaction-row > div:nth-child(4),
-    #app.dark-theme .transaction-row > div:nth-child(5) {
+    #app.dark-theme .transaction-row > div:nth-child(4) {
         display: none;
+    }
+
+    #app.dark-theme .transactions-table-header > div:nth-child(5),
+    #app.dark-theme .transaction-row > div:nth-child(5) {
+        grid-column: 4;
     }
 
     #app.dark-theme .transactions-table-header > div:nth-child(6),
     #app.dark-theme .transaction-row > div:nth-child(6) {
-        grid-column: 4;
-    }
-
-    #app.dark-theme .transactions-table-header > div:nth-child(7),
-    #app.dark-theme .transaction-row > div:nth-child(7) {
         grid-column: 5;
     }
 }
@@ -1130,21 +1128,19 @@
         grid-template-columns: 1fr 1fr minmax(80px, 1fr) 28px;
     }
 
-    /* Hide amount and fraud detection columns */
+    /* Hide amount column */
     #app.dark-theme .transactions-table-header > div:nth-child(3),
-    #app.dark-theme .transaction-row > div:nth-child(3),
+    #app.dark-theme .transaction-row > div:nth-child(3) {
+        display: none;
+    }
+
     #app.dark-theme .transactions-table-header > div:nth-child(5),
     #app.dark-theme .transaction-row > div:nth-child(5) {
-        display: none;
+        grid-column: 3;
     }
 
     #app.dark-theme .transactions-table-header > div:nth-child(6),
     #app.dark-theme .transaction-row > div:nth-child(6) {
-        grid-column: 3;
-    }
-
-    #app.dark-theme .transactions-table-header > div:nth-child(7),
-    #app.dark-theme .transaction-row > div:nth-child(7) {
         grid-column: 4;
     }
 }
@@ -1160,13 +1156,13 @@
         display: none;
     }
 
-    #app.dark-theme .transactions-table-header > div:nth-child(6),
-    #app.dark-theme .transaction-row > div:nth-child(6) {
+    #app.dark-theme .transactions-table-header > div:nth-child(5),
+    #app.dark-theme .transaction-row > div:nth-child(5) {
         grid-column: 2;
     }
 
-    #app.dark-theme .transactions-table-header > div:nth-child(7),
-    #app.dark-theme .transaction-row > div:nth-child(7) {
+    #app.dark-theme .transactions-table-header > div:nth-child(6),
+    #app.dark-theme .transaction-row > div:nth-child(6) {
         grid-column: 3;
     }
 }

@@ -28,106 +28,59 @@ const Dashboard: React.FC = () => {
   const [isCopied, setIsCopied] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const [fraudResults, setFraudResults] = useState<
-    Record<
-      string,
-      {
-        result: string;
-        probability: number;
-        confidence: number;
-        loading: boolean;
-        error: boolean;
-      }
-    >
-  >({});
+  // Trust score state for the current user
+  const [trustScore, setTrustScore] = useState<{
+    score: number;
+    last_result: string;
+    loading: boolean;
+    error: boolean;
+  }>({
+    score: 0,
+    last_result: "",
+    loading: false,
+    error: false,
+  });
 
-  // Fetch fraud detection for an address using the service
-  const fetchFraudDetection = async (address: string, fromAddress?: string) => {
-    // Set loading state
-    setFraudResults((prev) => ({
-      ...prev,
-      [address]: {
-        result: "",
-        probability: 0,
-        confidence: 0,
-        loading: true,
-        error: false,
-      },
-    }));
+  // Fetch trust score for the current user using GET endpoint
+  useEffect(() => {
+    console.log("Trust score useEffect triggered");
+    console.log("zkpUser:", zkpUser);
+    console.log("zkpUser?.reference_number:", zkpUser?.reference_number);
+    
+    if (!zkpUser?.reference_number) {
+      console.log("No reference number, skipping trust score fetch");
+      return;
+    }
 
-    try {
-      const data = await fraudDetectionService.getFraudScore(
-        address,
-        fromAddress
-      );
+    const fetchTrustScore = async () => {
+      console.log("Fetching trust score for:", zkpUser.reference_number);
+      setTrustScore((prev) => ({ ...prev, loading: true }));
 
-      setFraudResults((prev) => ({
-        ...prev,
-        [address]: {
-          result: data.result,
-          probability: data.fraud_probability,
-          confidence: data.confidence,
+      try {
+        const data = await fraudDetectionService.getFraudScoreByRefNumber(
+          zkpUser.reference_number
+        );
+
+        console.log("Trust score received:", data);
+        setTrustScore({
+          score: data.score,
+          last_result: data.last_result,
           loading: false,
           error: false,
-        },
-      }));
-    } catch (error: any) {
-      console.error("Fraud detection error:", error);
-
-      setFraudResults((prev) => ({
-        ...prev,
-        [address]: {
-          result: "",
-          probability: 0,
-          confidence: 0,
+        });
+      } catch (error: any) {
+        console.error("Trust score fetch error:", error);
+        setTrustScore({
+          score: 0,
+          last_result: "",
           loading: false,
           error: true,
-        },
-      }));
-    }
-  };
+        });
+      }
+    };
 
-  // Extract wallet address from reference number (format: 0xAddress_uuid)
-  const extractWalletAddress = (refNumber: string): string => {
-    if (refNumber.includes("_")) {
-      return refNumber.split("_")[0];
-    }
-    return refNumber; // Fallback if it's already just an address
-  };
-
-  // Fetch fraud detection for all visible transactions in parallel
-  useEffect(() => {
-    if (transactions.length === 0) return;
-
-    const ITEMS_PER_PAGE = 10;
-    const sorted = [...transactions].sort((a, b) => b.timestamp - a.timestamp);
-    const start = currentPage * ITEMS_PER_PAGE;
-    const page = sorted.slice(start, start + ITEMS_PER_PAGE);
-
-    // Fetch fraud detection for each transaction with from address
-    // Skip if already loading or has valid result (not error)
-    const fetchPromises = page
-      .filter((tx) => {
-        const walletAddress = extractWalletAddress(tx.sender);
-        const existing = fraudResults[walletAddress];
-        // Refetch if error or doesn't exist
-        return walletAddress && (!existing || existing.error);
-      })
-      .map((tx) => {
-        const walletAddress = extractWalletAddress(tx.sender);
-        console.log("Fetching fraud detection for:", walletAddress);
-        return fetchFraudDetection(walletAddress, walletAddress);
-      });
-
-    console.log(
-      `Fetching fraud detection for ${fetchPromises.length} addresses`
-    );
-
-    // Fetch all in parallel for faster loading
-    if (fetchPromises.length > 0) {
-      Promise.all(fetchPromises);
-    }
-  }, [transactions, currentPage]);
+    fetchTrustScore();
+  }, [zkpUser]);
 
   // Load transactions when user data is available
   useEffect(() => {
@@ -250,6 +203,20 @@ const Dashboard: React.FC = () => {
                   );
                 }
 
+                // Validate fraud scores before transfer
+                console.log("Validating fraud scores...");
+                const fraudValidation = await fraudDetectionService.validateTransfer(
+                  zkpUser.reference_number,
+                  referenceNumber,
+                  0.8 // threshold (score range: 0-1, ≥0.8 = untrusted)
+                );
+
+                if (!fraudValidation.isValid) {
+                  throw new Error(fraudValidation.error || "Transfer blocked");
+                }
+
+                console.log("Fraud validation passed");
+
                 // Call transfer API
                 console.log("Sending transfer request:", {
                   receiver_reference_number: referenceNumber,
@@ -354,6 +321,19 @@ const Dashboard: React.FC = () => {
                     JSON.stringify(zkpUser)
                   );
                 }
+
+                // Trigger fraud score analysis for both sender and receiver (POST)
+                // This updates the fraud scores in the backend
+                console.log("Triggering fraud score analysis after transfer...");
+                Promise.all([
+                  fraudDetectionService.getFraudScore(zkpUser.reference_number),
+                  fraudDetectionService.getFraudScore(referenceNumber)
+                ]).then(() => {
+                  console.log("Fraud score analysis triggered for both parties");
+                }).catch((err) => {
+                  console.error("Fraud score analysis failed:", err);
+                  // Don't block the UI if fraud analysis fails
+                });
 
                 // Clear form
                 setTransferForm({
@@ -705,6 +685,31 @@ const Dashboard: React.FC = () => {
                     {userProfile.status}
                   </span>
                 </div>
+                <div style={{ marginBottom: "0.5rem" }}>
+                  <strong style={{ color: "#06b6d4", fontWeight: 600 }}>
+                    Trust Score:
+                  </strong>{" "}
+                  {trustScore.loading ? (
+                    <span style={{ color: "#94a3b8" }}>Loading...</span>
+                  ) : trustScore.error ? (
+                    <span style={{ color: "#ef4444" }}>Unavailable</span>
+                  ) : (
+                    <span
+                      style={{
+                        color: trustScore.score < 0.3 ? "#10b981" : trustScore.score < 0.6 ? "#3b82f6" : trustScore.score < 0.8 ? "#f59e0b" : "#ef4444",
+                        background: trustScore.score < 0.3 ? "rgba(16, 185, 129, 0.15)" : trustScore.score < 0.6 ? "rgba(59, 130, 246, 0.15)" : trustScore.score < 0.8 ? "rgba(245, 158, 11, 0.15)" : "rgba(239, 68, 68, 0.15)",
+                        padding: "0.15rem 0.5rem",
+                        borderRadius: "0.4rem",
+                        fontSize: "0.85rem",
+                        fontWeight: 600,
+                        border: trustScore.score < 0.3 ? "1px solid rgba(16, 185, 129, 0.3)" : trustScore.score < 0.6 ? "1px solid rgba(59, 130, 246, 0.3)" : trustScore.score < 0.8 ? "1px solid rgba(245, 158, 11, 0.3)" : "1px solid rgba(239, 68, 68, 0.3)",
+                      }}
+                      title={`Last Result: ${trustScore.last_result}`}
+                    >
+                      {trustScore.score < 0.3 ? "✅ Low Risk" : trustScore.score < 0.6 ? "ℹ️ Moderate Risk" : trustScore.score < 0.8 ? "⚠️ High Risk" : "🚨 User Untrusted"} ({(trustScore.score * 100).toFixed(1)}%)
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
           )}
@@ -833,7 +838,7 @@ const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Recent Transactions */}
+      {/* Recent Blockchain Transfers */}
       <section
         id="recent-transactions"
         style={{
@@ -853,7 +858,7 @@ const Dashboard: React.FC = () => {
           }}
         >
           <h3 className="transactions-title" style={{ margin: 0 }}>
-            Recent Transactions
+            Recent Blockchain Transfers
           </h3>
           <div
             style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}
@@ -957,7 +962,6 @@ const Dashboard: React.FC = () => {
             <div>Recipient</div>
             <div style={{ textAlign: "right" }}>Amount</div>
             <div>Memo</div>
-            <div style={{ textAlign: "center" }}>Fraud Detection</div>
             <div style={{ textAlign: "right" }}>Date</div>
             <div style={{ textAlign: "right" }}></div>
           </div>
@@ -984,14 +988,6 @@ const Dashboard: React.FC = () => {
       return refNum;
     };
 
-    // Extract wallet address from reference number for fraud detection only
-    const extractWalletAddress = (refNumber: string): string => {
-      if (refNumber.includes("_")) {
-        return refNumber.split("_")[0];
-      }
-      return refNumber; // Fallback if it's already just an address
-    };
-
     const blockExplorerIcon =
       '<svg width="14" height="14" viewBox="0 0 293.775 293.667" xmlns="http://www.w3.org/2000/svg"><g fill="#21325b"><path d="M146.8 0C65.777 0 0 65.777 0 146.834 0 227.86 65.777 293.667 146.8 293.667c81.056 0 146.833-65.808 146.833-146.833C293.633 65.777 227.856 0 146.8 0zm-3.177 238.832c-22.155 0-40.124-17.969-40.124-40.124s17.969-40.124 40.124-40.124 40.124 17.969 40.124 40.124-17.969 40.124-40.124 40.124zm58.63-82.585c-22.155 0-40.124-17.969-40.124-40.124s17.969-40.124 40.124-40.124 40.124 17.969 40.124 40.124-17.969 40.124-40.124 40.124zm-117.26 0c-22.155 0-40.124-17.969-40.124-40.124s17.969-40.124 40.124-40.124 40.124 17.969 40.124 40.124-17.969 40.124-40.124 40.124z"/></g></svg>';
 
@@ -1004,10 +1000,6 @@ const Dashboard: React.FC = () => {
       const txUrl = txHashForUrl
         ? `https://celo-sepolia.blockscout.com/tx/${txHashForUrl}?tab=index`
         : `https://celo-sepolia.blockscout.com/address/${FINCUBE_ADDRESS}`;
-
-      // Extract wallet address for fraud detection
-      const senderWalletAddress = extractWalletAddress(tx.sender);
-      const fraudData = fraudResults[senderWalletAddress];
 
       // Parse memo to display essential info
       let senderWallet = "N/A";
@@ -1077,62 +1069,6 @@ const Dashboard: React.FC = () => {
                 {memoTimestamp}
               </div>
             </div>
-          </div>
-          <div
-            className={`tx-fraud ${
-              fraudData?.loading
-                ? "loading"
-                : fraudData?.error
-                ? "error"
-                : fraudData?.result === "Fraud"
-                ? "fraud"
-                : fraudData?.result === "Not_Fraud"
-                ? "not-fraud"
-                : fraudData?.result === "Undecided"
-                ? "undecided"
-                : fraudData?.result === "Service Unavailable"
-                ? "error"
-                : "loading"
-            }`}
-          >
-            {fraudData?.loading ? (
-              <span>🔍 Analyzing...</span>
-            ) : fraudData?.error ||
-              fraudData?.result === "Service Unavailable" ? (
-              <div
-                title="Fraud detection service is offline or slow. Please check the service."
-                style={{ cursor: "help" }}
-              >
-                <div>⚠️ Offline</div>
-                <div style={{ fontSize: "0.7em", opacity: 0.8 }}>
-                  Service Down
-                </div>
-              </div>
-            ) : fraudData?.result ? (
-              <>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.3rem",
-                    justifyContent: "center",
-                  }}
-                >
-                  {fraudData.result === "Fraud" && "🚨"}
-                  {fraudData.result === "Not_Fraud" && "✅"}
-                  {fraudData.result === "Undecided" && "⚠️"}
-                  <span>{fraudData.result.replace("_", " ")}</span>
-                </div>
-                <div className="fraud-probability">
-                  {Math.round(fraudData.probability * 100)}%
-                </div>
-                <div className="fraud-confidence">
-                  Confidence: {Math.round(fraudData.confidence * 100)}%
-                </div>
-              </>
-            ) : (
-              <span>🔍 Analyzing...</span>
-            )}
           </div>
           <div className="tx-date">
             {new Date(tx.timestamp).toLocaleString()}
