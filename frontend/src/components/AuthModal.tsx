@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useAuthStore } from "../stores/authStore";
 import { authService } from "../services/authService";
 import OrganizationModal from "./OrganizationModal";
+import NotificationModal from "./NotificationModal";
 
 interface AuthModalProps {
   onClose: () => void;
@@ -16,6 +17,17 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onAuthSuccess }) => {
     userId: number;
     accessToken: string;
   } | null>(null);
+  const [notification, setNotification] = useState<{
+    show: boolean;
+    type: "success" | "error" | "warning" | "info";
+    title: string;
+    message: string;
+  }>({
+    show: false,
+    type: "info",
+    title: "",
+    message: "",
+  });
 
   const handleBackdropClick = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget) {
@@ -62,14 +74,24 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onAuthSuccess }) => {
 
         onAuthSuccess();
       } else {
-        alert(response.message || "Login failed");
+        setNotification({
+          show: true,
+          type: "error",
+          title: "Login Failed",
+          message: response.message || "Login failed. Please try again.",
+        });
         setLoading(false);
       }
     } catch (err: any) {
       console.error("Login failed", err);
-      alert(
-        err.message || "Authentication failed. Please check your credentials."
-      );
+      setNotification({
+        show: true,
+        type: "error",
+        title: "Authentication Failed",
+        message:
+          err.message ||
+          "Authentication failed. Please check your credentials.",
+      });
       setLoading(false);
     }
   };
@@ -99,7 +121,12 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onAuthSuccess }) => {
 
     // Validate passwords match
     if (password !== passwordConfirm) {
-      alert("Passwords do not match");
+      setNotification({
+        show: true,
+        type: "warning",
+        title: "Password Mismatch",
+        message: "Passwords do not match. Please try again.",
+      });
       return;
     }
 
@@ -141,17 +168,35 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onAuthSuccess }) => {
           // Show organization selection modal
           setShowOrgModal(true);
         } else {
-          alert("Registration successful but auto-login failed. Please login.");
+          setNotification({
+            show: true,
+            type: "warning",
+            title: "Auto-Login Failed",
+            message:
+              "Registration successful but auto-login failed. Please login manually.",
+          });
           setActiveTab("login");
           setLoading(false);
         }
       } else {
-        alert(registerResponse.message || "Registration failed");
+        setNotification({
+          show: true,
+          type: "error",
+          title: "Registration Failed",
+          message:
+            registerResponse.message ||
+            "Registration failed. Please try again.",
+        });
         setLoading(false);
       }
     } catch (err: any) {
       console.error("Registration failed", err);
-      alert(err.message || "Registration failed. Please try again.");
+      setNotification({
+        show: true,
+        type: "error",
+        title: "Registration Failed",
+        message: err.message || "Registration failed. Please try again.",
+      });
       setLoading(false);
     }
   };
@@ -224,7 +269,13 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onAuthSuccess }) => {
       onAuthSuccess();
     } catch (err: any) {
       console.error("Failed to complete setup:", err);
-      alert(err.message || "Failed to complete account setup");
+      setNotification({
+        show: true,
+        type: "error",
+        title: "Setup Failed",
+        message:
+          err.message || "Failed to complete account setup. Please try again.",
+      });
       setLoading(false);
     }
   };
@@ -252,9 +303,11 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onAuthSuccess }) => {
             justifyContent: "center",
             padding: "1rem",
             zIndex: 50,
+            animation: "fadeIn 0.2s ease-out",
           }}
         >
           <div
+            onClick={(e) => e.stopPropagation()}
             style={{
               width: "100%",
               maxWidth: "420px",
@@ -265,6 +318,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onAuthSuccess }) => {
               boxShadow: "0 24px 60px rgba(2, 6, 23, 0.35)",
               overflow: "hidden",
               position: "relative",
+              animation: "popupScale 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)",
             }}
           >
             {/* Tabs */}
@@ -648,6 +702,42 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onAuthSuccess }) => {
           </div>
         </div>
       )}
+
+      {/* Notification Modal */}
+      <NotificationModal
+        isVisible={notification.show}
+        type={notification.type}
+        title={notification.title}
+        message={notification.message}
+        onClose={() =>
+          setNotification({ show: false, type: "info", title: "", message: "" })
+        }
+      />
+
+      {/* Animation Styles */}
+      <style>
+        {`
+          @keyframes fadeIn {
+            from {
+              opacity: 0;
+            }
+            to {
+              opacity: 1;
+            }
+          }
+
+          @keyframes popupScale {
+            0% {
+              opacity: 0;
+              transform: scale(0.8) translateY(-20px);
+            }
+            100% {
+              opacity: 1;
+              transform: scale(1) translateY(0);
+            }
+          }
+        `}
+      </style>
     </>
   );
 };
