@@ -184,14 +184,14 @@ User and organization data management:
 The system executes secure, privacy-preserving transfers with blockchain verification:
 
 ```
-1. [STEP 1/7] Validate Input
-2. [STEP 2/7] Retrieve User Data
-3. [STEP 3/7] Generate ZKP Proof (receiver membership)
-4. [STEP 4/7] Generate Nullifier (unique tx ID)
-5. [STEP 5/7] Create Memo (transfer metadata)
-6. [STEP 6/7] Execute Blockchain Transfer
-7. [STEP 7/7] Publish to RabbitMQ
-8. Update Database Balances
+1. [STEP 1/8] Validate Input
+2. [STEP 2/8] Retrieve User Data
+3. [STEP 3/8] Generate ZKP Proof (receiver membership)
+4. [STEP 4/8] Generate Nullifier (unique tx ID)
+5. [STEP 5/8] Create Memo (transfer metadata)
+6. [STEP 6/8] Execute Blockchain Transfer
+7. [STEP 7/8] Publish to RabbitMQ
+8. [STEP 8/8] Update Database Balances
 ```
 
 **Characteristics:**
@@ -1077,40 +1077,9 @@ cp .env.example .env
 # 4. Start services
 docker-compose up -d
 
-# 5. Run migrations (if needed)
-node migrate-data.js
-
-# 6. Start application
+# 5. Start application
 npm start
 ```
-
-### Production Considerations
-
-1. **Security**:
-   - Use environment-specific `.env` files
-   - Never commit private keys
-   - Use secrets management (AWS Secrets Manager, HashiCorp Vault)
-   - Enable HTTPS/TLS
-
-2. **Monitoring**:
-   - Set up logging aggregation (ELK, Datadog)
-   - Monitor RabbitMQ queue depths
-   - Track blockchain transaction failures
-   - Alert on database connection issues
-
-3. **Scaling**:
-   - Use MongoDB replica sets for high availability
-   - Deploy multiple API instances behind load balancer
-   - Use RabbitMQ clustering for reliability
-   - Consider caching frequently accessed data
-
-4. **Backup**:
-   - Regular MongoDB backups
-   - Store private keys securely
-   - Document contract addresses
-   - Backup RabbitMQ configuration
-
----
 
 ## Documentation
 
@@ -1120,7 +1089,6 @@ npm start
 - `RABBITMQ_TRANSACTION_EVENTS.md` - RabbitMQ integration guide
 - `BLOCKCHAIN_INTEGRATION_COMPLETE.md` - Blockchain integration details
 - `SCHEMA_MIGRATION_GUIDE.md` - Database migration instructions
-- `TROUBLESHOOTING.md` - Common issues and solutions
 
 ### Additional Resources
 
@@ -1170,9 +1138,8 @@ npm start
 4. **Rate Limiting**: Prevent abuse and DoS attacks
 5. **Webhook Support**: Push notifications for transfer events
 6. **GraphQL API**: Alternative to REST for complex queries
-7. **Fraud Detection**: Integration with fraud detection service
-8. **Mobile SDK**: Native mobile app support
-9. **Fiat On/Off Ramps**: Integration with fiat-to-stablecoin conversion services
+7. **Mobile SDK**: Native mobile app support
+8. **Fiat On/Off Ramps**: Integration with fiat-to-stablecoin conversion services
 
 ### Performance Optimizations
 
@@ -1216,23 +1183,11 @@ node check-indexes.js
 ### Getting Help
 
 1. Review documentation in this directory
-2. Check `TROUBLESHOOTING.md` for common issues
-3. Review test files for usage examples
-4. Check application logs for error details
+2. Review test files for usage examples
+3. Check application logs for error details
 
 ---
 
 ## License
 MIT
 
-
-## Version History
-
-- **v1.0.0** - Initial release with core transfer functionality
-- **v1.1.0** - Added RabbitMQ integration
-- **v1.2.0** - Added query endpoints
-- **v1.3.0** - Added dynamic token decimal support
-
----
-
-**Last Updated**: 2024-01-21
