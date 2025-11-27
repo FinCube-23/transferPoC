@@ -5,6 +5,7 @@ import type { ParsedTransfer } from "../services/graphService";
 import { useAuthStore } from "../stores/authStore";
 import TransferProgressModal from "./TransferProgressModal";
 import NotificationModal from "./NotificationModal";
+import QRCodeModal from "./QRCodeModal";
 
 const Dashboard: React.FC = () => {
   const userProfile = useAuthStore((state) => state.userProfile);
@@ -30,6 +31,7 @@ const Dashboard: React.FC = () => {
   const [isCopied, setIsCopied] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showProgressModal, setShowProgressModal] = useState(false);
+  const [showQRModal, setShowQRModal] = useState(false);
   const [transferStep, setTransferStep] = useState(0);
   const [transferStatus, setTransferStatus] = useState<
     "processing" | "success" | "error"
@@ -180,8 +182,73 @@ const Dashboard: React.FC = () => {
             Send Transfer
           </h2>
 
-          {/* Show pending approval message if user is not approved */}
-          {userProfile && userProfile.status !== "approved" ? (
+          {/* Show blocked message if fraud score >= 0.8 (80%) */}
+          {!trustScore.loading && !trustScore.error && trustScore.score >= 0.8 ? (
+            <div
+              style={{
+                padding: "2rem",
+                background:
+                  "linear-gradient(135deg, rgba(15, 23, 42, 0.9) 0%, rgba(30, 41, 59, 0.9) 100%)",
+                backdropFilter: "blur(20px) saturate(180%)",
+                borderRadius: "1rem",
+                border: "2px solid rgba(239, 68, 68, 0.25)",
+                boxShadow:
+                  "0 8px 24px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1)",
+                textAlign: "center",
+              }}
+            >
+              <svg
+                width="64"
+                height="64"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="#ef4444"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                style={{
+                  margin: "0 auto 1rem",
+                  display: "block",
+                }}
+              >
+                <circle cx="12" cy="12" r="10" />
+                <line x1="15" y1="9" x2="9" y2="15" />
+                <line x1="9" y1="9" x2="15" y2="15" />
+              </svg>
+              <h3
+                style={{
+                  background: "rgba(255, 255, 255, 0.1)",
+                  margin: "0 0 0.75rem 0",
+                  fontSize: "1.25rem",
+                  fontWeight: 700,
+                  color: "#ef4444",
+                  textShadow: "0 0 10px rgba(239, 68, 68, 0.3)",
+                }}
+              >
+                Account Blocked
+              </h3>
+              <p
+                style={{
+                  margin: "0 0 0.5rem 0",
+                  fontSize: "0.95rem",
+                  color: "#cbd5e1",
+                  fontWeight: 600,
+                  lineHeight: 1.6,
+                }}
+              >
+                User blocked due to illegal activity
+              </p>
+              <p
+                style={{
+                  margin: "0",
+                  fontSize: "0.85rem",
+                  color: "#94a3b8",
+                }}
+              >
+                Your account has been flagged for suspicious activity. Transfers are currently disabled.
+              </p>
+            </div>
+          ) : userProfile && userProfile.status !== "approved" ? (
             <div
               style={{
                 padding: "2rem",
@@ -546,6 +613,7 @@ const Dashboard: React.FC = () => {
                     background: "rgba(255, 255, 255, 0.9)",
                     transition: "all 0.2s ease",
                     boxSizing: "border-box",
+                    marginBottom: "0",
                   }}
                 />
                 <div
@@ -555,6 +623,8 @@ const Dashboard: React.FC = () => {
                     right: "1rem",
                     transform: "translateY(-50%)",
                     pointerEvents: "none",
+                    display: "flex",
+                    alignItems: "center",
                   }}
                 >
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
@@ -582,6 +652,7 @@ const Dashboard: React.FC = () => {
                   style={{
                     width: "100%",
                     padding: "1rem 1.2rem",
+                    paddingRight: "5rem",
                     border: "2px solid #e2e8f0",
                     borderRadius: "0.75rem",
                     fontSize: "1rem",
@@ -590,6 +661,7 @@ const Dashboard: React.FC = () => {
                     background: "rgba(255, 255, 255, 0.9)",
                     transition: "all 0.2s ease",
                     boxSizing: "border-box",
+                    marginBottom: "0",
                   }}
                 />
                 <div
@@ -599,14 +671,27 @@ const Dashboard: React.FC = () => {
                     right: "1rem",
                     transform: "translateY(-50%)",
                     pointerEvents: "none",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.4rem",
                   }}
                 >
+                  <span
+                    style={{
+                      fontSize: "0.85rem",
+                      fontWeight: 500,
+                      color: "#94a3b8",
+                      letterSpacing: "0.02em",
+                    }}
+                  >
+                    USDC
+                  </span>
                   <svg
                     width="20"
                     height="20"
                     viewBox="0 0 24 24"
                     fill="none"
-                    aria-label="ETH"
+                    aria-label="Currency"
                   >
                     <path
                       d="M12 2l6 9-6 3-6-3 6-9z"
@@ -644,6 +729,7 @@ const Dashboard: React.FC = () => {
                     background: "rgba(255, 255, 255, 0.9)",
                     transition: "all 0.2s ease",
                     boxSizing: "border-box",
+                    marginBottom: "0",
                   }}
                 />
                 <div
@@ -653,6 +739,8 @@ const Dashboard: React.FC = () => {
                     right: "1rem",
                     transform: "translateY(-50%)",
                     pointerEvents: "none",
+                    display: "flex",
+                    alignItems: "center",
                   }}
                 >
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
@@ -781,7 +869,8 @@ const Dashboard: React.FC = () => {
               <h3
                 style={{
                   margin: "0 0 1rem 0",
-                  background: "rgba(16, 185, 129, 0.3)",
+                  background: "rgba(6, 182, 212, 0.1)",
+                  border: "1px solid rgba(6, 182, 212, 0.2)",
                   fontSize: "1.15rem",
                   fontWeight: 700,
                   color: "#10b981",
@@ -803,7 +892,7 @@ const Dashboard: React.FC = () => {
                       textShadow: "0 0 10px rgba(16, 185, 129, 0.4)",
                     }}
                   >
-                    {zkpUser.balance} USDC
+                    {Number(zkpUser.balance).toFixed(2)} USDC
                   </span>
                 </div>
                 <div style={{ marginBottom: "0.5rem" }}>
@@ -831,57 +920,46 @@ const Dashboard: React.FC = () => {
                     {userProfile.status}
                   </span>
                 </div>
-                <div style={{ marginBottom: "0.5rem" }}>
-                  <strong style={{ color: "#06b6d4", fontWeight: 600 }}>
+                <div style={{ marginBottom: "0.5rem", display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+                  <strong style={{ color: "#06b6d4", fontWeight: 600, display: "flex", alignItems: "center", gap: "0.35rem" }}>
                     Trust Score:
-                  </strong>{" "}
+                    <svg 
+                      width="16" 
+                      height="16" 
+                      viewBox="0 0 24 24" 
+                      fill="#06b6d4" 
+                      style={{ opacity: 0.8 }}
+                    >
+                      <title>AI-Generated Score</title>
+                      <path d="M12 2L14.5 9.5L22 12L14.5 14.5L12 22L9.5 14.5L2 12L9.5 9.5L12 2Z"/>
+                      <path d="M19 4L19.5 5.5L21 6L19.5 6.5L19 8L18.5 6.5L17 6L18.5 5.5L19 4Z" opacity="0.7"/>
+                      <path d="M5 4L5.5 5.5L7 6L5.5 6.5L5 8L4.5 6.5L3 6L4.5 5.5L5 4Z" opacity="0.7"/>
+                    </svg>
+                  </strong>
                   {trustScore.loading ? (
                     <span style={{ color: "#94a3b8" }}>Loading...</span>
                   ) : trustScore.error ? (
                     <span style={{ color: "#ef4444" }}>Unavailable</span>
                   ) : (
-                    <span
-                      style={{
-                        color:
-                          trustScore.score < 0.3
-                            ? "#10b981"
-                            : trustScore.score < 0.6
-                            ? "#3b82f6"
-                            : trustScore.score < 0.8
-                            ? "#f59e0b"
-                            : "#ef4444",
-                        background:
-                          trustScore.score < 0.3
-                            ? "rgba(16, 185, 129, 0.15)"
-                            : trustScore.score < 0.6
-                            ? "rgba(59, 130, 246, 0.15)"
-                            : trustScore.score < 0.8
-                            ? "rgba(245, 158, 11, 0.15)"
-                            : "rgba(239, 68, 68, 0.15)",
-                        padding: "0.15rem 0.5rem",
-                        borderRadius: "0.4rem",
-                        fontSize: "0.85rem",
-                        fontWeight: 600,
-                        border:
-                          trustScore.score < 0.3
-                            ? "1px solid rgba(16, 185, 129, 0.3)"
-                            : trustScore.score < 0.6
-                            ? "1px solid rgba(59, 130, 246, 0.3)"
-                            : trustScore.score < 0.8
-                            ? "1px solid rgba(245, 158, 11, 0.3)"
-                            : "1px solid rgba(239, 68, 68, 0.3)",
-                      }}
-                      title={`Last Result: ${trustScore.last_result}`}
-                    >
-                      {trustScore.score < 0.3
-                        ? "✅ Low Risk"
-                        : trustScore.score < 0.6
-                        ? "ℹ️ Moderate Risk"
-                        : trustScore.score < 0.8
-                        ? "⚠️ High Risk"
-                        : "🚨 User Untrusted"}{" "}
-                      ({(trustScore.score * 100).toFixed(1)}%)
-                    </span>
+                    (() => {
+                      const displayScore = 1 - trustScore.score; // Invert: trust = 1 - fraud
+                      return (
+                        <span
+                          style={{
+                            color: displayScore >= 0.7 ? "#10b981" : displayScore >= 0.4 ? "#3b82f6" : displayScore >= 0.2 ? "#f59e0b" : "#ef4444",
+                            background: displayScore >= 0.7 ? "rgba(16, 185, 129, 0.15)" : displayScore >= 0.4 ? "rgba(59, 130, 246, 0.15)" : displayScore >= 0.2 ? "rgba(245, 158, 11, 0.15)" : "rgba(239, 68, 68, 0.15)",
+                            padding: "0.15rem 0.5rem",
+                            borderRadius: "0.4rem",
+                            fontSize: "0.85rem",
+                            fontWeight: 600,
+                            border: displayScore >= 0.7 ? "1px solid rgba(16, 185, 129, 0.3)" : displayScore >= 0.4 ? "1px solid rgba(59, 130, 246, 0.3)" : displayScore >= 0.2 ? "1px solid rgba(245, 158, 11, 0.3)" : "1px solid rgba(239, 68, 68, 0.3)",
+                          }}
+                          title={`Fraud Score: ${trustScore.score.toFixed(2)} | Last Result: ${trustScore.last_result}`}
+                        >
+                          {displayScore >= 0.7 ? "✅" : displayScore >= 0.4 ? "ℹ️" : displayScore >= 0.2 ? "⚠️" : "🚨"} {(displayScore * 100).toFixed(1)}%
+                        </span>
+                      );
+                    })()
                   )}
                 </div>
               </div>
@@ -902,60 +980,35 @@ const Dashboard: React.FC = () => {
                   "0 8px 24px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1)",
               }}
             >
-              <h3
-                style={{
-                  margin: "0 0 1rem 0",
-                  background: "rgba(6, 182, 212, 0.3)",
-                  fontSize: "1.15rem",
-                  fontWeight: 700,
-                  color: "#06b6d4",
-                  textShadow: "0 0 10px rgba(6, 182, 212, 0.3)",
-                }}
-              >
-                Your Reference Number
-              </h3>
-              <div
-                style={{
-                  fontSize: "0.85rem",
-                  color: "#94a3b8",
-                  marginBottom: "0.75rem",
-                }}
-              >
-                Share this with others to receive transfers
-              </div>
               <div
                 style={{
                   display: "flex",
                   gap: "0.5rem",
+                  justifyContent: "space-between",
                   alignItems: "center",
+                  marginBottom: "1rem",
                 }}
               >
-                <div
+                <h3
                   style={{
-                    flex: 1,
-                    fontFamily: "monospace",
-                    fontSize: "0.8rem",
-                    color: "#06b6d4",
+                    margin: 0,
                     background: "rgba(6, 182, 212, 0.1)",
-                    padding: "0.75rem",
-                    borderRadius: "0.5rem",
                     border: "1px solid rgba(6, 182, 212, 0.2)",
-                    wordBreak: "break-all",
-                    lineHeight: 1.4,
+                    flex: 1,
+                    fontSize: "1.15rem",
+                    fontWeight: 700,
+                    color: "#06b6d4",
+                    textShadow: "0 0 10px rgba(6, 182, 212, 0.3)",
                   }}
                 >
-                  {zkpUser.reference_number}
-                </div>
+                  Your Reference Number
+                </h3>
                 <button
-                  onClick={() => copyToClipboard(zkpUser.reference_number)}
+                  onClick={() => setShowQRModal(true)}
                   style={{
-                    padding: "0.75rem",
-                    background: isCopied
-                      ? "rgba(16, 185, 129, 0.2)"
-                      : "rgba(6, 182, 212, 0.2)",
-                    border: isCopied
-                      ? "1px solid rgba(16, 185, 129, 0.3)"
-                      : "1px solid rgba(6, 182, 212, 0.3)",
+                    padding: "0.5rem",
+                    background: "rgba(6, 182, 212, 0.1)",
+                    border: "1px solid rgba(6, 182, 212, 0.2)",
                     borderRadius: "0.5rem",
                     cursor: "pointer",
                     transition: "all 0.2s ease",
@@ -964,47 +1017,30 @@ const Dashboard: React.FC = () => {
                     justifyContent: "center",
                   }}
                   onMouseEnter={(e) => {
-                    if (!isCopied) {
-                      e.currentTarget.style.background =
-                        "rgba(6, 182, 212, 0.3)";
-                      e.currentTarget.style.transform = "scale(1.05)";
-                    }
+                    e.currentTarget.style.background = "rgba(6, 182, 212, 0.3)";
+                    e.currentTarget.style.transform = "scale(1.05)";
                   }}
                   onMouseLeave={(e) => {
-                    if (!isCopied) {
-                      e.currentTarget.style.background =
-                        "rgba(6, 182, 212, 0.2)";
-                      e.currentTarget.style.transform = "scale(1)";
-                    }
+                    e.currentTarget.style.background = "rgba(6, 182, 212, 0.2)";
+                    e.currentTarget.style.transform = "scale(1)";
                   }}
-                  title={isCopied ? "Copied!" : "Copy to clipboard"}
+                  title="Show QR Code"
                 >
-                  {isCopied ? (
-                    <svg
-                      width="20"
-                      height="20"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="#10b981"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <polyline points="20 6 9 17 4 12" />
-                    </svg>
-                  ) : (
-                    <svg
-                      width="20"
-                      height="20"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="#06b6d4"
-                      strokeWidth="2"
-                    >
-                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                    </svg>
-                  )}
+                  <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="#06b6d4"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <rect x="3" y="3" width="7" height="7" />
+                    <rect x="14" y="3" width="7" height="7" />
+                    <rect x="14" y="14" width="7" height="7" />
+                    <rect x="3" y="14" width="7" height="7" />
+                  </svg>
                 </button>
               </div>
             </div>
@@ -1173,6 +1209,15 @@ const Dashboard: React.FC = () => {
           setNotification({ show: false, type: "info", title: "", message: "" })
         }
       />
+
+      {/* QR Code Modal */}
+      {zkpUser && (
+        <QRCodeModal
+          isVisible={showQRModal}
+          referenceNumber={zkpUser.reference_number}
+          onClose={() => setShowQRModal(false)}
+        />
+      )}
     </>
   );
 
