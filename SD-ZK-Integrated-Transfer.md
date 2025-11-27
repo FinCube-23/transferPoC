@@ -3,6 +3,7 @@ sequenceDiagram
     participant User1 as User 1
     participant OrgA as Organization A
     participant DAO as DAO Contract
+    participant FinCube as FinCube Contract
     participant OrgB as Organization B
     participant User2 as User 2
     participant Blockchain as Blockchain (Event Log)
@@ -15,9 +16,11 @@ sequenceDiagram
     OrgA<<->>DAO: Get OrgB info from memberURI
     OrgA->>OrgB: requestReceiverProof(sender_reference_number, receiver_reference_number, amount)
     OrgB->>User2: Lookup user by receiver_reference_number
-    OrgB->>OrgA: Return ZK proof u2 ∈ OrgB: gRPC
-    OrgA->>OrgA: WEB3: Verify proof
-    OrgA->>OrgB: WEB3: Transfer stablecoin (ERC20)
+    OrgB->>OrgA: Return ZK proof u2 ∈ OrgB
+    OrgA->>FinCube: WEB3: Transfer with receiver proof
+    FinCube->>DAO: WEB3: Check organization membership
+    FinCube->>FinCube: WEB3: Verify proof
+    FinCube->>OrgB: WEB3: Transfer stablecoin (ERC20)
     OrgA->>User1: Update balance (debit)
     OrgB->>User2: Update balance (credit)
     OrgB->>Blockchain: Emit TransactionRecorded(sender_reference, receiver_reference, amount, invoice)
