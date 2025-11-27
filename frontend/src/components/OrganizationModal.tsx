@@ -3,6 +3,7 @@ import {
   organizationService,
   type Organization,
 } from "../services/organizationService";
+import NotificationModal from "./NotificationModal";
 
 interface OrganizationModalProps {
   userId: number;
@@ -20,6 +21,17 @@ const OrganizationModal: React.FC<OrganizationModalProps> = ({
   const [loading, setLoading] = useState(true);
   const [joining, setJoining] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notification, setNotification] = useState<{
+    show: boolean;
+    type: "success" | "error" | "warning" | "info";
+    title: string;
+    message: string;
+  }>({
+    show: false,
+    type: "info",
+    title: "",
+    message: "",
+  });
 
   useEffect(() => {
     loadOrganizations();
@@ -30,11 +42,17 @@ const OrganizationModal: React.FC<OrganizationModalProps> = ({
       setLoading(true);
       setError(null);
       const response = await organizationService.getOrganizations(accessToken);
-      setOrganizations(response.organizations);
+
+      // Filter out organizations with "Brain Station 23" in their name
+      const filteredOrganizations = response.organizations.filter(
+        (org) => !org.name.includes("Brain Station 23")
+      );
+
+      setOrganizations(filteredOrganizations);
 
       // Auto-select first organization if available
-      if (response.organizations.length > 0) {
-        setSelectedOrgId(response.organizations[0].id);
+      if (filteredOrganizations.length > 0) {
+        setSelectedOrgId(filteredOrganizations[0].id);
       }
     } catch (err: any) {
       console.error("Failed to load organizations:", err);
@@ -46,7 +64,12 @@ const OrganizationModal: React.FC<OrganizationModalProps> = ({
 
   const handleJoinOrganization = async () => {
     if (!selectedOrgId) {
-      alert("Please select an organization");
+      setNotification({
+        show: true,
+        type: "warning",
+        title: "No Organization Selected",
+        message: "Please select an organization to join.",
+      });
       return;
     }
 
@@ -60,11 +83,26 @@ const OrganizationModal: React.FC<OrganizationModalProps> = ({
         accessToken
       );
 
-      alert("Successfully joined organization!");
-      onSuccess();
+      setNotification({
+        show: true,
+        type: "success",
+        title: "Success!",
+        message: "Successfully joined organization!",
+      });
+
+      // Close after a short delay to show the success message
+      setTimeout(() => {
+        onSuccess();
+      }, 1500);
     } catch (err: any) {
       console.error("Failed to join organization:", err);
-      alert(err.message || "Failed to join organization");
+      setNotification({
+        show: true,
+        type: "error",
+        title: "Join Failed",
+        message:
+          err.message || "Failed to join organization. Please try again.",
+      });
     } finally {
       setJoining(false);
     }
@@ -431,6 +469,17 @@ const OrganizationModal: React.FC<OrganizationModalProps> = ({
           }
         `}
       </style>
+
+      {/* Notification Modal */}
+      <NotificationModal
+        isVisible={notification.show}
+        type={notification.type}
+        title={notification.title}
+        message={notification.message}
+        onClose={() =>
+          setNotification({ show: false, type: "info", title: "", message: "" })
+        }
+      />
     </div>
   );
 };
