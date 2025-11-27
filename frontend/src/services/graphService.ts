@@ -20,6 +20,7 @@ export interface ParsedTransfer {
   recipient: string;
   amount: string;
   purpose: string;
+  memo?: string;
   nullifier?: string;
   timestamp: number;
   txHash?: string;
@@ -52,6 +53,15 @@ function normalizeHash(candidate?: string | null): string | undefined {
 }
 
 /**
+ * Convert reference number to bytes32 format using keccak256
+ */
+function convertToBytes32(referenceNumber: string): string {
+  // Use ethers.id() which is keccak256 hash of the string
+  // This ensures we get a consistent 32-byte value
+  return ethers.utils.id(referenceNumber);
+}
+
+/**
  * Fetch transfers from The Graph filtered by sender reference number
  */
 export async function fetchTransfersFromGraph(
@@ -60,13 +70,20 @@ export async function fetchTransfersFromGraph(
   const endpoint =
     "https://api.studio.thegraph.com/query/93678/fincube-subgraph/v0.0.2";
 
-  // Fetch all transfers (no filtering by address in query)
+  // Convert reference number to bytes32 format for GraphQL query
+  const bytes32RefNumber = convertToBytes32(referenceNumber);
+  
+  console.log(`Original reference number: ${referenceNumber}`);
+  console.log(`Converted to bytes32: ${bytes32RefNumber}`);
+
+  // Query with sender_reference_number filter
   const query = `
         query {
             stablecoinTransfers(
                 first: 100, 
                 orderBy: blockNumber, 
-                orderDirection: desc
+                orderDirection: desc,
+                where: { sender_reference_number: "${bytes32RefNumber}" }
             ) {
                 id
                 from
@@ -92,47 +109,19 @@ export async function fetchTransfersFromGraph(
     });
 
     const json = await res.json();
-    const allTransfers: GraphTransfer[] = json.data?.stablecoinTransfers || [];
-
-    console.log(`Fetched ${allTransfers.length} total transfers from Graph`);
-
-    // Filter by sender reference number from memo
-    const items: GraphTransfer[] = allTransfers.filter((transfer) => {
-      if (!transfer.memo) return false;
-
-      try {
-        let memoString = transfer.memo;
-
-        // Convert hex to string if needed
-        if (memoString.startsWith("0x")) {
-          try {
-            memoString = ethers.utils.toUtf8String(memoString);
-          } catch (e) {
-            console.log("HEX CONVERSION FAILED for transfer:", transfer.id);
-            return false;
-          }
-        }
-
-        const memoData = JSON.parse(memoString);
-        const senderRefNum = memoData?.sender_reference_number;
-
-        // Match against the provided reference number
-        return senderRefNum === referenceNumber;
-      } catch (e) {
-        console.log("Failed to parse memo for transfer:", transfer.id);
-        return false;
-      }
-    });
+    const items: GraphTransfer[] = json.data?.stablecoinTransfers || [];
 
     console.log(
-      `Filtered to ${items.length} transfers for reference number: ${referenceNumber}`
+      `Fetched ${items.length} transfers for reference number: ${referenceNumber}`
     );
 
     const parsedTransfers: ParsedTransfer[] = [];
 
     for (const it of items) {
-      // Parse memo JSON to extract additional information
+      // Parse memo JSON to extract sender and receiver reference numbers
       let actualPurpose = "";
+      let senderRefNum = "";
+      let receiverRefNum = "";
       let memoData: any = null;
 
       if (it.memo) {
@@ -149,6 +138,10 @@ export async function fetchTransfersFromGraph(
         try {
           memoData = JSON.parse(memoString);
 
+          // Extract sender and receiver reference numbers from memo
+          senderRefNum = memoData?.sender_reference_number || "";
+          receiverRefNum = memoData?.receiver_reference_number || "";
+
           // Try to extract purpose from various possible locations
           if (memoData?.TransactionInformation?.Purpose) {
             actualPurpose = memoData.TransactionInformation.Purpose;
@@ -164,10 +157,11 @@ export async function fetchTransfersFromGraph(
       const candidateHash = normalizeHash(rawCandidate) || rawCandidate;
 
       parsedTransfers.push({
-        sender: it.from,
-        recipient: it.to,
+        sender: senderRefNum || it.from, // Use reference number from memo, fallback to wallet address
+        recipient: receiverRefNum || it.to, // Use reference number from memo, fallback to wallet address
         amount: `${parseInt(it.amount) / 1e6} USDC`,
         purpose: actualPurpose || "Transfer",
+        memo: it.memo, // Pass the raw memo from GraphQL
         timestamp: parseInt(it.blockTimestamp) * 1000,
         txHash: candidateHash,
       });
