@@ -724,6 +724,21 @@ Detailed transaction view provides complete information for regulatory complianc
 
 ---
 
+### Kiro Usage During the Development Phrase
+![Kiro Usage 1](./docs/screenshots/Screenshot%202025-11-28%20122338.png)
+
+![Kiro Usage 2](./docs/screenshots/Screenshot%202025-11-28%20122447.png)
+
+![Kiro Usage 3](./docs/screenshots/Screenshot%202025-11-28%20123311.png)
+
+![Kiro Usage 4](./docs/screenshots/Screenshot%202025-11-28%20124104.png)
+
+![Kiro Usage 5](./docs/screenshots/Screenshot%202025-11-28%20124133.png)
+
+![Kiro Usage 6](./docs/screenshots/Screenshot%202025-11-28%20124828.png)
+
+---
+
 ## Conclusion
 
 **FinCube strips away the technical friction of blockchain adoption.**
