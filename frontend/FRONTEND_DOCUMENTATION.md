@@ -126,7 +126,6 @@ frontend/
 
 - Post-registration organization selection
 - Dropdown with organization details
-- Filters specific organizations (e.g., "Brain Station 23")
 - Error message parsing from Django ErrorDetail format
 
 ### 2. Token Transfers
@@ -159,10 +158,9 @@ Shows success/error states with detailed feedback.
 ### 3. Transaction History
 
 - Fetches from The Graph subgraph via GraphQL
-- Filters by user's reference number
-- Pagination (10 per page)
-- Displays: sender, recipient, amount, purpose, timestamp, tx hash
-- Clickable transaction hashes (Etherscan links)
+- Pagination
+- Displays: sender, recipient, amount, purpose, timestamp, transaction hash
+- Clickable transaction hashes (Celo Blockscout links)
 
 ### 4. Fraud Detection
 
