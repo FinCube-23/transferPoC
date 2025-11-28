@@ -1122,12 +1122,6 @@ const Dashboard: React.FC = () => {
                 </g>
               </svg>
             </button>
-            <div
-              className="transactions-subtitle"
-              style={{ color: "rgba(255, 255, 255, 0.6)" }}
-            >
-              Latest 10
-            </div>
           </div>
         </div>
         <div className="transactions-table">
