@@ -389,7 +389,14 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onAuthSuccess }) => {
                         fontSize: "0.95rem",
                       }}
                     >
-                      Email
+                      Email{" "}
+                      <span
+                        style={{
+                          color: "red",
+                        }}
+                      >
+                        *
+                      </span>
                     </label>
                     <input
                       id="login-email"
@@ -424,7 +431,14 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onAuthSuccess }) => {
                         fontSize: "0.95rem",
                       }}
                     >
-                      Password
+                      Password{" "}
+                      <span
+                        style={{
+                          color: "red",
+                        }}
+                      >
+                        *
+                      </span>
                     </label>
                     <input
                       id="login-password"
@@ -491,7 +505,14 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onAuthSuccess }) => {
                           fontSize: "0.95rem",
                         }}
                       >
-                        First name
+                        First name{" "}
+                        <span
+                          style={{
+                            color: "red",
+                          }}
+                        >
+                          *
+                        </span>
                       </label>
                       <input
                         name="register-firstname"
@@ -515,7 +536,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onAuthSuccess }) => {
                         flex: 1,
                         display: "flex",
                         flexDirection: "column",
-                        gap: "0.35rem",
+                        gap: "0.2rem",
                       }}
                     >
                       <label
@@ -525,7 +546,14 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onAuthSuccess }) => {
                           fontSize: "0.95rem",
                         }}
                       >
-                        Last name
+                        Last name{" "}
+                        <span
+                          style={{
+                            color: "red",
+                          }}
+                        >
+                          *
+                        </span>
                       </label>
                       <input
                         name="register-lastname"
@@ -534,7 +562,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onAuthSuccess }) => {
                         required
                         style={{
                           width: "100%",
-                          padding: "0.9rem 1rem",
+                          padding: "0.8rem 0.9rem",
                           border: "2px solid #e2e8f0",
                           borderRadius: "0.7rem",
                           fontSize: "1rem",
@@ -559,7 +587,14 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onAuthSuccess }) => {
                         fontSize: "0.95rem",
                       }}
                     >
-                      Email
+                      Email{" "}
+                      <span
+                        style={{
+                          color: "red",
+                        }}
+                      >
+                        *
+                      </span>
                     </label>
                     <input
                       name="register-email"
@@ -592,7 +627,14 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onAuthSuccess }) => {
                         fontSize: "0.95rem",
                       }}
                     >
-                      Contact Number
+                      Contact Number{" "}
+                      <span
+                        style={{
+                          color: "red",
+                        }}
+                      >
+                        *
+                      </span>
                     </label>
                     <input
                       name="register-contact"
@@ -625,7 +667,14 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onAuthSuccess }) => {
                         fontSize: "0.95rem",
                       }}
                     >
-                      Password
+                      Password{" "}
+                      <span
+                        style={{
+                          color: "red",
+                        }}
+                      >
+                        *
+                      </span>
                     </label>
                     <input
                       name="register-password"
@@ -659,7 +708,14 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onAuthSuccess }) => {
                         fontSize: "0.95rem",
                       }}
                     >
-                      Confirm Password
+                      Confirm Password{" "}
+                      <span
+                        style={{
+                          color: "red",
+                        }}
+                      >
+                        *
+                      </span>
                     </label>
                     <input
                       name="register-password-confirm"
