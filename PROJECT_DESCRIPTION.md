@@ -645,7 +645,7 @@ The transfer interface provides a seamless user experience for initiating secure
 - Transfer confirmation with transaction details
 - Instant transaction hash response
 
-![Transfer Page](./docs/screenshots/transfer-page.png)
+![Trusted User UI](./docs/screenshots/Screenshot%20from%202025-11-28%2014-46-36.png)
 
 *The transfer page showing the intuitive interface for initiating USDC transfers with ZKP privacy*
 
@@ -663,9 +663,15 @@ Real-time AI-powered fraud detection analyzes each transaction using 44-dimensio
 - Detailed fraud probability scores
 - Reasoning explanation for each assessment
 
-![Fraud Detection Analysis](./docs/screenshots/fraud-detection.png)
+**UI for a suspicious user (Transfer blocked):**
+![Suspicious User UI Sender](./docs/screenshots/image.png)
+
+**When a trusted user tries to transfer funds to a suspicious user (Transfer blocked):**
+![Suspicious User UI Receiver](./docs/screenshots/Screenshot%20from%202025-11-28%2017-33-24.png)
 
 *Real-time fraud detection showing risk assessment with detailed reasoning and confidence scores*
+
+*Blocks suspicious users from sending and receiving funds*
 
 ---
 
@@ -732,10 +738,6 @@ Detailed transaction view provides complete information for regulatory complianc
 ![Kiro Usage 3](./docs/screenshots/Screenshot%202025-11-28%20123311.png)
 
 ![Kiro Usage 4](./docs/screenshots/Screenshot%202025-11-28%20124104.png)
-
-![Kiro Usage 5](./docs/screenshots/Screenshot%202025-11-28%20124133.png)
-
-![Kiro Usage 6](./docs/screenshots/Screenshot%202025-11-28%20124828.png)
 
 ---
 
