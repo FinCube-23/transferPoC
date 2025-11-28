@@ -222,7 +222,7 @@ const Dashboard: React.FC = () => {
                   textShadow: "0 0 10px rgba(245, 158, 11, 0.3)",
                 }}
               >
-                Pending Admin Approval
+                Pending Organization Approval
               </h3>
               <p
                 style={{
