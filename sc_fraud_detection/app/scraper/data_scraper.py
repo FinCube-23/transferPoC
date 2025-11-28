@@ -1,131 +1,119 @@
-import os
 import pandas as pd
-import httpx
-from typing import List, Dict, Any
-from pathlib import Path
+from typing import List, Dict, Any, Tuple
 import logging
+import io
 
 logger = logging.getLogger(__name__)
 
 
 class DataScraper:
-    """Generic data scraper supporting multiple sources"""
-    
-    def __init__(self, kaggle_username: str = None, kaggle_key: str = None):
-        self.kaggle_username = kaggle_username or os.getenv("KAGGLE_USERNAME")
-        self.kaggle_key = kaggle_key or os.getenv("KAGGLE_KEY")
-        self.temp_dir = Path("/tmp/fraud_detection_data")
-        self.temp_dir.mkdir(exist_ok=True)
-    
-    async def scrape(self, source_url: str, source_type: str = "kaggle") -> List[Dict[str, Any]]:
+    """
+    CSV file upload handler with validatioin and default value insertion.
+    """
+
+    REQUIRED_COLUMNS = [
+        "Address", "FLAG", "Avg min between sent tnx", "Avg min between received tnx",
+        "Time Diff between first and last (Mins)", "Sent tnx", "Received Tnx",
+        "Number of Created Contracts", "Unique Received From Addresses",
+        "Unique Sent To Addresses", "min value received", "max value received",
+        "avg val received", "min val sent", "max val sent", "avg val sent",
+        "min value sent to contract", "max val sent to contract",
+        "avg value sent to contract", "total transactions (including tnx to create contract)",
+        "total Ether sent", "total ether received", "total ether sent contracts",
+        "total ether balance", "Total ERC20 tnxs", "ERC20 total Ether received",
+        "ERC20 total ether sent", "ERC20 total Ether sent contract",
+        "ERC20 uniq sent addr", "ERC20 uniq rec addr", "ERC20 uniq sent addr.1",
+        "ERC20 uniq rec contract addr", "ERC20 avg time between sent tnx",
+        "ERC20 avg time between rec tnx", "ERC20 avg time between rec 2 tnx",
+        "ERC20 avg time between contract tnx", "ERC20 min val rec", "ERC20 max val rec",
+        "ERC20 avg val rec", "ERC20 min val sent", "ERC20 max val sent",
+        "ERC20 avg val sent", "ERC20 min val sent contract", "ERC20 max val sent contract",
+        "ERC20 avg val sent contract", "ERC20 uniq sent token name",
+        "ERC20 uniq rec token name", "ERC20 most sent token type",
+        "ERC20_most_rec_token_type"
+    ]
+
+    # Default Value in order.
+    DEFAULT_VALUES = [
+        "0x00009277775ac7d0d59eaad8fee3d10ac6c805e8", 0, 844.26, 1093.71, 704785.63,
+        721, 89, 0, 40, 118, 0.0, 45.806785, 6.589513, 0.0, 31.22, 1.200681,
+        0.0, 0.0, 0.0, 810, 865.6910932, 586.4666748, 0.0, -279.2244185,
+        265.0, 35588543.78, 35603169.52, 0.0, 30.0, 54.0, 0.0, 58.0,
+        0.0, 0.0, 0.0, 0.0, 0.0, 15000000.0, 265586.1476, 0.0,
+        16830998.35, 271779.92, 0.0, 0.0, 0.0, 39.0, 57.0,
+        "Cofoundit", "Numeraire"
+    ]
+
+
+    def __init__(self):
+        self.default_row=dict(zip(self.REQUIRED_COLUMNS,self.DEFAULT_VALUES))
+
+    async def process_csv_upload(
+        self,
+        file_content:bytes
+    )->Tuple[List[Dict[str,Any]],Dict[str,Any]]:
         """
-        Scrape data from various sources
+        Process uploaded CSV file
         
         Args:
-            source_url: URL or identifier of the data source
-            source_type: Type of source (kaggle, csv_url, json_url)
+            file_content: Raw bytes of the CSV file
         
         Returns:
-            List of records as dictionaries
-        """
-        if source_type == "kaggle":
-            return await self._scrape_kaggle(source_url)
-        elif source_type == "csv_url":
-            return await self._scrape_csv_url(source_url)
-        elif source_type == "json_url":
-            return await self._scrape_json_url(source_url)
-        else:
-            raise ValueError(f"Unsupported source type: {source_type}")
-    
-    async def _scrape_kaggle(self, dataset_id: str) -> List[Dict[str, Any]]:
-        """
-        Scrape data from Kaggle dataset
+            Tuple of (records list, validation info dict)
         
-        Args:
-            dataset_id: Kaggle dataset identifier (e.g., 'vagifa/ethereum-frauddetection-dataset')
+        Raises:
+            ValueError: If less than 50% of required columns are present
         """
         try:
-            # Set Kaggle credentials
-            os.environ["KAGGLE_USERNAME"] = self.kaggle_username
-            os.environ["KAGGLE_KEY"] = self.kaggle_key
-            
-            from kaggle.api.kaggle_api_extended import KaggleApi
-            
-            api = KaggleApi()
-            api.authenticate()
-            
-            # Extract dataset identifier from URL if needed
-            if "kaggle.com/datasets/" in dataset_id:
-                dataset_id = dataset_id.split("kaggle.com/datasets/")[1].split("?")[0]
-            
-            logger.info(f"Downloading Kaggle dataset: {dataset_id}")
-            
-            # Download dataset
-            api.dataset_download_files(dataset_id, path=str(self.temp_dir), unzip=True)
-            
-            # Find CSV files
-            csv_files = list(self.temp_dir.glob("*.csv"))
-            if not csv_files:
-                raise FileNotFoundError("No CSV files found in downloaded dataset")
-            
-            # Read the first CSV file (or combine multiple)
-            df = pd.read_csv(csv_files[0])
-            logger.info(f"Loaded {len(df)} records from {csv_files[0].name}")
-            
-            # Convert to list of dicts
-            records = df.to_dict(orient="records")
-            
-            # Cleanup
-            for file in csv_files:
-                file.unlink()
-            
-            return records
-            
+            df=pd.read_csv(io.BytesIO(file_content))
+            logger.info(f"✅ Loaded CSV with {len(df)} rows and {len(df.columns)} columns")
+
+            present_columns=set(df.columns)
+            required_columns=set(self.REQUIRED_COLUMNS)
+            matching_columns=present_columns.intersection(required_columns)
+            coverage_percentage=(len(matching_columns)/len(required_columns))*100
+
+            missing_count=len(required_columns)-len(matching_columns)
+
+            if coverage_percentage<50:
+                raise ValueError(
+                    f"Insufficient columns: Only {coverage_percentage:.1f}% of required columns present. "
+                    f"Need at least 50%. Missing {missing_count} required columns."
+                )
+
+            # Add missing columns with default value
+            for col in self.REQUIRED_COLUMNS:
+                if col not in df.columns:
+                    default_val=self.default_row[col]
+                    df[col]=default_val
+
+            # Remove extra columns that are not in required columns
+            df=df[self.REQUIRED_COLUMNS]
+
+            # Convert to list of dicts.
+            records=df.to_dict(orient="records")
+
+            # validation info
+            validation_info={
+                "total_rows": len(records),
+                "total_columns": len(self.REQUIRED_COLUMNS),
+                "columns_provided": len(matching_columns),
+                "columns_missing": missing_count,
+                "coverage_percentage": round(coverage_percentage, 2),
+                "missing_columns": list(required_columns - matching_columns),
+                "extra_columns_ignored": list(present_columns - required_columns)
+            }
+
+            logger.info(f"CSV Processing completed: {validation_info}")
+
+            return records, validation_info
+
+        except pd.errors.EmptyDataError:
+            logger.error("CSV file is empty.")
+            raise ValueError("CSV file is empty.")
+        except pd.errors.ParserError as e:
+            logger.error(f"Parsing CSV error: {e}")
+            raise ValueError(f"Parsing CSV error: {e}")
         except Exception as e:
-            logger.error(f"Error scraping Kaggle dataset: {e}")
-            raise
-    
-    async def _scrape_csv_url(self, url: str) -> List[Dict[str, Any]]:
-        """Scrape data from a CSV URL"""
-        try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                response = await client.get(url)
-                response.raise_for_status()
-                
-                # Save temporarily
-                temp_file = self.temp_dir / "temp_data.csv"
-                temp_file.write_bytes(response.content)
-                
-                # Read CSV
-                df = pd.read_csv(temp_file)
-                logger.info(f"Loaded {len(df)} records from CSV URL")
-                
-                # Cleanup
-                temp_file.unlink()
-                
-                return df.to_dict(orient="records")
-                
-        except Exception as e:
-            logger.error(f"Error scraping CSV URL: {e}")
-            raise
-    
-    async def _scrape_json_url(self, url: str) -> List[Dict[str, Any]]:
-        """Scrape data from a JSON URL"""
-        try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                response = await client.get(url)
-                response.raise_for_status()
-                
-                data = response.json()
-                
-                # Handle different JSON structures
-                if isinstance(data, list):
-                    return data
-                elif isinstance(data, dict) and "data" in data:
-                    return data["data"]
-                else:
-                    return [data]
-                    
-        except Exception as e:
-            logger.error(f"Error scraping JSON URL: {e}")
+            logger.error(f"Error processing CSV upload: {e}")
             raise

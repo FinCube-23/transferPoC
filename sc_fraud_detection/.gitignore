@@ -21,6 +21,7 @@ wheels/
 *.egg
 
 # Virtual Environment
+.venv
 venv/
 env/
 ENV/
@@ -55,5 +56,3 @@ Thumbs.db
 
 # Kaggle
 .kaggle/
-
-.kiro

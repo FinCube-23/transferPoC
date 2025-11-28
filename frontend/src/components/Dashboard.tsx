@@ -1,17 +1,16 @@
-import React, { useEffect, useState } from 'react';
-import { useWalletStore } from '../stores/walletStore';
-import { useTransactions } from '../hooks/useTransactions';
-import { web3Service } from '../services/web3Service';
-import { fraudDetectionService } from '../services/fraudDetectionService';
-import { ethers } from 'ethers';
-import type { ParsedTransfer } from '../services/graphService';
+import React, { useEffect, useState } from "react";
+import { useTransactions } from "../hooks/useTransactions";
+import { fraudDetectionService } from "../services/fraudDetectionService";
+import type { ParsedTransfer } from "../services/graphService";
+import { useAuthStore } from "../stores/authStore";
+import TransferProgressModal from "./TransferProgressModal";
+import NotificationModal from "./NotificationModal";
+import QRCodeModal from "./QRCodeModal";
 
 const Dashboard: React.FC = () => {
-  // Selective subscriptions to wallet store
-  const isConnected = useWalletStore((state) => state.isConnected);
-  const currentAccount = useWalletStore((state) => state.currentAccount);
-  const balances = useWalletStore((state) => state.balances);
-  const updateBalances = useWalletStore((state) => state.updateBalances);
+  const userProfile = useAuthStore((state) => state.userProfile);
+  const zkpUser = useAuthStore((state) => state.zkpUser);
+
   const {
     transactions,
     currentPage,
@@ -20,694 +19,1155 @@ const Dashboard: React.FC = () => {
     addTransaction,
     nextPage,
     prevPage,
-    clearTransactions,
   } = useTransactions();
 
   const [transferForm, setTransferForm] = useState({
-    address: '',
-    amount: '',
-    purpose: '',
+    referenceNumber: "",
+    amount: "",
+    purpose: "",
   });
 
-  const [fraudResults, setFraudResults] = useState<Record<string, {
-    result: string;
-    probability: number;
-    confidence: number;
+  const [isTransferring, setIsTransferring] = useState(false);
+  const [isCopied, setIsCopied] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showProgressModal, setShowProgressModal] = useState(false);
+  const [showQRModal, setShowQRModal] = useState(false);
+  const [transferStep, setTransferStep] = useState(0);
+  const [transferStatus, setTransferStatus] = useState<
+    "processing" | "success" | "error"
+  >("processing");
+  const [transferMessage, setTransferMessage] = useState("");
+  const [notification, setNotification] = useState<{
+    show: boolean;
+    type: "success" | "error" | "warning" | "info";
+    title: string;
+    message: string;
+  }>({
+    show: false,
+    type: "info",
+    title: "",
+    message: "",
+  });
+
+  // Trust score state for the current user
+  const [trustScore, setTrustScore] = useState<{
+    score: number;
+    last_result: string;
     loading: boolean;
     error: boolean;
-  }>>({});
+  }>({
+    score: 0,
+    last_result: "",
+    loading: false,
+    error: false,
+  });
 
-  // Fetch fraud detection for an address using the service
-  const fetchFraudDetection = async (address: string, fromAddress?: string) => {
-    // Set loading state
-    setFraudResults(prev => ({
-      ...prev,
-      [address]: {
-        result: '',
-        probability: 0,
-        confidence: 0,
-        loading: true,
-        error: false,
-      }
-    }));
+  // Fetch trust score for the current user using GET endpoint
+  useEffect(() => {
+    console.log("Trust score useEffect triggered");
+    console.log("zkpUser:", zkpUser);
+    console.log("zkpUser?.reference_number:", zkpUser?.reference_number);
 
-    try {
-      const data = await fraudDetectionService.getFraudScore(address, fromAddress);
+    if (!zkpUser?.reference_number) {
+      console.log("No reference number, skipping trust score fetch");
+      return;
+    }
 
-      setFraudResults(prev => ({
-        ...prev,
-        [address]: {
-          result: data.result,
-          probability: data.fraud_probability,
-          confidence: data.confidence,
+    const fetchTrustScore = async () => {
+      console.log("Fetching trust score for:", zkpUser.reference_number);
+      setTrustScore((prev) => ({ ...prev, loading: true }));
+
+      try {
+        const data = await fraudDetectionService.getFraudScoreByRefNumber(
+          zkpUser.reference_number
+        );
+
+        console.log("Trust score received:", data);
+        setTrustScore({
+          score: data.score,
+          last_result: data.last_result,
           loading: false,
           error: false,
-        }
-      }));
-    } catch (error: any) {
-      console.error('Fraud detection error:', error);
-
-      setFraudResults(prev => ({
-        ...prev,
-        [address]: {
-          result: '',
-          probability: 0,
-          confidence: 0,
+        });
+      } catch (error: any) {
+        console.error("Trust score fetch error:", error);
+        setTrustScore({
+          score: 0,
+          last_result: "",
           loading: false,
           error: true,
-        }
-      }));
+        });
+      }
+    };
+
+    fetchTrustScore();
+  }, [zkpUser]);
+
+  // Load transactions when user data is available
+  useEffect(() => {
+    if (zkpUser?.reference_number) {
+      loadTransactions(zkpUser.reference_number);
+    }
+  }, [zkpUser?.reference_number, loadTransactions]);
+
+  // Refresh transactions
+  const refreshTransactions = async () => {
+    if (zkpUser?.reference_number) {
+      setIsRefreshing(true);
+      await loadTransactions(zkpUser.reference_number);
+      // Keep spinning for at least 500ms for visual feedback
+      setTimeout(() => setIsRefreshing(false), 500);
     }
   };
 
-  // Fetch fraud detection for all visible transactions in parallel
-  useEffect(() => {
-    if (transactions.length === 0) return;
-
-    const ITEMS_PER_PAGE = 10;
-    const sorted = [...transactions].sort((a, b) => b.timestamp - a.timestamp);
-    const start = currentPage * ITEMS_PER_PAGE;
-    const page = sorted.slice(start, start + ITEMS_PER_PAGE);
-
-    // Fetch fraud detection for each transaction with from address
-    // Skip if already loading or has valid result (not error)
-    const fetchPromises = page
-      .filter(tx => {
-        const existing = fraudResults[tx.sender];
-        // Refetch if error or doesn't exist
-        return tx.sender && (!existing || existing.error);
-      })
-      .map(tx => {
-        console.log('Fetching fraud detection for:', tx.sender);
-        return fetchFraudDetection(tx.sender, tx.sender);
-      });
-
-    console.log(`Fetching fraud detection for ${fetchPromises.length} addresses`);
-
-    // Fetch all in parallel for faster loading
-    if (fetchPromises.length > 0) {
-      Promise.all(fetchPromises);
-    }
-  }, [transactions, currentPage]);
-
-  // Load transactions when wallet connects, clear when disconnects
-  useEffect(() => {
-    if (isConnected && currentAccount) {
-      loadTransactions(currentAccount);
-      updateBalances();
-    } else {
-      // Clear transactions when wallet disconnects
-      clearTransactions();
-    }
-  }, [isConnected, currentAccount, loadTransactions, updateBalances, clearTransactions]);
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text).then(
+      () => {
+        setIsCopied(true);
+        setTimeout(() => setIsCopied(false), 2000);
+      },
+      (err) => {
+        console.error("Failed to copy:", err);
+        setNotification({
+          show: true,
+          type: "error",
+          title: "Copy Failed",
+          message: "Failed to copy to clipboard. Please try again.",
+        });
+      }
+    );
+  };
 
   return (
     <>
-      {/* Token Balances (Auth Only) */}
+      <style>
+        {`
+          @keyframes spin {
+            from {
+              transform: rotate(0deg);
+            }
+            to {
+              transform: rotate(360deg);
+            }
+          }
+        `}
+      </style>
+      {/* Two Column Layout */}
       <div
-        id="auth-section"
         style={{
-          display: 'flex',
-          marginTop: '0.3rem',
-          marginLeft: 'auto',
-          marginRight: 'auto',
-          flexDirection: 'column',
-          alignItems: 'center',
-          width: '100%',
-          maxWidth: '900px',
-          gap: '0.25rem',
+          maxWidth: "1200px",
+          width: "100%",
+          margin: "1.5rem auto 0",
+          padding: "0 1rem",
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(400px, 1fr))",
+          gap: "2rem",
+          alignItems: "start",
         }}
       >
-        <div
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            padding: '0.45rem 0.9rem',
-            borderRadius: '1rem',
-            background: 'linear-gradient(135deg, rgba(6, 182, 212, 0.06), rgba(16, 185, 129, 0.04))',
-            border: '1px solid rgba(6, 182, 212, 0.08)',
-            boxShadow: '0 10px 30px rgba(6, 182, 212, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.03)',
-            backdropFilter: 'blur(6px)',
-            WebkitBackdropFilter: 'blur(6px)',
-          }}
-        >
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <defs>
-              <linearGradient id="wlgrad" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
-                <stop offset="0%" stopColor="#10b981" />
-                <stop offset="100%" stopColor="#06b6d4" />
-              </linearGradient>
-            </defs>
-            <rect x="2" y="5" width="16" height="12" rx="2.5" fill="url(#wlgrad)" opacity="0.1" />
-            <rect x="2" y="5" width="16" height="12" rx="2.5" stroke="url(#wlgrad)" strokeWidth="1.8" />
-            <path d="M2 7.5h16" stroke="url(#wlgrad)" strokeWidth="1.8" strokeLinecap="round" />
-            <rect x="4" y="9" width="8" height="5" rx="0.8" fill="url(#wlgrad)" opacity="0.3" />
-            <rect x="5" y="10" width="6" height="3" rx="0.5" fill="url(#wlgrad)" opacity="0.5" />
-            <rect x="18" y="8" width="4" height="6" rx="1" fill="url(#wlgrad)" opacity="0.2" />
-            <rect x="18" y="8" width="4" height="6" rx="1" stroke="url(#wlgrad)" strokeWidth="1.6" />
-            <circle cx="20" cy="11" r="0.8" fill="#10b981" />
-          </svg>
-          <span
+        {/* Left Column - Transfer Form or Pending Approval */}
+        <div style={{ width: "100%" }}>
+          <h2
             style={{
-              fontWeight: 900,
-              fontSize: '1.35em',
-              letterSpacing: '0.03em',
-              background: 'linear-gradient(90deg, #0f172a 0%, #10b981 50%, #06b6d4 100%)',
-              WebkitBackgroundClip: 'text',
-              backgroundClip: 'text',
-              color: 'transparent',
+              margin: "0 0 1.5rem 0",
+              fontSize: "1.5rem",
+              fontWeight: 800,
+              background: "linear-gradient(135deg, #10b981 0%, #06b6d4 100%)",
+              WebkitBackgroundClip: "text",
+              backgroundClip: "text",
+              color: "transparent",
+              letterSpacing: "-0.02em",
             }}
           >
-            Wallets
-          </span>
+            Send Transfer
+          </h2>
+
+          {/* Show blocked message if fraud score >= 0.8 (80%) */}
+          {!trustScore.loading && !trustScore.error && trustScore.score >= 0.8 ? (
+            <div
+              style={{
+                padding: "2rem",
+                background:
+                  "linear-gradient(135deg, rgba(15, 23, 42, 0.9) 0%, rgba(30, 41, 59, 0.9) 100%)",
+                backdropFilter: "blur(20px) saturate(180%)",
+                borderRadius: "1rem",
+                border: "2px solid rgba(239, 68, 68, 0.25)",
+                boxShadow:
+                  "0 8px 24px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1)",
+                textAlign: "center",
+              }}
+            >
+              <svg
+                width="64"
+                height="64"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="#ef4444"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                style={{
+                  margin: "0 auto 1rem",
+                  display: "block",
+                }}
+              >
+                <circle cx="12" cy="12" r="10" />
+                <line x1="15" y1="9" x2="9" y2="15" />
+                <line x1="9" y1="9" x2="15" y2="15" />
+              </svg>
+              <h3
+                style={{
+                  background: "rgba(255, 255, 255, 0.1)",
+                  margin: "0 0 0.75rem 0",
+                  fontSize: "1.25rem",
+                  fontWeight: 700,
+                  color: "#ef4444",
+                  textShadow: "0 0 10px rgba(239, 68, 68, 0.3)",
+                }}
+              >
+                Account Blocked
+              </h3>
+              <p
+                style={{
+                  margin: "0 0 0.5rem 0",
+                  fontSize: "0.95rem",
+                  color: "#cbd5e1",
+                  fontWeight: 600,
+                  lineHeight: 1.6,
+                }}
+              >
+                User blocked due to illegal activity
+              </p>
+              <p
+                style={{
+                  margin: "0",
+                  fontSize: "0.85rem",
+                  color: "#94a3b8",
+                }}
+              >
+                Your account has been flagged for suspicious activity. Transfers are currently disabled.
+              </p>
+            </div>
+          ) : userProfile && userProfile.status !== "approved" ? (
+            <div
+              style={{
+                padding: "2rem",
+                background:
+                  "linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(251, 191, 36, 0.1) 100%)",
+                backdropFilter: "blur(20px) saturate(180%)",
+                borderRadius: "1rem",
+                border: "2px solid rgba(245, 158, 11, 0.3)",
+                boxShadow:
+                  "0 8px 24px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1)",
+                textAlign: "center",
+              }}
+            >
+              <svg
+                width="64"
+                height="64"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="#f59e0b"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                style={{
+                  margin: "0 auto 1rem",
+                  display: "block",
+                }}
+              >
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="12 6 12 12 16 14" />
+              </svg>
+              <h3
+                style={{
+                  margin: "0 0 0.75rem 0",
+                  background: "rgba(15, 23, 42, 0.9)",
+                  fontSize: "1.25rem",
+                  fontWeight: 700,
+                  color: "#f59e0b",
+                  textShadow: "0 0 10px rgba(245, 158, 11, 0.3)",
+                }}
+              >
+                Pending Organization Approval
+              </h3>
+              <p
+                style={{
+                  margin: "0 0 0.5rem 0",
+                  fontSize: "0.95rem",
+                  color: "#cbd5e1",
+                  lineHeight: 1.6,
+                }}
+              >
+                Your account is currently under review. Please wait for the
+                administrator to approve your account before you can make
+                transfers.
+              </p>
+              <p
+                style={{
+                  margin: "0",
+                  fontSize: "0.85rem",
+                  color: "#94a3b8",
+                }}
+              >
+                Current Status:{" "}
+                <span
+                  style={{
+                    color: "#f59e0b",
+                    fontWeight: 600,
+                    textTransform: "capitalize",
+                  }}
+                >
+                  {userProfile.status}
+                </span>
+              </p>
+            </div>
+          ) : (
+            /* Transfer Form */
+            <form
+              id="transfer-form"
+              onSubmit={async (e) => {
+                e.preventDefault();
+
+                if (!userProfile || !zkpUser) {
+                  setNotification({
+                    show: true,
+                    type: "error",
+                    title: "User Information Missing",
+                    message:
+                      "User information not loaded. Please refresh the page.",
+                  });
+                  return;
+                }
+
+                try {
+                  setIsTransferring(true);
+
+                  // Wait 2 seconds before showing progress modal
+                  await new Promise((resolve) => setTimeout(resolve, 2000));
+
+                  // Show progress modal and start steps
+                  setShowProgressModal(true);
+                  setTransferStatus("processing");
+                  setTransferStep(1); // Step 1: Validate Input
+
+                  const referenceNumber = transferForm.referenceNumber.trim();
+                  const amount = transferForm.amount.trim();
+                  const purpose = transferForm.purpose.trim();
+
+                  // Basic validation
+                  if (!referenceNumber) {
+                    throw new Error(
+                      "Please enter a recipient reference number"
+                    );
+                  }
+
+                  // Validate reference number format (wallet_address_uuid)
+                  const refParts = referenceNumber.split("_");
+                  if (refParts.length < 2 || !refParts[0].startsWith("0x")) {
+                    throw new Error(
+                      "Invalid reference number format. Expected: {wallet_address}_{uuid}"
+                    );
+                  }
+
+                  const normalized = amount.replace(/,/g, "");
+                  if (!/^\d*\.?\d+$/.test(normalized)) {
+                    throw new Error("Please enter a valid decimal amount");
+                  }
+
+                  const amountNum = parseFloat(normalized);
+                  if (amountNum <= 0) {
+                    throw new Error("Amount must be greater than 0");
+                  }
+
+                  if (amountNum > zkpUser.balance) {
+                    throw new Error(
+                      `Insufficient balance. Available: ${zkpUser.balance} USDC`
+                    );
+                  }
+
+                  // Step 2: Retrieve User Data
+                  setTransferStep(2);
+                  await new Promise((resolve) => setTimeout(resolve, 500));
+
+                  // Validate fraud scores before transfer
+                  console.log("Validating fraud scores...");
+                  const fraudValidation =
+                    await fraudDetectionService.validateTransfer(
+                      zkpUser.reference_number,
+                      referenceNumber,
+                      0.8 // threshold (score range: 0-1, ≥0.8 = untrusted)
+                    );
+
+                  if (!fraudValidation.isValid) {
+                    throw new Error(
+                      fraudValidation.error || "Transfer blocked"
+                    );
+                  }
+
+                  console.log("Fraud validation passed");
+
+                  // Step 3: Generate ZKP Proof
+                  setTransferStep(3);
+                  await new Promise((resolve) => setTimeout(resolve, 800));
+
+                  // Step 4: Generate Nullifier
+                  setTransferStep(4);
+                  await new Promise((resolve) => setTimeout(resolve, 600));
+
+                  // Step 5: Create Memo
+                  setTransferStep(5);
+                  await new Promise((resolve) => setTimeout(resolve, 500));
+
+                  // Step 6: Execute Blockchain Transfer
+                  setTransferStep(6);
+
+                  // Call transfer API
+                  console.log("Sending transfer request:", {
+                    receiver_reference_number: referenceNumber,
+                    amount: amountNum,
+                    sender_user_id: userProfile.id,
+                  });
+
+                  const response = await fetch(
+                    "http://localhost:7000/api/transfer",
+                    {
+                      method: "POST",
+                      headers: {
+                        "Content-Type": "application/json",
+                      },
+                      body: JSON.stringify({
+                        receiver_reference_number: referenceNumber,
+                        amount: amountNum,
+                        sender_user_id: userProfile.id,
+                      }),
+                    }
+                  );
+
+                  console.log("Transfer response status:", response.status);
+
+                  const data = await response.json();
+                  console.log("Transfer response data:", data);
+
+                  if (!response.ok || !data.success) {
+                    // Extract detailed error message
+                    let errorMessage = "Transfer failed";
+
+                    if (data.error) {
+                      if (typeof data.error === "string") {
+                        errorMessage = data.error;
+                      } else if (data.error.message) {
+                        errorMessage = data.error.message;
+                      } else if (data.error.type) {
+                        errorMessage = `${data.error.type}: ${JSON.stringify(
+                          data.error.details || {}
+                        )}`;
+                      }
+                    } else if (data.message) {
+                      errorMessage = data.message;
+                    }
+
+                    console.error("Transfer failed:", errorMessage, data);
+
+                    throw new Error(errorMessage);
+                  }
+
+                  // Step 7: Update Database
+                  setTransferStep(7);
+                  await new Promise((resolve) => setTimeout(resolve, 500));
+
+                  // Check if this is a same-organization transfer or cross-organization transfer
+                  const isSameOrg =
+                    data.transferType === "SAME_ORGANIZATION" ||
+                    !data.blockchain;
+
+                  // Show success state in modal
+                  setTransferStatus("success");
+                  const successMsg = isSameOrg
+                    ? `Same Organization Transfer • ${amountNum} USDC • New Balance: ${data.database.senderNewBalance} USDC`
+                    : `Cross Organization Transfer • ${amountNum} USDC • New Balance: ${data.database.senderNewBalance} USDC`;
+                  setTransferMessage(successMsg);
+
+                  // Add transaction to list
+                  const newTx: ParsedTransfer = {
+                    sender:
+                      data.blockchain?.senderWalletAddress ||
+                      userProfile.wallet_address ||
+                      "Unknown",
+                    recipient:
+                      data.blockchain?.receiverWalletAddress ||
+                      referenceNumber.split("_")[0] ||
+                      "Unknown",
+                    amount: `${amountNum} USDC`,
+                    purpose: purpose || "Transfer",
+                    nullifier:
+                      data.blockchain?.nullifier || `same-org-${Date.now()}`,
+                    timestamp: new Date(
+                      data.database.timestamp ||
+                        data.blockchain?.timestamp ||
+                        Date.now()
+                    ).getTime(),
+                    txHash: data.blockchain?.transactionHash,
+                  };
+
+                  addTransaction(newTx);
+
+                  // Update user balance in store
+                  if (zkpUser) {
+                    zkpUser.balance = data.database.senderNewBalance;
+                    localStorage.setItem(
+                      "fincube_zkp_user",
+                      JSON.stringify(zkpUser)
+                    );
+                  }
+
+                  // Trigger fraud score analysis for both sender and receiver (POST)
+                  // This updates the fraud scores in the backend
+                  console.log(
+                    "Triggering fraud score analysis after transfer..."
+                  );
+                  Promise.all([
+                    fraudDetectionService.getFraudScore(
+                      zkpUser.reference_number
+                    ),
+                    fraudDetectionService.getFraudScore(referenceNumber),
+                  ])
+                    .then(() => {
+                      console.log(
+                        "Fraud score analysis triggered for both parties"
+                      );
+                    })
+                    .catch((err) => {
+                      console.error("Fraud score analysis failed:", err);
+                      // Don't block the UI if fraud analysis fails
+                    });
+
+                  // Clear form
+                  setTransferForm({
+                    referenceNumber: "",
+                    amount: "",
+                    purpose: "",
+                  });
+                } catch (error: any) {
+                  console.error("Transfer error:", error);
+
+                  let userMessage =
+                    error.message || "Transfer failed. Please try again.";
+
+                  // Provide more helpful error messages for common issues
+                  if (error.message?.includes("execution reverted")) {
+                    userMessage =
+                      "Smart contract transaction failed. Possible reasons:\n\n" +
+                      "1. Insufficient blockchain wallet balance (need ETH for gas)\n" +
+                      "2. Invalid ZKP proof verification\n" +
+                      "3. Duplicate transaction (nullifier already used)\n" +
+                      "4. Contract state issue\n\n" +
+                      "Please check the backend logs for detailed error information.";
+                  } else if (
+                    error.message?.includes("BLOCKCHAIN_TRANSFER_FAILED")
+                  ) {
+                    userMessage =
+                      "Blockchain transfer failed.\n\n" +
+                      "This is usually due to:\n" +
+                      "- Insufficient ETH for gas fees in sender's wallet\n" +
+                      "- Invalid proof data\n" +
+                      "- Contract validation failure\n\n" +
+                      "Check backend logs for details.";
+                  }
+
+                  // Show error state in modal
+                  setTransferStatus("error");
+                  setTransferMessage(userMessage);
+                } finally {
+                  setIsTransferring(false);
+                }
+              }}
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.8rem",
+                width: "100%",
+              }}
+            >
+              <div style={{ position: "relative" }}>
+                <input
+                  type="text"
+                  name="referenceNumber"
+                  value={transferForm.referenceNumber}
+                  onChange={(e) =>
+                    setTransferForm({
+                      ...transferForm,
+                      referenceNumber: e.target.value,
+                    })
+                  }
+                  placeholder="Recipient Reference Number (e.g., 0x123...abc_uuid)"
+                  required
+                  style={{
+                    width: "100%",
+                    padding: "1rem 1.2rem",
+                    border: "2px solid #e2e8f0",
+                    borderRadius: "0.75rem",
+                    fontSize: "1rem",
+                    fontWeight: 500,
+                    outline: "none",
+                    background: "rgba(255, 255, 255, 0.9)",
+                    transition: "all 0.2s ease",
+                    boxSizing: "border-box",
+                    marginBottom: "0",
+                  }}
+                />
+                <div
+                  style={{
+                    position: "absolute",
+                    top: "50%",
+                    right: "1rem",
+                    transform: "translateY(-50%)",
+                    pointerEvents: "none",
+                    display: "flex",
+                    alignItems: "center",
+                  }}
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                    <path
+                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                      stroke="#94a3b8"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </div>
+              </div>
+              <div style={{ position: "relative" }}>
+                <input
+                  type="text"
+                  name="amount"
+                  value={transferForm.amount}
+                  onChange={(e) =>
+                    setTransferForm({ ...transferForm, amount: e.target.value })
+                  }
+                  placeholder="Amount"
+                  inputMode="decimal"
+                  required
+                  style={{
+                    width: "100%",
+                    padding: "1rem 1.2rem",
+                    paddingRight: "5rem",
+                    border: "2px solid #e2e8f0",
+                    borderRadius: "0.75rem",
+                    fontSize: "1rem",
+                    fontWeight: 500,
+                    outline: "none",
+                    background: "rgba(255, 255, 255, 0.9)",
+                    transition: "all 0.2s ease",
+                    boxSizing: "border-box",
+                    marginBottom: "0",
+                  }}
+                />
+                <div
+                  style={{
+                    position: "absolute",
+                    top: "50%",
+                    right: "1rem",
+                    transform: "translateY(-50%)",
+                    pointerEvents: "none",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.4rem",
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: "0.85rem",
+                      fontWeight: 500,
+                      color: "#94a3b8",
+                      letterSpacing: "0.02em",
+                    }}
+                  >
+                    USDC
+                  </span>
+                  <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    aria-label="Currency"
+                  >
+                    <path
+                      d="M12 2l6 9-6 3-6-3 6-9z"
+                      fill="#94a3b8"
+                      opacity="0.95"
+                    />
+                    <path
+                      d="M12 14l6-3-6 11-6-11 6 3z"
+                      fill="#94a3b8"
+                      opacity="0.7"
+                    />
+                  </svg>
+                </div>
+              </div>
+              <div style={{ position: "relative" }}>
+                <input
+                  type="text"
+                  name="purpose"
+                  value={transferForm.purpose}
+                  onChange={(e) =>
+                    setTransferForm({
+                      ...transferForm,
+                      purpose: e.target.value,
+                    })
+                  }
+                  placeholder="Purpose (Optional - e.g., Salary, Invoice, Refund)"
+                  style={{
+                    width: "100%",
+                    padding: "1rem 1.2rem",
+                    border: "2px solid #e2e8f0",
+                    borderRadius: "0.75rem",
+                    fontSize: "1rem",
+                    fontWeight: 500,
+                    outline: "none",
+                    background: "rgba(255, 255, 255, 0.9)",
+                    transition: "all 0.2s ease",
+                    boxSizing: "border-box",
+                    marginBottom: "0",
+                  }}
+                />
+                <div
+                  style={{
+                    position: "absolute",
+                    top: "50%",
+                    right: "1rem",
+                    transform: "translateY(-50%)",
+                    pointerEvents: "none",
+                    display: "flex",
+                    alignItems: "center",
+                  }}
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                    <path
+                      d="M4 7h16M7 12h10M8 17h8"
+                      stroke="#94a3b8"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                </div>
+              </div>
+              <button
+                type="submit"
+                disabled={isTransferring}
+                style={{
+                  width: "100%",
+                  padding: "1rem 1.5rem",
+                  background: isTransferring
+                    ? "linear-gradient(135deg, #6b7280 0%, #9ca3af 100%)"
+                    : "linear-gradient(135deg, #10b981 0%, #06b6d4 100%)",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "0.75rem",
+                  fontWeight: 700,
+                  fontSize: "1.1rem",
+                  cursor: isTransferring ? "not-allowed" : "pointer",
+                  boxShadow: "0 8px 20px rgba(16, 185, 129, 0.4)",
+                  transition: "all 0.3s ease",
+                  position: "relative",
+                  overflow: "hidden",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "0.5rem",
+                  opacity: isTransferring ? 0.7 : 1,
+                }}
+              >
+                {isTransferring ? (
+                  <>
+                    <svg
+                      width="20"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      style={{
+                        position: "relative",
+                        zIndex: 1,
+                        animation: "spin 1s linear infinite",
+                      }}
+                    >
+                      <circle
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="3"
+                        strokeDasharray="60"
+                        strokeDashoffset="15"
+                        fill="none"
+                      />
+                    </svg>
+                    <span style={{ position: "relative", zIndex: 1 }}>
+                      Processing...
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <svg
+                      width="20"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      style={{ position: "relative", zIndex: 1 }}
+                    >
+                      <path
+                        d="M3 12h18m-9-9l9 9-9 9"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                    <span style={{ position: "relative", zIndex: 1 }}>
+                      Transfer
+                    </span>
+                  </>
+                )}
+              </button>
+            </form>
+          )}
         </div>
-        <div
-          className="balance-grid"
-          style={{
-            display: 'flex',
-            justifyContent: 'center',
-            gap: '1rem',
-            flexWrap: 'wrap',
-            width: '100%',
-            marginTop: '0.2rem',
-          }}
-        >
-          {/* USD */}
-          <div
-            className="balance-card-item"
+
+        {/* Right Column - User Info */}
+        <div style={{ width: "100%" }}>
+          <h2
             style={{
-              flex: '1 1 180px',
-              maxWidth: '220px',
-              background: '#f8fafc',
-              border: '0',
-              outline: 'none',
-              borderRadius: '1rem',
-              textAlign: 'center',
-              padding: '1.2rem 0.7rem',
-              boxShadow: '0 4px 14px rgba(0, 0, 0, 0.08)',
-              transition: 'transform 0.2s',
+              margin: "0 0 1.5rem 0",
+              fontSize: "1.5rem",
+              fontWeight: 800,
+              background: "linear-gradient(135deg, #10b981 0%, #06b6d4 100%)",
+              WebkitBackgroundClip: "text",
+              backgroundClip: "text",
+              color: "transparent",
+              letterSpacing: "-0.02em",
             }}
           >
+            Your Account
+          </h2>
+
+          {/* User Profile Card */}
+          {userProfile && zkpUser && (
             <div
               style={{
-                background: 'transparent',
-                width: '40px',
-                height: '40px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                margin: '0 auto 0.3rem',
+                padding: "1.5rem",
+                background:
+                  "linear-gradient(135deg, rgba(15, 23, 42, 0.9) 0%, rgba(30, 41, 59, 0.9) 100%)",
+                backdropFilter: "blur(20px) saturate(180%)",
+                borderRadius: "1rem",
+                border: "2px solid rgba(16, 185, 129, 0.25)",
+                boxShadow:
+                  "0 8px 24px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1)",
+                marginBottom: "1.5rem",
               }}
             >
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" style={{ marginBottom: 0 }} aria-label="USD">
-                <circle cx="12" cy="12" r="12" fill="#10b981" />
-                <path
-                  d="M13.75 7.75c0-.966-.784-1.75-1.75-1.75s-1.75.784-1.75 1.75c0 .966.784 1.75 1.75 1.75h1c1.243 0 2.25 1.007 2.25 2.25s-1.007 2.25-2.25 2.25h-2.5"
-                  stroke="#fff"
-                  strokeWidth="1.6"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-                <path d="M12 5v14" stroke="#fff" strokeWidth="1.6" strokeLinecap="round" />
-              </svg>
+              <h3
+                style={{
+                  margin: "0 0 1rem 0",
+                  background: "rgba(6, 182, 212, 0.1)",
+                  border: "1px solid rgba(6, 182, 212, 0.2)",
+                  fontSize: "1.15rem",
+                  fontWeight: 700,
+                  color: "#10b981",
+                  textShadow: "0 0 10px rgba(16, 185, 129, 0.3)",
+                }}
+              >
+                {userProfile.first_name} {userProfile.last_name}
+              </h3>
+              <div style={{ fontSize: "0.9rem", lineHeight: 1.8 }}>
+                <div style={{ marginBottom: "0.5rem" }}>
+                  <strong style={{ color: "#10b981", fontWeight: 600 }}>
+                    Balance:
+                  </strong>{" "}
+                  <span
+                    style={{
+                      color: "#10b981",
+                      fontSize: "1.3rem",
+                      fontWeight: 700,
+                      textShadow: "0 0 10px rgba(16, 185, 129, 0.4)",
+                    }}
+                  >
+                    {Number(zkpUser.balance).toFixed(2)} USDC
+                  </span>
+                </div>
+                <div style={{ marginBottom: "0.5rem" }}>
+                  <strong style={{ color: "#06b6d4", fontWeight: 600 }}>
+                    Email:
+                  </strong>{" "}
+                  <span style={{ color: "#cbd5e1" }}>{userProfile.email}</span>
+                </div>
+                <div style={{ marginBottom: "0.5rem" }}>
+                  <strong style={{ color: "#06b6d4", fontWeight: 600 }}>
+                    Status:
+                  </strong>{" "}
+                  <span
+                    style={{
+                      color: "#10b981",
+                      background: "rgba(16, 185, 129, 0.15)",
+                      padding: "0.15rem 0.5rem",
+                      borderRadius: "0.4rem",
+                      fontSize: "0.85rem",
+                      fontWeight: 600,
+                      textTransform: "capitalize",
+                      border: "1px solid rgba(16, 185, 129, 0.3)",
+                    }}
+                  >
+                    {userProfile.status}
+                  </span>
+                </div>
+                <div style={{ marginBottom: "0.5rem", display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+                  <strong style={{ color: "#06b6d4", fontWeight: 600, display: "flex", alignItems: "center", gap: "0.35rem" }}>
+                    Trust Score:
+                    <svg 
+                      width="16" 
+                      height="16" 
+                      viewBox="0 0 24 24" 
+                      fill="#06b6d4" 
+                      style={{ opacity: 0.8 }}
+                    >
+                      <title>AI-Generated Score</title>
+                      <path d="M12 2L14.5 9.5L22 12L14.5 14.5L12 22L9.5 14.5L2 12L9.5 9.5L12 2Z"/>
+                      <path d="M19 4L19.5 5.5L21 6L19.5 6.5L19 8L18.5 6.5L17 6L18.5 5.5L19 4Z" opacity="0.7"/>
+                      <path d="M5 4L5.5 5.5L7 6L5.5 6.5L5 8L4.5 6.5L3 6L4.5 5.5L5 4Z" opacity="0.7"/>
+                    </svg>
+                  </strong>
+                  {trustScore.loading ? (
+                    <span style={{ color: "#94a3b8" }}>Loading...</span>
+                  ) : trustScore.error ? (
+                    <span style={{ color: "#ef4444" }}>Unavailable</span>
+                  ) : (
+                    (() => {
+                      const displayScore = 1 - trustScore.score; // Invert: trust = 1 - fraud
+                      return (
+                        <span
+                          style={{
+                            color: displayScore >= 0.7 ? "#10b981" : displayScore >= 0.4 ? "#3b82f6" : displayScore >= 0.2 ? "#f59e0b" : "#ef4444",
+                            background: displayScore >= 0.7 ? "rgba(16, 185, 129, 0.15)" : displayScore >= 0.4 ? "rgba(59, 130, 246, 0.15)" : displayScore >= 0.2 ? "rgba(245, 158, 11, 0.15)" : "rgba(239, 68, 68, 0.15)",
+                            padding: "0.15rem 0.5rem",
+                            borderRadius: "0.4rem",
+                            fontSize: "0.85rem",
+                            fontWeight: 600,
+                            border: displayScore >= 0.7 ? "1px solid rgba(16, 185, 129, 0.3)" : displayScore >= 0.4 ? "1px solid rgba(59, 130, 246, 0.3)" : displayScore >= 0.2 ? "1px solid rgba(245, 158, 11, 0.3)" : "1px solid rgba(239, 68, 68, 0.3)",
+                          }}
+                          title={`Fraud Score: ${trustScore.score.toFixed(2)} | Last Result: ${trustScore.last_result}`}
+                        >
+                          {displayScore >= 0.7 ? "✅" : displayScore >= 0.4 ? "ℹ️" : displayScore >= 0.2 ? "⚠️" : "🚨"} {(displayScore * 100).toFixed(1)}%
+                        </span>
+                      );
+                    })()
+                  )}
+                </div>
+              </div>
             </div>
+          )}
+
+          {/* Reference Number Card */}
+          {zkpUser && (
             <div
               style={{
-                fontWeight: 700,
-                color: '#111827',
-                fontSize: '1.05em',
-                marginBottom: '0.3rem',
+                padding: "1.5rem",
+                background:
+                  "linear-gradient(135deg, rgba(15, 23, 42, 0.9) 0%, rgba(30, 41, 59, 0.9) 100%)",
+                backdropFilter: "blur(20px) saturate(180%)",
+                borderRadius: "1rem",
+                border: "2px solid rgba(6, 182, 212, 0.25)",
+                boxShadow:
+                  "0 8px 24px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1)",
               }}
             >
-              USD Balance
+              <div
+                style={{
+                  display: "flex",
+                  gap: "0.5rem",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: "1rem",
+                }}
+              >
+                <h3
+                  style={{
+                    margin: 0,
+                    background: "rgba(6, 182, 212, 0.1)",
+                    border: "1px solid rgba(6, 182, 212, 0.2)",
+                    flex: 1,
+                    fontSize: "1.15rem",
+                    fontWeight: 700,
+                    color: "#06b6d4",
+                    textShadow: "0 0 10px rgba(6, 182, 212, 0.3)",
+                  }}
+                >
+                  Your Reference Number
+                </h3>
+                <button
+                  onClick={() => setShowQRModal(true)}
+                  style={{
+                    padding: "0.5rem",
+                    background: "rgba(6, 182, 212, 0.1)",
+                    border: "1px solid rgba(6, 182, 212, 0.2)",
+                    borderRadius: "0.5rem",
+                    cursor: "pointer",
+                    transition: "all 0.2s ease",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = "rgba(6, 182, 212, 0.3)";
+                    e.currentTarget.style.transform = "scale(1.05)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = "rgba(6, 182, 212, 0.2)";
+                    e.currentTarget.style.transform = "scale(1)";
+                  }}
+                  title="Show QR Code"
+                >
+                  <svg
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="#06b6d4"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <rect x="3" y="3" width="7" height="7" />
+                    <rect x="14" y="3" width="7" height="7" />
+                    <rect x="14" y="14" width="7" height="7" />
+                    <rect x="3" y="14" width="7" height="7" />
+                  </svg>
+                </button>
+              </div>
             </div>
-            <div id="usd-balance">{balances.usd}</div>
-          </div>
-          {/* ETH */}
-          <div
-            className="balance-card-item"
-            style={{
-              flex: '1 1 180px',
-              maxWidth: '220px',
-              background: '#f8fafc',
-              border: '0',
-              outline: 'none',
-              borderRadius: '1rem',
-              textAlign: 'center',
-              padding: '1.2rem 0.7rem',
-              boxShadow: '0 4px 14px rgba(0, 0, 0, 0.08)',
-              transition: 'transform 0.2s',
-            }}
-          >
-            <div
-              style={{
-                background: 'transparent',
-                width: '40px',
-                height: '40px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                margin: '0 auto 0.3rem',
-              }}
-            >
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" aria-label="ETH">
-                <circle cx="12" cy="12" r="12" fill="#627eea" />
-                <path d="M12 3l-6 10 6 3.5 6-3.5z" fill="#fff" opacity="0.6" />
-                <path d="M12 3l6 10-6 3.5z" fill="#fff" />
-                <path d="M12 18l-6-3.5L12 21l6-6.5z" fill="#fff" opacity="0.6" />
-                <path d="M12 18l6-3.5L12 21z" fill="#fff" />
-              </svg>
-            </div>
-            <div
-              style={{
-                fontWeight: 700,
-                color: '#111827',
-                fontSize: '1.05em',
-                marginBottom: '0.3rem',
-              }}
-            >
-              ETH Balance
-            </div>
-            <div id="eth-balance">{balances.eth} ETH</div>
-          </div>
-          {/* USDC */}
-          <div
-            className="balance-card-item"
-            style={{
-              flex: '1 1 180px',
-              maxWidth: '220px',
-              background: '#f8fafc',
-              border: '0',
-              outline: 'none',
-              borderRadius: '1rem',
-              textAlign: 'center',
-              padding: '1.2rem 0.7rem',
-              boxShadow: '0 4px 14px rgba(0, 0, 0, 0.08)',
-              transition: 'transform 0.2s',
-            }}
-          >
-            <div
-              style={{
-                background: 'transparent',
-                width: '40px',
-                height: '40px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                margin: '0 auto 0.3rem',
-              }}
-            >
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" aria-label="USDC">
-                <circle cx="12" cy="12" r="12" fill="#2775ca" />
-                <circle cx="12" cy="12" r="8" fill="none" stroke="#fff" strokeWidth="1.5" />
-                <path
-                  d="M10 9.5c0-.828.672-1.5 1.5-1.5h1c.828 0 1.5.672 1.5 1.5s-.672 1.5-1.5 1.5h-1.5v2h1.5c.828 0 1.5.672 1.5 1.5s-.672 1.5-1.5 1.5h-1c-.828 0-1.5-.672-1.5-1.5"
-                  stroke="#fff"
-                  strokeWidth="1.3"
-                  strokeLinecap="round"
-                />
-                <path d="M12 7v1.5M12 15.5V17" stroke="#fff" strokeWidth="1.3" strokeLinecap="round" />
-              </svg>
-            </div>
-            <div
-              style={{
-                fontWeight: 700,
-                color: '#111827',
-                fontSize: '1.05em',
-                marginBottom: '0.3rem',
-              }}
-            >
-              USDC Balance
-            </div>
-            <div id="usdc-balance">{balances.usdc} USDC</div>
-          </div>
+          )}
         </div>
       </div>
 
-      {/* Transfer Form */}
-      <form
-        id="transfer-form"
-        onSubmit={async (e) => {
-          e.preventDefault();
-
-          try {
-            const toInput = transferForm.address.trim().replace(/\s+/g, '');
-            const amount = transferForm.amount;
-            const purpose = transferForm.purpose;
-
-            // Basic validation
-            let checksumTo: string;
-            try {
-              checksumTo = ethers.utils.getAddress(toInput);
-            } catch {
-              throw new Error('Please enter a valid recipient address');
-            }
-
-            const normalized = amount.trim().replace(/,/g, '');
-            if (!/^\d*\.?\d+$/.test(normalized)) {
-              throw new Error('Please enter a valid decimal amount');
-            }
-
-            if (!purpose.trim()) {
-              throw new Error('Please enter a purpose for this transfer');
-            }
-
-            // Create memo in memo.json format
-            const memoData = {
-              TransactionInformation: {
-                MessageID: `tx_${Date.now()}`,
-                CreationDateTime: new Date().toISOString(),
-                TransactionID: ethers.utils.id(
-                  `${currentAccount}_${checksumTo}_${normalized}_${Date.now()}`
-                ),
-                InterOrganizationSettlementAmount: {
-                  Currency: 'USDC',
-                  Amount: normalized,
-                },
-                Debtor: {
-                  Name: 'FinCube User',
-                },
-                DebtorAccount: {
-                  wallet_address: currentAccount,
-                },
-                DebtorOrganization: {
-                  ID: 'FINCUBE',
-                  Name: 'FinCube Network',
-                },
-                CreditorOrganization: {
-                  ID: 'FINCUBE',
-                  Name: 'FinCube Network',
-                },
-                Creditor: {
-                  Name: 'Recipient',
-                },
-                CreditorAccount: {
-                  wallet_address: checksumTo,
-                },
-                RemittanceInformation: {
-                  Unstructured: purpose.trim(),
-                  Structured: {
-                    Reference: '0x8a263DcEfee44B9Abe968C1B18e370f6A0A5F878',
-                  },
-                },
-                ChargesInformation: {
-                  Bearer: 'DEBT',
-                },
-                Purpose: purpose.trim(),
-                RegulatoryReporting: {
-                  Code: 'TRANSFER',
-                },
-              },
-            };
-
-            const memo = JSON.stringify(memoData);
-
-            // Calculate nullifier as hash of to, amount, and memo
-            const nullifierInput = `${checksumTo}_${normalized}_${memo}`;
-            const nullifier = ethers.utils.keccak256(
-              ethers.utils.toUtf8Bytes(nullifierInput)
-            );
-
-            const tokenDecimals = 6; // USDC 6 decimals
-            const parsedAmount = ethers.utils.parseUnits(normalized, tokenDecimals);
-
-            const tx = await web3Service.safeTransfer(
-              checksumTo,
-              parsedAmount,
-              memo,
-              nullifier
-            );
-            await tx.wait();
-
-            await updateBalances();
-
-            alert('Transfer successful!');
-
-            // Add transaction to list
-            const normalizeHash = (candidate?: string | null): string | undefined => {
-              if (!candidate) return undefined;
-              const s = String(candidate).trim();
-              const m = s.match(/0x[a-fA-F0-9]{64}/);
-              if (m) return m[0];
-              if (s.includes('-')) {
-                const left = s.split('-')[0];
-                if (/^0x[a-fA-F0-9]{64}$/.test(left)) return left;
-                const mm = left.match(/0x[a-fA-F0-9]{64}/);
-                if (mm) return mm[0];
-              }
-              if (s.startsWith('0x') && s.length >= 66) return s.slice(0, 66);
-              return undefined;
-            };
-
-            const recordedHash = normalizeHash(tx && (tx as any).hash) || (tx && (tx as any).hash);
-
-            const newTx: ParsedTransfer = {
-              sender: currentAccount || '',
-              recipient: toInput,
-              amount: `${amount} USDC`,
-              purpose: purpose.trim(),
-              nullifier: nullifier,
-              timestamp: Date.now(),
-              txHash: recordedHash,
-            };
-
-            addTransaction(newTx);
-
-            // Clear form
-            setTransferForm({
-              address: '',
-              amount: '',
-              purpose: '',
-            });
-          } catch (error: any) {
-            console.error(error.message);
-            alert(error.message);
-          }
-        }}
-        style={{
-          display: 'flex',
-          marginTop: '2.5rem',
-          marginLeft: 'auto',
-          marginRight: 'auto',
-          flexDirection: 'column',
-          gap: '0.8rem',
-          width: '100%',
-          maxWidth: '420px',
-        }}
-      >
-        <div style={{ position: 'relative' }}>
-          <input
-            type="text"
-            name="address"
-            value={transferForm.address}
-            onChange={(e) => setTransferForm({ ...transferForm, address: e.target.value })}
-            placeholder="Recipient Address"
-            required
-            style={{
-              width: '100%',
-              padding: '1rem 1.2rem',
-              border: '2px solid #e2e8f0',
-              borderRadius: '0.75rem',
-              fontSize: '1rem',
-              fontWeight: 500,
-              outline: 'none',
-              background: 'rgba(255, 255, 255, 0.9)',
-              transition: 'all 0.2s ease',
-              boxSizing: 'border-box',
-            }}
-          />
-          <div
-            style={{
-              position: 'absolute',
-              top: '50%',
-              right: '1rem',
-              transform: 'translateY(-50%)',
-              pointerEvents: 'none',
-            }}
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-              <path
-                d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0Z"
-                stroke="#94a3b8"
-                strokeWidth="1.5"
-              />
-              <circle cx="12" cy="10" r="3" stroke="#94a3b8" strokeWidth="1.5" />
-            </svg>
-          </div>
-        </div>
-        <div style={{ position: 'relative' }}>
-          <input
-            type="text"
-            name="amount"
-            value={transferForm.amount}
-            onChange={(e) => setTransferForm({ ...transferForm, amount: e.target.value })}
-            placeholder="Amount"
-            inputMode="decimal"
-            required
-            style={{
-              width: '100%',
-              padding: '1rem 1.2rem',
-              border: '2px solid #e2e8f0',
-              borderRadius: '0.75rem',
-              fontSize: '1rem',
-              fontWeight: 500,
-              outline: 'none',
-              background: 'rgba(255, 255, 255, 0.9)',
-              transition: 'all 0.2s ease',
-              boxSizing: 'border-box',
-            }}
-          />
-          <div
-            style={{
-              position: 'absolute',
-              top: '50%',
-              right: '1rem',
-              transform: 'translateY(-50%)',
-              pointerEvents: 'none',
-            }}
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-label="ETH">
-              <path d="M12 2l6 9-6 3-6-3 6-9z" fill="#94a3b8" opacity="0.95" />
-              <path d="M12 14l6-3-6 11-6-11 6 3z" fill="#94a3b8" opacity="0.7" />
-            </svg>
-          </div>
-        </div>
-        <div style={{ position: 'relative' }}>
-          <input
-            type="text"
-            name="purpose"
-            value={transferForm.purpose}
-            onChange={(e) => setTransferForm({ ...transferForm, purpose: e.target.value })}
-            placeholder="Purpose (e.g., Salary, Invoice, Refund)"
-            required
-            style={{
-              width: '100%',
-              padding: '1rem 1.2rem',
-              border: '2px solid #e2e8f0',
-              borderRadius: '0.75rem',
-              fontSize: '1rem',
-              fontWeight: 500,
-              outline: 'none',
-              background: 'rgba(255, 255, 255, 0.9)',
-              transition: 'all 0.2s ease',
-              boxSizing: 'border-box',
-            }}
-          />
-          <div
-            style={{
-              position: 'absolute',
-              top: '50%',
-              right: '1rem',
-              transform: 'translateY(-50%)',
-              pointerEvents: 'none',
-            }}
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-              <path
-                d="M4 7h16M7 12h10M8 17h8"
-                stroke="#94a3b8"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-              />
-            </svg>
-          </div>
-        </div>
-        <button
-          type="submit"
-          style={{
-            width: '100%',
-            padding: '1rem 1.5rem',
-            background: 'linear-gradient(135deg, #10b981 0%, #06b6d4 100%)',
-            color: '#fff',
-            border: 'none',
-            borderRadius: '0.75rem',
-            fontWeight: 700,
-            fontSize: '1.1rem',
-            cursor: 'pointer',
-            boxShadow: '0 8px 20px rgba(16, 185, 129, 0.4)',
-            transition: 'all 0.3s ease',
-            position: 'relative',
-            overflow: 'hidden',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '0.5rem',
-          }}
-        >
-          <svg
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            style={{ position: 'relative', zIndex: 1 }}
-          >
-            <path
-              d="M3 12h18m-9-9l9 9-9 9"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-          <span style={{ position: 'relative', zIndex: 1 }}>Transfer</span>
-        </button>
-      </form>
-
-      {/* Recent Transactions */}
+      {/* Recent Blockchain Transfers */}
       <section
         id="recent-transactions"
         style={{
-          maxWidth: '1400px',
-          width: 'calc(100% - 2rem)',
-          padding: '1rem 1.5rem',
-          boxSizing: 'border-box',
-          margin: '2rem auto 0',
+          maxWidth: "1400px",
+          width: "calc(100% - 2rem)",
+          padding: "1rem 1.5rem",
+          boxSizing: "border-box",
+          margin: "2rem auto 0",
         }}
       >
-        <div className="transactions-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <h3 className="transactions-title" style={{ margin: 0 }}>Recent Transactions</h3>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <div
+          className="transactions-header"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
+        >
+          <h3 className="transactions-title" style={{ margin: 0 }}>
+            Recent Blockchain Transfers
+          </h3>
+          <div
+            style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}
+          >
+            <button
+              type="button"
+              onClick={refreshTransactions}
+              title="Refresh transactions"
+              disabled={isRefreshing}
+              style={{
+                background: "rgba(16, 185, 129, 0.2)",
+                color: "#10b981",
+                border: "1px solid rgba(16, 185, 129, 0.3)",
+                padding: "0.5rem",
+                borderRadius: "0.5rem",
+                cursor: isRefreshing ? "not-allowed" : "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                transition: "all 0.2s ease",
+                opacity: isRefreshing ? 0.7 : 1,
+              }}
+              onMouseEnter={(e) => {
+                if (!isRefreshing) {
+                  e.currentTarget.style.background = "rgba(16, 185, 129, 0.3)";
+                  e.currentTarget.style.transform = "scale(1.05)";
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!isRefreshing) {
+                  e.currentTarget.style.background = "rgba(16, 185, 129, 0.2)";
+                  e.currentTarget.style.transform = "scale(1)";
+                }
+              }}
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                style={{
+                  animation: isRefreshing ? "spin 1s linear infinite" : "none",
+                }}
+              >
+                <polyline points="23 4 23 10 17 10" />
+                <polyline points="1 20 1 14 7 14" />
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+              </svg>
+            </button>
             <button
               type="button"
               onClick={() => {
-                const FINCUBE_ADDRESS = '0x8a263DcEfee44B9Abe968C1B18e370f6A0A5F878';
-                window.open(`https://sepolia.etherscan.io/address/${FINCUBE_ADDRESS}`, '_blank', 'noopener');
+                const FINCUBE_ADDRESS =
+                  "0x8a263DcEfee44B9Abe968C1B18e370f6A0A5F878";
+                window.open(
+                  `https://celo-sepolia.blockscout.com/address/${FINCUBE_ADDRESS}`,
+                  "_blank",
+                  "noopener"
+                );
               }}
-              title="View latest transaction on Etherscan (Sepolia)"
+              title="View latest transaction on Blockscout (Celo Sepolia)"
               style={{
-                background: 'transparent',
-                color: '#21325b',
-                border: 'none',
-                padding: '2px',
-                marginRight: '4px',
-                cursor: 'pointer',
-                borderRadius: '4px',
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
+                background: "transparent",
+                color: "#21325b",
+                border: "none",
+                padding: "2px",
+                marginRight: "4px",
+                cursor: "pointer",
+                borderRadius: "4px",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
               }}
             >
-              <svg width="18" height="18" viewBox="0 0 293.775 293.667" xmlns="http://www.w3.org/2000/svg">
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 293.775 293.667"
+                xmlns="http://www.w3.org/2000/svg"
+              >
                 <g fill="#21325b">
                   <path d="M146.8 0C65.777 0 0 65.777 0 146.834 0 227.86 65.777 293.667 146.8 293.667c81.056 0 146.833-65.808 146.833-146.833C293.633 65.777 227.856 0 146.8 0zm-3.177 238.832c-22.155 0-40.124-17.969-40.124-40.124s17.969-40.124 40.124-40.124 40.124 17.969 40.124 40.124-17.969 40.124-40.124 40.124zm58.63-82.585c-22.155 0-40.124-17.969-40.124-40.124s17.969-40.124 40.124-40.124 40.124 17.969 40.124 40.124-17.969 40.124-40.124 40.124zm-117.26 0c-22.155 0-40.124-17.969-40.124-40.124s17.969-40.124 40.124-40.124 40.124 17.969 40.124 40.124-17.969 40.124-40.124 40.124z" />
                 </g>
               </svg>
             </button>
-            <div className="transactions-subtitle" style={{ color: 'rgba(255, 255, 255, 0.6)' }}>
-              Latest 10
-            </div>
           </div>
         </div>
         <div className="transactions-table">
           <div className="transactions-table-header">
             <div>Sender</div>
             <div>Recipient</div>
-            <div style={{ textAlign: 'right' }}>Amount</div>
+            <div style={{ textAlign: "right" }}>Amount</div>
             <div>Memo</div>
-            <div style={{ textAlign: 'center' }}>Fraud Detection</div>
-            <div style={{ textAlign: 'right' }}>Date</div>
-            <div style={{ textAlign: 'right' }}></div>
+            <div style={{ textAlign: "right" }}>Date</div>
+            <div style={{ textAlign: "right" }}></div>
           </div>
           <div id="tx-rows" className="transactions-rows">
             {renderTransactions()}
@@ -715,6 +1175,43 @@ const Dashboard: React.FC = () => {
         </div>
         {renderPagination()}
       </section>
+
+      {/* Transfer Progress Modal */}
+      <TransferProgressModal
+        currentStep={transferStep}
+        isVisible={showProgressModal}
+        status={transferStatus}
+        successMessage={
+          transferStatus === "success" ? transferMessage : undefined
+        }
+        errorMessage={transferStatus === "error" ? transferMessage : undefined}
+        onClose={() => {
+          setShowProgressModal(false);
+          setTransferStep(0);
+          setTransferStatus("processing");
+          setTransferMessage("");
+        }}
+      />
+
+      {/* Notification Modal */}
+      <NotificationModal
+        isVisible={notification.show}
+        type={notification.type}
+        title={notification.title}
+        message={notification.message}
+        onClose={() =>
+          setNotification({ show: false, type: "info", title: "", message: "" })
+        }
+      />
+
+      {/* QR Code Modal */}
+      {zkpUser && (
+        <QRCodeModal
+          isVisible={showQRModal}
+          referenceNumber={zkpUser.reference_number}
+          onClose={() => setShowQRModal(false)}
+        />
+      )}
     </>
   );
 
@@ -724,81 +1221,113 @@ const Dashboard: React.FC = () => {
     const start = currentPage * ITEMS_PER_PAGE;
     const page = sorted.slice(start, start + ITEMS_PER_PAGE);
 
-    const shorten = (addr: string): string => {
-      return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+    // Shorten reference number for display (show first 10 and last 10 characters)
+    const shortenRefNumber = (refNum: string): string => {
+      if (refNum.length > 25) {
+        return `${refNum.slice(0, 10)}...${refNum.slice(-10)}`;
+      }
+      return refNum;
     };
 
-    const etherscanIcon = '<svg width="14" height="14" viewBox="0 0 293.775 293.667" xmlns="http://www.w3.org/2000/svg"><g fill="#21325b"><path d="M146.8 0C65.777 0 0 65.777 0 146.834 0 227.86 65.777 293.667 146.8 293.667c81.056 0 146.833-65.808 146.833-146.833C293.633 65.777 227.856 0 146.8 0zm-3.177 238.832c-22.155 0-40.124-17.969-40.124-40.124s17.969-40.124 40.124-40.124 40.124 17.969 40.124 40.124-17.969 40.124-40.124 40.124zm58.63-82.585c-22.155 0-40.124-17.969-40.124-40.124s17.969-40.124 40.124-40.124 40.124 17.969 40.124 40.124-17.969 40.124-40.124 40.124zm-117.26 0c-22.155 0-40.124-17.969-40.124-40.124s17.969-40.124 40.124-40.124 40.124 17.969 40.124 40.124-17.969 40.124-40.124 40.124z"/></g></svg>';
+    const blockExplorerIcon =
+      '<svg width="14" height="14" viewBox="0 0 293.775 293.667" xmlns="http://www.w3.org/2000/svg"><g fill="#21325b"><path d="M146.8 0C65.777 0 0 65.777 0 146.834 0 227.86 65.777 293.667 146.8 293.667c81.056 0 146.833-65.808 146.833-146.833C293.633 65.777 227.856 0 146.8 0zm-3.177 238.832c-22.155 0-40.124-17.969-40.124-40.124s17.969-40.124 40.124-40.124 40.124 17.969 40.124 40.124-17.969 40.124-40.124 40.124zm58.63-82.585c-22.155 0-40.124-17.969-40.124-40.124s17.969-40.124 40.124-40.124 40.124 17.969 40.124 40.124-17.969 40.124-40.124 40.124zm-117.26 0c-22.155 0-40.124-17.969-40.124-40.124s17.969-40.124 40.124-40.124 40.124 17.969 40.124 40.124-17.969 40.124-40.124 40.124z"/></g></svg>';
 
     return page.map((tx, index) => {
-      const displayedPurpose = (tx.purpose && tx.purpose.trim()) ? tx.purpose.trim() : 'Refund';
-      const FINCUBE_ADDRESS = '0x8a263DcEfee44B9Abe968C1B18e370f6A0A5F878';
+      const FINCUBE_ADDRESS = "0x8a263DcEfee44B9Abe968C1B18e370f6A0A5F878";
 
-      const rawCandidate = tx.txHash || '';
+      const rawCandidate = tx.txHash || "";
       const match = String(rawCandidate).match(/0x[a-fA-F0-9]{64}/);
       const txHashForUrl = match ? match[0] : undefined;
       const txUrl = txHashForUrl
-        ? `https://sepolia.etherscan.io/tx/${txHashForUrl}`
-        : `https://sepolia.etherscan.io/address/${FINCUBE_ADDRESS}#events`;
+        ? `https://celo-sepolia.blockscout.com/tx/${txHashForUrl}?tab=index`
+        : `https://celo-sepolia.blockscout.com/address/${FINCUBE_ADDRESS}`;
 
-      const fraudData = fraudResults[tx.sender];
+      // Parse memo to display essential info
+      let senderWallet = "N/A";
+      let receiverWallet = "N/A";
+      let memoTimestamp = "N/A";
+
+      if (tx.memo) {
+        try {
+          // Convert hex to string if needed
+          let memoString = tx.memo;
+          if (memoString.startsWith("0x")) {
+            try {
+              const bytes = [];
+              for (let i = 2; i < memoString.length; i += 2) {
+                bytes.push(parseInt(memoString.substr(i, 2), 16));
+              }
+              memoString = new TextDecoder().decode(new Uint8Array(bytes));
+            } catch (e) {
+              console.log("Hex conversion failed, using raw memo");
+            }
+          }
+
+          // Parse JSON memo
+          const memoData = JSON.parse(memoString);
+          senderWallet = memoData?.sender_wallet_address || "N/A";
+          receiverWallet = memoData?.receiver_wallet_address || "N/A";
+
+          // Format timestamp
+          if (memoData?.timestamp) {
+            const date = new Date(memoData.timestamp);
+            memoTimestamp = date.toLocaleString();
+          }
+        } catch (e) {
+          console.log("Failed to parse memo:", e);
+        }
+      }
+
+      // Shorten wallet addresses for display
+      const shortenWallet = (addr: string): string => {
+        if (addr === "N/A" || addr.length < 10) return addr;
+        return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+      };
 
       return (
-        <div key={`${tx.txHash || ''}-${index}`} className="transaction-row">
-          <div className="tx-address">{shorten(tx.sender)}</div>
-          <div className="tx-address">{shorten(tx.recipient)}</div>
+        <div key={`${tx.txHash || ""}-${index}`} className="transaction-row">
+          <div className="tx-address" title={tx.sender}>
+            {shortenRefNumber(tx.sender)}
+          </div>
+          <div className="tx-address" title={tx.recipient}>
+            {shortenRefNumber(tx.recipient)}
+          </div>
           <div className="tx-amount">{tx.amount}</div>
           <div className="tx-memo">
-            <div style={{ fontSize: '0.75em', lineHeight: 1.2, color: '#6b7280' }}>
-              <div><span className="label-green" style={{ color: '#10b981' }}>Reference</span>: {shorten(FINCUBE_ADDRESS)}</div>
-              <div><span className="label-green" style={{ color: '#10b981' }}>Purpose</span>: {displayedPurpose}</div>
-              <div><span className="label-green" style={{ color: '#10b981' }}>Description</span>: Transferred</div>
+            <div
+              style={{
+                fontSize: "0.75em",
+                lineHeight: 1.4,
+                color: "#6b7280",
+              }}
+            >
+              <div>
+                <span style={{ color: "#10b981", fontWeight: 600 }}>From:</span>{" "}
+                <span title={senderWallet}>{shortenWallet(senderWallet)}</span>
+              </div>
+              <div>
+                <span style={{ color: "#10b981", fontWeight: 600 }}>To:</span>{" "}
+                <span title={receiverWallet}>
+                  {shortenWallet(receiverWallet)}
+                </span>
+              </div>
+              <div>
+                <span style={{ color: "#10b981", fontWeight: 600 }}>Time:</span>{" "}
+                {memoTimestamp}
+              </div>
             </div>
           </div>
-          <div className={`tx-fraud ${
-            fraudData?.loading ? 'loading' :
-            fraudData?.error ? 'error' :
-            fraudData?.result === 'Fraud' ? 'fraud' :
-            fraudData?.result === 'Not_Fraud' ? 'not-fraud' :
-            fraudData?.result === 'Undecided' ? 'undecided' :
-            fraudData?.result === 'Service Unavailable' ? 'error' :
-            'loading'
-          }`}>
-            {fraudData?.loading ? (
-              <span>🔍 Analyzing...</span>
-            ) : fraudData?.error || fraudData?.result === 'Service Unavailable' ? (
-              <div title="Fraud detection service is offline or slow. Please check the service." style={{ cursor: 'help' }}>
-                <div>⚠️ Offline</div>
-                <div style={{ fontSize: '0.7em', opacity: 0.8 }}>Service Down</div>
-              </div>
-            ) : fraudData?.result ? (
-              <>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', justifyContent: 'center' }}>
-                  {fraudData.result === 'Fraud' && '🚨'}
-                  {fraudData.result === 'Not_Fraud' && '✅'}
-                  {fraudData.result === 'Undecided' && '⚠️'}
-                  <span>{fraudData.result.replace('_', ' ')}</span>
-                </div>
-                <div className="fraud-probability">
-                  {Math.round(fraudData.probability * 100)}%
-                </div>
-                <div className="fraud-confidence">
-                  Confidence: {Math.round(fraudData.confidence * 100)}%
-                </div>
-              </>
-            ) : (
-              <span>🔍 Analyzing...</span>
-            )}
+          <div className="tx-date">
+            {new Date(tx.timestamp).toLocaleString()}
           </div>
-          <div className="tx-date">{new Date(tx.timestamp).toLocaleString()}</div>
           <div className="tx-etherscan">
             <a
               className="etherscan-link"
               href={txUrl}
               target="_blank"
               rel="noopener"
-              title="View on Etherscan"
-              dangerouslySetInnerHTML={{ __html: etherscanIcon }}
+              title="View on Blockscout (Celo Sepolia)"
+              dangerouslySetInnerHTML={{ __html: blockExplorerIcon }}
             />
           </div>
         </div>
@@ -816,12 +1345,12 @@ const Dashboard: React.FC = () => {
       <div
         id="pagination-controls"
         style={{
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          gap: '4rem',
-          padding: '1rem 0',
-          marginTop: '1rem',
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          gap: "4rem",
+          padding: "1rem 0",
+          marginTop: "1rem",
         }}
       >
         <button
@@ -830,28 +1359,33 @@ const Dashboard: React.FC = () => {
           className="pagination-arrow"
           aria-label="Previous page"
           style={{
-            background: 'transparent',
-            color: hasPrevious ? '#0f172a' : '#9aa3b2',
-            border: 'none',
-            padding: '4px 8px',
-            fontSize: '1.05rem',
+            background: "transparent",
+            color: hasPrevious ? "#0f172a" : "#9aa3b2",
+            border: "none",
+            padding: "4px 8px",
+            fontSize: "1.05rem",
             fontWeight: 700,
-            cursor: hasPrevious ? 'pointer' : 'not-allowed',
-            transition: 'color 0.12s ease, transform 0.12s ease',
-            borderRadius: '4px',
-            boxShadow: 'none',
+            cursor: hasPrevious ? "pointer" : "not-allowed",
+            transition: "color 0.12s ease, transform 0.12s ease",
+            borderRadius: "4px",
+            boxShadow: "none",
           }}
-          onMouseEnter={(e) => hasPrevious && (e.currentTarget.style.transform = 'translateY(-1px)')}
-          onMouseLeave={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
+          onMouseEnter={(e) =>
+            hasPrevious &&
+            (e.currentTarget.style.transform = "translateY(-1px)")
+          }
+          onMouseLeave={(e) =>
+            (e.currentTarget.style.transform = "translateY(0)")
+          }
         >
           ←
         </button>
         <span
           style={{
-            color: '#64748b',
+            color: "#64748b",
             fontWeight: 500,
-            fontSize: '0.9rem',
-            margin: '0 0.5rem',
+            fontSize: "0.9rem",
+            margin: "0 0.5rem",
           }}
         >
           Page {currentPage + 1} of {totalPages}
@@ -862,19 +1396,23 @@ const Dashboard: React.FC = () => {
           className="pagination-arrow"
           aria-label="Next page"
           style={{
-            background: 'transparent',
-            color: hasNext ? '#0f172a' : '#9aa3b2',
-            border: 'none',
-            padding: '4px 8px',
-            fontSize: '1.05rem',
+            background: "transparent",
+            color: hasNext ? "#0f172a" : "#9aa3b2",
+            border: "none",
+            padding: "4px 8px",
+            fontSize: "1.05rem",
             fontWeight: 700,
-            cursor: hasNext ? 'pointer' : 'not-allowed',
-            transition: 'color 0.12s ease, transform 0.12s ease',
-            borderRadius: '4px',
-            boxShadow: 'none',
+            cursor: hasNext ? "pointer" : "not-allowed",
+            transition: "color 0.12s ease, transform 0.12s ease",
+            borderRadius: "4px",
+            boxShadow: "none",
           }}
-          onMouseEnter={(e) => hasNext && (e.currentTarget.style.transform = 'translateY(-1px)')}
-          onMouseLeave={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
+          onMouseEnter={(e) =>
+            hasNext && (e.currentTarget.style.transform = "translateY(-1px)")
+          }
+          onMouseLeave={(e) =>
+            (e.currentTarget.style.transform = "translateY(0)")
+          }
         >
           →
         </button>

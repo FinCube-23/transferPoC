@@ -14,8 +14,18 @@ interface IFinCubeDAO {
     ) external view returns (bool);
 }
 
+interface IHonkVerifier {
+    function verify(
+        bytes calldata _proof,
+        bytes32[] calldata _publicInputs
+    ) external view returns (bool);
+}
+
 contract FinCube is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable {
     using SafeERC20 for IERC20;
+
+    /// @notice zkp verifier contract
+    address public honkVerifier;
 
     /// @notice DAO that governs this contract
     address public dao;
@@ -26,15 +36,28 @@ contract FinCube is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable {
     /// @notice Used nullifiers to prevent double spending
     mapping(bytes32 => bool) public usedNullifiers;
 
+    /// @notice Hardcoded salt for reference number generation
+    bytes32 private constant REFERENCE_SALT =
+        keccak256("FINCUBE_REFERENCE_SALT_V1");
+
+    /// @notice Mapping to track issued reference numbers
+    mapping(bytes32 => bool) public issuedReferenceNumbers;
+
     event DAOUpdated(address indexed newDAO);
     event ApprovedERC20Updated(address indexed newToken);
     event StablecoinTransfer(
-        address indexed from,
-        address indexed to,
+        bytes32 indexed sender_reference_number,
+        bytes32 indexed receiver_reference_number,
         string indexed memoHash,
+        address from,
+        address to,
         string memo,
         uint256 amount,
         bytes32 nullifier
+    );
+    event ReferenceNumberIssued(
+        address indexed orgWalletAddress,
+        bytes32 indexed referenceNumber
     );
 
     modifier onlyDAO() {
@@ -43,12 +66,17 @@ contract FinCube is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable {
     }
 
     /// @notice Initialize the contract with a DAO and an approved ERC20 token
-    function initialize(address _dao, address _token) external initializer {
+    function initialize(
+        address _dao,
+        address _token,
+        address _honkVerifier
+    ) external initializer {
         require(_dao != address(0), "DAO zero");
         __UUPSUpgradeable_init();
         __ReentrancyGuard_init();
         dao = _dao;
         approvedERC20 = _token;
+        honkVerifier = _honkVerifier;
         if (_token != address(0)) emit ApprovedERC20Updated(_token);
         emit DAOUpdated(_dao);
     }
@@ -81,8 +109,19 @@ contract FinCube is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable {
         address to,
         uint256 amount,
         string calldata memo,
-        bytes32 nullifier
+        bytes32 nullifier,
+        bytes32 sender_reference_number,
+        bytes32 receiver_reference_number,
+        bytes calldata receiver_proof,
+        bytes32[] calldata receiver_publicInputs
     ) external nonReentrant {
+        require(
+            IHonkVerifier(honkVerifier).verify(
+                receiver_proof,
+                receiver_publicInputs
+            ),
+            "The Receiver is not verified"
+        );
         require(dao != address(0), "DAO not set");
         require(approvedERC20 != address(0), "Token not set");
         require(amount > 0, "Zero amount");
@@ -121,12 +160,49 @@ contract FinCube is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable {
         IERC20(approvedERC20).safeTransferFrom(msg.sender, to, amount);
 
         emit StablecoinTransfer(
+            sender_reference_number,
+            receiver_reference_number,
+            memo,
             msg.sender,
             to,
-            memo,
             memo,
             amount,
             nullifier
         );
+    }
+
+    /// @notice Generate a reference number for a user
+    /// @dev Computes reference_number = keccak256(email_hash, org_reference_key, salt)
+    /// @dev Uses msg.sender as the organization wallet address
+    /// @param emailHash Hash of the user's email
+    /// @param orgReferenceKey Organization-specific reference key
+    /// @return referenceNumber The generated reference number
+    function generateReferenceNumber(
+        bytes32 emailHash,
+        bytes32 orgReferenceKey
+    ) external onlyDAO returns (bytes32 referenceNumber) {
+        require(emailHash != bytes32(0), "Invalid email hash");
+        require(orgReferenceKey != bytes32(0), "Invalid org reference key");
+
+        address orgWalletAddress = msg.sender;
+
+        // Compute reference number: keccak256(email_hash, org_reference_key, salt)
+        referenceNumber = keccak256(
+            abi.encodePacked(emailHash, orgReferenceKey, REFERENCE_SALT)
+        );
+
+        // Prevent duplicate reference numbers
+        require(
+            !issuedReferenceNumbers[referenceNumber],
+            "Reference number already issued"
+        );
+
+        // Mark as issued
+        issuedReferenceNumbers[referenceNumber] = true;
+
+        // Emit event for backend to capture
+        emit ReferenceNumberIssued(orgWalletAddress, referenceNumber);
+
+        return referenceNumber;
     }
 }

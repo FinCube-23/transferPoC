@@ -1,5 +1,8 @@
-import { useState, useCallback } from 'react';
-import { fetchTransfersFromGraph, type ParsedTransfer } from '../services/graphService';
+import { useState, useCallback } from "react";
+import {
+  fetchTransfersFromGraph,
+  type ParsedTransfer,
+} from "../services/graphService";
 
 const ITEMS_PER_PAGE = 10;
 
@@ -23,14 +26,14 @@ export const useTransactions = (): UseTransactionsReturn => {
 
   const totalPages = Math.ceil(transactions.length / ITEMS_PER_PAGE);
 
-  const loadTransactions = useCallback(async (account: string) => {
+  const loadTransactions = useCallback(async (referenceNumber: string) => {
     setLoading(true);
     try {
-      const transfers = await fetchTransfersFromGraph(account);
+      const transfers = await fetchTransfersFromGraph(referenceNumber);
       setTransactions(transfers);
       setCurrentPage(0);
     } catch (e) {
-      console.error('Failed to load transfers from Graph', e);
+      console.error("Failed to load transfers from Graph", e);
     } finally {
       setLoading(false);
     }
@@ -41,12 +44,15 @@ export const useTransactions = (): UseTransactionsReturn => {
     setCurrentPage(0);
   }, []);
 
-  const setPage = useCallback((page: number) => {
-    const maxPage = Math.ceil(transactions.length / ITEMS_PER_PAGE) - 1;
-    if (page >= 0 && page <= maxPage) {
-      setCurrentPage(page);
-    }
-  }, [transactions.length]);
+  const setPage = useCallback(
+    (page: number) => {
+      const maxPage = Math.ceil(transactions.length / ITEMS_PER_PAGE) - 1;
+      if (page >= 0 && page <= maxPage) {
+        setCurrentPage(page);
+      }
+    },
+    [transactions.length]
+  );
 
   const nextPage = useCallback(() => {
     setPage(currentPage + 1);

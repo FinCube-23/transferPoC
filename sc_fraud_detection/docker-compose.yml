@@ -13,29 +13,51 @@ services:
     volumes:
       - opensearch-data:/usr/share/opensearch/data
     networks:
-      - fraud-detection-net
-
+      - fincube23_network
+ 
+  mongodb:
+    image: mongo:7.0
+    container_name: fraud-detection-mongodb
+    ports:
+      - "27018:27017"
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=admin123
+    volumes:
+      - mongodb-data:/data/db
+    networks:
+      - fincube23_network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+ 
   api:
     build: .
     container_name: fraud-detection-api
     ports:
-      - "8000:8000"
+      - "8007:8000"
     environment:
       - OPENSEARCH_HOST=opensearch
       - OPENSEARCH_PORT=9200
     env_file:
       - .env
     depends_on:
-      - opensearch
+      mongodb:
+        condition: service_healthy
     networks:
-      - fraud-detection-net
+      - fincube23_network
     volumes:
       - ./app:/app/app
     command: /wait-for-opensearch.sh opensearch:9200 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-
+ 
 volumes:
   opensearch-data:
-
+  mongodb-data:
+ 
+ 
 networks:
-  fraud-detection-net:
-    driver: bridge
+  fincube23_network:
+    external: true
+ 

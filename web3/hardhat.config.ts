@@ -15,8 +15,9 @@ const config: HardhatUserConfig = {
                 settings: {
                     optimizer: {
                         enabled: true,
-                        runs: 1000,
+                        runs: 200, // Lower runs = smaller deployment size
                     },
+                    viaIR: true, // Enable IR-based code generation for better optimization
                 },
             },
         ],
@@ -26,12 +27,16 @@ const config: HardhatUserConfig = {
         sepolia: {
             url: `${process.env.SEPOLIA_ENDPOINT}/${process.env.SEPOLIA_API_KEY}`,
             gasPrice: 50000000000,
-            accounts: [`0x${process.env.WALLET_PRIVATE_KEY}`],
+            accounts: process.env.WALLET_PRIVATE_KEY
+                ? [`0x${process.env.WALLET_PRIVATE_KEY}`]
+                : [],
         },
         amoy: {
             url: `${process.env.AMOY_ENDPOINT}/${process.env.AMOY_API_KEY}`,
             gasPrice: 50000000000,
-            accounts: [`0x${process.env.WALLET_PRIVATE_KEY}`],
+            accounts: process.env.WALLET_PRIVATE_KEY
+                ? [`0x${process.env.WALLET_PRIVATE_KEY}`]
+                : [],
         },
     },
 
