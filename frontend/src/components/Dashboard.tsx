@@ -236,7 +236,7 @@ const Dashboard: React.FC = () => {
                   lineHeight: 1.6,
                 }}
               >
-                User blocked due to illegal activity
+                User blocked due to suspicious activity
               </p>
               <p
                 style={{
