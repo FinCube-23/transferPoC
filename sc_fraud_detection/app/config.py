@@ -14,12 +14,9 @@ class Settings(BaseSettings):
     subgraph_url: str = "https://api.studio.thegraph.com/query/93678/fincube-subgraph/v0.0.2"
 
     # MongoDB
-    mongodb_host: str = "mongodb"
-    mongodb_port: int = 27017
-    mongodb_username: str = "admin"
-    mongodb_password: str = "admin123"
-    mongodb_database: str = "fraud_detection"
-    mongodb_collection: str = "user_scores"
+    mongodb_uri: str
+    mongodb_db_name: str
+    mongodb_collection: str
     
     # Kaggle
     kaggle_username: str = ""

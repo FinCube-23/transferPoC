@@ -43,12 +43,9 @@ async def lifespan(app: FastAPI):
     )
 
     mongodb_service = MongoDBService(
-        host=settings.mongodb_host,
-        port=settings.mongodb_port,
-        username=settings.mongodb_username,
-        password=settings.mongodb_password,
-        database=settings.mongodb_database,
-        collection=settings.mongodb_collection
+        uri=settings.mongodb_uri,
+        database_name=settings.mongodb_db_name,
+        collection_name=settings.mongodb_collection
     )
     # Connect to MongoDB
     await mongodb_service.connect()

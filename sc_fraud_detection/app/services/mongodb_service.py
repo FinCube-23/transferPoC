@@ -10,33 +10,27 @@ logger=logging.getLogger(__name__)
 class MongoDBService:
     def __init__(
         self,
-        host: str,
-        port: int,
-        username: str,
-        password: str,
-        database: str,
-        collection: str
+        uri: str,
+        database_name: str,
+        collection_name: str
     ):
-        self.host = host
-        self.port = port
-        self.username = username
-        self.password = password
-        self.database_name = database
-        self.collection_name = collection
+        self.uri = uri
+        self.database_name = database_name
+        self.collection_name = collection_name
         self.client: Optional[AsyncIOMotorClient] = None
         self.db = None
         self.collection = None
 
     async def connect(self):
         try:
-            connection_string= f"mongodb://{self.username}:{self.password}@{self.host}:{self.port}/?authSource=admin"
-            self.client=AsyncIOMotorClient(connection_string)
-            self.db=self.client[self.database_name]
-            self.collection=self.db[self.collection_name]
-
+            self.client = AsyncIOMotorClient(self.uri)
+            self.db = self.client[self.database_name]
+            self.collection = self.db[self.collection_name]
+            
             # Test connection
             await self.client.admin.command("ping")
-            logger.info(f"Connected to MongoDB at {self.host}:{self.port}")
+            # Log masked URI or just success message
+            logger.info(f"Connected to MongoDB at {self.database_name}")
 
             # Create index on user_ref_number for faster queries
             await self.collection.create_index("user_ref_number",unique=True)
