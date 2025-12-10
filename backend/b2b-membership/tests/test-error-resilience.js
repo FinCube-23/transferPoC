@@ -59,7 +59,7 @@ async function runTests() {
         const queueName = await router.setupQueue()
         await router.bindRoutingKeys(queueName, [
             "organization.created",
-            "organization.user.created",
+            "organization.user.sync",
             "ums.sync",
         ])
 

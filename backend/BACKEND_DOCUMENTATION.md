@@ -1275,7 +1275,7 @@ The Audit Trail Service relies on the following third-party providers:
 **Routing Keys**:
 
 -   `organization.created`
--   `organization.user.created`
+-   `organization.user.sync`
 -   `ums.sync`
 
 **Event Handlers**: Process user lifecycle events for synchronization

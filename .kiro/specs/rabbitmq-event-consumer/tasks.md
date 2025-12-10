@@ -166,7 +166,7 @@
 -   [x] 11. Create integration test for full message flow
 
     -   Write test that starts consumer, publishes messages, and verifies processing
-    -   Test all three routing keys (organization.created, organization.user.created, ums.sync)
+    -   Test all three routing keys (organization.created, organization.user.sync, ums.sync)
     -   Verify events are stored in MongoDB with correct schema
     -   Verify messages are acknowledged
     -   Clean up test data after test completion

@@ -36,7 +36,7 @@ This document specifies the requirements for a RabbitMQ event consumer module th
 #### Acceptance Criteria
 
 1. WHEN the consumer binds to the exchange THEN the system SHALL subscribe to routing key "organization.created"
-2. WHEN the consumer binds to the exchange THEN the system SHALL subscribe to routing key "organization.user.created"
+2. WHEN the consumer binds to the exchange THEN the system SHALL subscribe to routing key "organization.user.sync"
 3. WHEN the consumer binds to the exchange THEN the system SHALL subscribe to routing key "ums.sync"
 4. WHEN a message arrives on any subscribed routing key THEN the system SHALL route it to the appropriate handler function
 5. WHEN a message arrives on an unsubscribed routing key THEN the system SHALL ignore the message
@@ -48,7 +48,7 @@ This document specifies the requirements for a RabbitMQ event consumer module th
 #### Acceptance Criteria
 
 1. WHEN a message with routing key "organization.created" is received THEN the system SHALL invoke handleOrganizationCreated with the parsed payload
-2. WHEN a message with routing key "organization.user.created" is received THEN the system SHALL invoke handleOrganizationUserCreated with the parsed payload
+2. WHEN a message with routing key "organization.user.sync" is received THEN the system SHALL invoke handleOrganizationUserCreated with the parsed payload
 3. WHEN a message with routing key "ums.sync" is received THEN the system SHALL invoke handleSyncAllData with the parsed payload
 4. WHEN any handler function is invoked THEN the system SHALL include a TODO comment indicating where business logic should be implemented
 5. WHEN a handler function completes successfully THEN the system SHALL acknowledge the message to RabbitMQ

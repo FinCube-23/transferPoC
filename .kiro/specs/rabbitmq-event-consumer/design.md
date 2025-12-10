@@ -136,7 +136,7 @@ class MessageRouter {
 ```javascript
 {
   'organization.created': handleOrganizationCreated,
-  'organization.user.created': handleOrganizationUserCreated,
+  'organization.user.sync': handleOrganizationUserCreated,
   'ums.sync': handleSyncAllData
 }
 ```
@@ -556,7 +556,7 @@ rabbitmq: {
   exchangeType: process.env.RABBITMQ_EXCHANGE_TYPE || 'topic',
   routingKeys: [
     'organization.created',
-    'organization.user.created',
+    'organization.user.sync',
     'ums.sync'
   ],
   prefetchCount: parseInt(process.env.RABBITMQ_PREFETCH_COUNT) || 10,

@@ -54,9 +54,9 @@ async function testEventModel() {
         // Test 3: Create event with all fields
         console.log("\nTest 3: Creating Event with all fields...")
         const event2 = new Event({
-            routingKey: "organization.user.created",
+            routingKey: "organization.user.sync",
             payload: {
-                eventType: "organization.user.created",
+                eventType: "organization.user.sync",
                 data: { user_id: 2001 },
             },
             receivedAt: new Date("2024-01-01"),

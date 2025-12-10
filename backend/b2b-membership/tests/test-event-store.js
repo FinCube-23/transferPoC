@@ -47,8 +47,8 @@ async function testEventStore() {
 
         // Test 2: Store event with different routing key
         console.log("\nTest 2: Storing event with different routing key...")
-        const event2 = await storeEvent("organization.user.created", {
-            eventType: "organization.user.created",
+        const event2 = await storeEvent("organization.user.sync", {
+            eventType: "organization.user.sync",
             data: { user_id: 2001 },
         })
         console.log("✓ Event stored successfully")

@@ -157,10 +157,10 @@ async function testMessagePublishing() {
             `org_id: ${orgPayload.data.org_id}`
         )
 
-        // Test 2b: Publish organization.user.created message
-        console.log("\n  Test 2b: Publishing organization.user.created message")
+        // Test 2b: Publish organization.user.sync message
+        console.log("\n  Test 2b: Publishing organization.user.sync message")
         const userPayload = {
-            eventType: "organization.user.created",
+            eventType: "organization.user.sync",
             timestamp: new Date().toISOString(),
             data: {
                 user_id: 9001,
@@ -170,9 +170,9 @@ async function testMessagePublishing() {
             },
         }
 
-        await publishMessage(channel, "organization.user.created", userPayload)
+        await publishMessage(channel, "organization.user.sync", userPayload)
         logTest(
-            "organization.user.created message published",
+            "organization.user.sync message published",
             true,
             `user_id: ${userPayload.data.user_id}`
         )
@@ -301,14 +301,14 @@ async function testEventStorage() {
             )
         }
 
-        // Test 3b: Verify organization.user.created event
-        console.log("\n  Test 3b: Verifying organization.user.created event")
+        // Test 3b: Verify organization.user.sync event
+        console.log("\n  Test 3b: Verifying organization.user.sync event")
         const userEvent = await Event.findOne({
-            routingKey: "organization.user.created",
+            routingKey: "organization.user.sync",
         }).sort({ receivedAt: -1 })
 
         logTest(
-            "organization.user.created event found",
+            "organization.user.sync event found",
             userEvent !== null,
             `eventId: ${userEvent?._id}`
         )
@@ -316,7 +316,7 @@ async function testEventStorage() {
         if (userEvent) {
             logTest(
                 "Event has correct schema",
-                userEvent.routingKey === "organization.user.created" &&
+                userEvent.routingKey === "organization.user.sync" &&
                     userEvent.payload !== null &&
                     userEvent.receivedAt instanceof Date,
                 "All required fields present"

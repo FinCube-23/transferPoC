@@ -61,14 +61,14 @@ async function testEventHandlers() {
         }
 
         await handleOrganizationUserCreated(
-            "organization.user.created",
+            "organization.user.sync",
             userPayload
         )
         console.log("✓ handleOrganizationUserCreated completed successfully")
 
         // Verify event was stored
         const userEvent = await Event.findOne({
-            routingKey: "organization.user.created",
+            routingKey: "organization.user.sync",
             "payload.userId": "test-user-456",
         })
         console.log("✓ Event stored in database:", {

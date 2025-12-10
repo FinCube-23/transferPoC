@@ -51,7 +51,7 @@ const config = {
         exchangeType: process.env.RABBITMQ_EXCHANGE_TYPE || "topic",
         routingKeys: [
             "organization.created",
-            "organization.user.created",
+            "organization.user.sync",
             "ums.sync",
         ],
         prefetchCount: parseInt(process.env.RABBITMQ_PREFETCH_COUNT) || 10,
