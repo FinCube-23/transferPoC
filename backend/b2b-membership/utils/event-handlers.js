@@ -86,9 +86,10 @@ async function handleOrganizationCreated(routingKey, payload) {
 }
 
 /**
- * Handle organization.user.created event
+ * Handle single organization user creation
  *
- * Processes events when a new user is added to an organization in the UMS.
+ * Processes creation of a single user in an organization.
+ * This is called by the routing handler for non-bulk approved user sync events.
  *
  * @param {string} routingKey - The RabbitMQ routing key
  * @param {object} payload - The parsed JSON payload containing user and organization data
@@ -97,7 +98,7 @@ async function handleOrganizationCreated(routingKey, payload) {
  */
 async function handleOrganizationUserCreated(routingKey, payload) {
     const startTime = Date.now()
-    logger.info("Processing organization.user.created event", {
+    logger.info("Processing organization.user.sync event", {
         routingKey,
         payload,
     })
@@ -139,13 +140,13 @@ async function handleOrganizationUserCreated(routingKey, payload) {
         await updateEventStatus(eventId, "completed")
 
         const duration = Date.now() - startTime
-        logger.info("organization.user.created event processed successfully", {
+        logger.info("Single organization user created successfully", {
             eventId,
             routingKey,
             duration,
         })
     } catch (error) {
-        logger.error("Error processing organization.user.created event", {
+        logger.error("Error creating single organization user", {
             eventId,
             routingKey,
             error: error.message,
@@ -166,6 +167,296 @@ async function handleOrganizationUserCreated(routingKey, payload) {
 
         throw error
     }
+}
+
+/**
+ * Handle organization.user.sync event (Main Router)
+ *
+ * Routes the event to appropriate handler based on is_bulk and is_approved flags.
+ * - Single approved: creates one user
+ * - Single not approved: removes one user (future implementation)
+ * - Bulk approved: creates multiple users
+ * - Bulk not approved: removes multiple users (future implementation)
+ *
+ * @param {string} routingKey - The RabbitMQ routing key
+ * @param {object} payload - The parsed JSON payload containing sync data
+ * @returns {Promise<void>}
+ * @throws {Error} If processing fails
+ */
+async function handleOrganizationUserSync(routingKey, payload) {
+    const startTime = Date.now()
+    logger.info("Processing organization.user.sync event (router)", {
+        routingKey,
+        payload,
+    })
+
+    let eventId = null
+
+    try {
+        // Store event in MongoDB for audit trail
+        const storedEvent = await storeEvent(routingKey, payload)
+        eventId = storedEvent._id.toString()
+
+        // Update status to processing
+        await updateEventStatus(eventId, "processing")
+
+        // Extract routing flags from payload
+        const isBulk = payload?.data?.is_bulk
+        const isApproved = payload?.data?.is_approved
+
+        // Validate required flags
+        if (isBulk === undefined || isApproved === undefined) {
+            throw new Error(
+                "Missing required flags: is_bulk and is_approved must be present"
+            )
+        }
+
+        // Route to appropriate handler based on flags
+        if (!isBulk && isApproved) {
+            // Single user creation
+            logger.info("Routing to single user creation handler", {
+                eventId,
+            })
+            await handleOrganizationUserCreated(routingKey, payload)
+        } else if (!isBulk && !isApproved) {
+            // Single user removal
+            logger.info("Routing to single user removal handler", {
+                eventId,
+            })
+            await handleOrganizationUserRemove(routingKey, payload)
+        } else if (isBulk && isApproved) {
+            // Bulk user creation
+            logger.info("Routing to bulk user creation handler", {
+                eventId,
+            })
+            await handleOrganizationUserCreatedBulk(routingKey, payload)
+        } else if (isBulk && !isApproved) {
+            // Bulk user removal
+            logger.info("Routing to bulk user removal handler", {
+                eventId,
+            })
+            await handleOrganizationUserRemovedBulk(routingKey, payload)
+        }
+
+        // Update status to completed
+        await updateEventStatus(eventId, "completed")
+
+        const duration = Date.now() - startTime
+        logger.info("organization.user.sync event routed successfully", {
+            eventId,
+            routingKey,
+            isBulk,
+            isApproved,
+            duration,
+        })
+    } catch (error) {
+        logger.error("Error processing organization.user.sync event", {
+            eventId,
+            routingKey,
+            error: error.message,
+            stack: error.stack,
+        })
+
+        // Update event status to failed if we have an eventId
+        if (eventId) {
+            try {
+                await updateEventStatus(eventId, "failed", error.message)
+            } catch (updateError) {
+                logger.error("Failed to update event status to failed", {
+                    eventId,
+                    error: updateError.message,
+                })
+            }
+        }
+
+        throw error
+    }
+}
+
+/**
+ * Handle bulk organization user creation
+ *
+ * Processes creation of multiple users in an organization.
+ * Delegates to handleOrganizationUserCreated for each user.
+ *
+ * @param {string} routingKey - The RabbitMQ routing key
+ * @param {object} payload - The parsed JSON payload containing bulk user data
+ * @returns {Promise<void>}
+ * @throws {Error} If processing fails
+ */
+async function handleOrganizationUserCreatedBulk(routingKey, payload) {
+    const startTime = Date.now()
+    logger.info("Processing bulk organization user creation", {
+        routingKey,
+        payload,
+    })
+
+    try {
+        const userIds = payload?.data?.user_ids
+        const userEmails = payload?.data?.user_emails
+        const organizationId = payload?.data?.organization_id
+        const organizationName = payload?.data?.organization_name
+        const updatedCount = payload?.data?.updated_count
+
+        // If no users to create, log and exit
+        if (parseInt(updatedCount) <= 0) {
+            logger.info("No new users to create in bulk operation", {
+                routingKey,
+                organizationId,
+                organizationName,
+                updatedCount,
+            })
+            return
+        }
+
+        // Validate required fields
+        if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
+            throw new Error("Invalid or empty user_ids array")
+        }
+
+        if (
+            !userEmails ||
+            !Array.isArray(userEmails) ||
+            userEmails.length === 0
+        ) {
+            throw new Error("Invalid or empty user_emails array")
+        }
+
+        if (userIds.length !== userEmails.length) {
+            throw new Error(
+                "user_ids and user_emails arrays must have the same length"
+            )
+        }
+
+        if (!organizationId) {
+            throw new Error("Organization ID is required")
+        }
+
+        logger.info("Starting bulk user creation", {
+            organizationId,
+            organizationName,
+            userCount: userIds.length,
+            updatedCount,
+        })
+
+        const results = {
+            total: userIds.length,
+            successful: 0,
+            failed: 0,
+            errors: [],
+        }
+
+        // Process each user
+        for (let i = 0; i < userIds.length; i++) {
+            const userId = userIds[i]
+            const userEmail = userEmails[i]
+
+            try {
+                // Create single user payload
+                const singleUserPayload = {
+                    data: {
+                        user_id: userId,
+                        user_email: userEmail,
+                        organization_id: organizationId,
+                        organization_name: organizationName,
+                    },
+                }
+
+                // Delegate to single user creation handler
+                await handleOrganizationUserCreated(
+                    routingKey,
+                    singleUserPayload
+                )
+
+                results.successful++
+                logger.info("Bulk user creation: user processed successfully", {
+                    userId,
+                    userEmail,
+                })
+            } catch (error) {
+                results.failed++
+                results.errors.push({
+                    userId,
+                    userEmail,
+                    error: error.message,
+                })
+                logger.error("Bulk user creation: failed to process user", {
+                    userId,
+                    userEmail,
+                    error: error.message,
+                })
+                // Continue processing other users instead of throwing
+            }
+        }
+
+        const duration = Date.now() - startTime
+        logger.info("Bulk organization user creation completed", {
+            routingKey,
+            organizationId,
+            results,
+            duration,
+        })
+
+        // Throw error if all users failed
+        if (results.failed === results.total) {
+            throw new Error(
+                `All ${results.total} users failed to be created. See logs for details.`
+            )
+        }
+    } catch (error) {
+        logger.error("Error in bulk organization user creation", {
+            routingKey,
+            error: error.message,
+            stack: error.stack,
+        })
+        throw error
+    }
+}
+
+/**
+ * Handle single organization user removal
+ *
+ * Processes removal of a single user from an organization.
+ * TODO: Implement user removal logic
+ *
+ * @param {string} routingKey - The RabbitMQ routing key
+ * @param {object} payload - The parsed JSON payload containing user removal data
+ * @returns {Promise<void>}
+ * @throws {Error} If processing fails
+ */
+async function handleOrganizationUserRemove(routingKey, payload) {
+    logger.warn("handleOrganizationUserRemove called but not yet implemented", {
+        routingKey,
+        payload,
+    })
+    throw new Error(
+        "User removal functionality not yet implemented. Coming soon."
+    )
+}
+
+/**
+ * Handle bulk organization user removal
+ *
+ * Processes removal of multiple users from an organization.
+ * Delegates to handleOrganizationUserRemove for each user.
+ * TODO: Implement bulk user removal logic
+ *
+ * @param {string} routingKey - The RabbitMQ routing key
+ * @param {object} payload - The parsed JSON payload containing bulk user removal data
+ * @returns {Promise<void>}
+ * @throws {Error} If processing fails
+ */
+async function handleOrganizationUserRemovedBulk(routingKey, payload) {
+    logger.warn(
+        "handleOrganizationUserRemovedBulk called but not yet implemented",
+        {
+            routingKey,
+            payload,
+        }
+    )
+    throw new Error(
+        "Bulk user removal functionality not yet implemented. Coming soon."
+    )
 }
 
 /**
@@ -226,13 +517,10 @@ async function handleSyncAllData(routingKey, payload) {
         for (const org of organizations) {
             try {
                 if (org.name === "Brain Station 23") {
-                    logger.warn(
-                        "Skipping Super Organization",
-                        {
-                            orgId: org.id,
-                            orgName: org.name,
-                        }
-                    )
+                    logger.warn("Skipping Super Organization", {
+                        orgId: org.id,
+                        orgName: org.name,
+                    })
                     syncReport.organizations.skipped++
                     continue
                 }
@@ -443,6 +731,10 @@ async function handleSyncAllData(routingKey, payload) {
 
 module.exports = {
     handleOrganizationCreated,
+    handleOrganizationUserSync,
     handleOrganizationUserCreated,
+    handleOrganizationUserCreatedBulk,
+    handleOrganizationUserRemove,
+    handleOrganizationUserRemovedBulk,
     handleSyncAllData,
 }

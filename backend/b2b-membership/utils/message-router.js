@@ -9,7 +9,7 @@
 const { Logger } = require("./logger")
 const {
     handleOrganizationCreated,
-    handleOrganizationUserCreated,
+    handleOrganizationUserSync,
     handleSyncAllData,
 } = require("./event-handlers")
 
@@ -29,7 +29,7 @@ class MessageRouter {
         // Routing map: maps routing keys to handler functions
         this.routingMap = {
             "organization.created": handleOrganizationCreated,
-            "organization.user.created": handleOrganizationUserCreated,
+            "organization.user.sync": handleOrganizationUserSync,
             "ums.sync": handleSyncAllData,
         }
     }
