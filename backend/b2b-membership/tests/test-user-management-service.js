@@ -4,11 +4,11 @@
  * This script verifies the user management service methods work correctly
  */
 
-const { connectDatabase, disconnectDatabase } = require("./utils/database")
-const Organization = require("./models/organization")
-const User = require("./models/user")
-const Batch = require("./models/batch")
-const userManagementService = require("./services/user-management-service")
+const { connectDatabase, disconnectDatabase } = require("../utils/database")
+const Organization = require("../models/organization")
+const User = require("../models/user")
+const Batch = require("../models/batch")
+const userManagementService = require("../services/user-management-service")
 
 async function testUserManagementService() {
     console.log("Testing User Management Service...\n")

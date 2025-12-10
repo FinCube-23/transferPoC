@@ -5,10 +5,10 @@
  */
 
 const mongoose = require("mongoose")
-const { MessageRouter } = require("./utils/message-router")
-const { Logger } = require("./utils/logger")
-const Event = require("./models/event")
-const { config } = require("./config/config")
+const { MessageRouter } = require("../utils/message-router")
+const { Logger } = require("../utils/logger")
+const Event = require("../models/event")
+const { config } = require("../config/config")
 
 // Mock channel for testing
 class MockChannel {

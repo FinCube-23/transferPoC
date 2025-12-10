@@ -5,8 +5,8 @@
  */
 
 require("dotenv").config()
-const ProofController = require("./controllers/proof-controller")
-const { HonkVerifier } = require("./models/honk-verifier")
+const ProofController = require("../controllers/proof-controller")
+const { HonkVerifier } = require("../models/honk-verifier")
 
 function testBlockchainStructure() {
     console.log("========================================")

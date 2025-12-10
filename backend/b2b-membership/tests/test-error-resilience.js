@@ -14,10 +14,10 @@
 
 const mongoose = require("mongoose")
 const amqp = require("amqplib")
-const { config } = require("./config/config")
-const { MessageRouter } = require("./utils/message-router")
-const { Logger } = require("./utils/logger")
-const Event = require("./models/event")
+const { config } = require("../config/config")
+const { MessageRouter } = require("../utils/message-router")
+const { Logger } = require("../utils/logger")
+const Event = require("../models/event")
 
 const logger = new Logger("ErrorResilienceTest")
 

@@ -13,7 +13,7 @@ const {
     interpolatePolynomial,
     stringsToBigInts,
     bigIntsToStrings,
-} = require("./utils/polynomial-operations.js")
+} = require("../utils/polynomial-operations.js")
 
 console.log("=== Testing Polynomial Operations Wrapper ===\n")
 

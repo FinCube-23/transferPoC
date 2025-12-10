@@ -13,14 +13,14 @@
  */
 
 const amqp = require("amqplib")
-const { connectDatabase, disconnectDatabase } = require("./utils/database")
-const Event = require("./models/event")
+const { connectDatabase, disconnectDatabase } = require("../utils/database")
+const Event = require("../models/event")
 const {
     startConsumer,
     stopConsumer,
     isConsumerConnected,
-} = require("./utils/rabbitmq-consumer")
-const { config } = require("./config/config")
+} = require("../utils/rabbitmq-consumer")
+const { config } = require("../config/config")
 
 // Test counters
 let testsPassed = 0

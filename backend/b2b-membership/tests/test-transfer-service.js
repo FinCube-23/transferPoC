@@ -5,10 +5,10 @@
  * including atomic operations and error handling
  */
 
-const { connectDatabase, disconnectDatabase } = require("./utils/database")
-const User = require("./models/user")
-const Batch = require("./models/batch")
-const transferService = require("./services/transfer-service")
+const { connectDatabase, disconnectDatabase } = require("../utils/database")
+const User = require("../models/user")
+const Batch = require("../models/batch")
+const transferService = require("../services/transfer-service")
 
 async function testTransferService() {
     console.log("Testing Transfer Service...\n")

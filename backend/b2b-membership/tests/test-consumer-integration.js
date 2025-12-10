@@ -8,7 +8,7 @@ const {
     startConsumer,
     stopConsumer,
     isConsumerConnected,
-} = require("./utils/rabbitmq-consumer")
+} = require("../utils/rabbitmq-consumer")
 
 async function testConsumerIntegration() {
     console.log("Testing RabbitMQ consumer integration...\n")

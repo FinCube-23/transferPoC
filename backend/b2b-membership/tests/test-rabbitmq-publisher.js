@@ -11,7 +11,7 @@ const {
     publishTransactionReceipt,
     closePublisher,
     isPublisherConnected,
-} = require("./utils/rabbitmq-publisher")
+} = require("../utils/rabbitmq-publisher")
 
 async function testPublisher() {
     console.log("=".repeat(60))

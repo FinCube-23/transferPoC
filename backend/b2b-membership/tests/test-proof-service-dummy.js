@@ -6,11 +6,11 @@
  */
 
 const mongoose = require("mongoose")
-const ProofController = require("./controllers/proof-controller")
-const Organization = require("./models/organization")
-const Batch = require("./models/batch")
-const User = require("./models/user")
-const { initial_polynomial } = require("./utils/polynomial-operations")
+const ProofController = require("../controllers/proof-controller")
+const Organization = require("../models/organization")
+const Batch = require("../models/batch")
+const User = require("../models/user")
+const { initial_polynomial } = require("../utils/polynomial-operations")
 require("dotenv").config()
 
 // MongoDB connection string

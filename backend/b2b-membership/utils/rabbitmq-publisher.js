@@ -7,12 +7,16 @@
 const { ConnectionManager } = require("./rabbitmq-connection-manager")
 const { Logger } = require("./logger")
 const { config } = require("../config/config")
+const { v4: uuidv4 } = require("uuid")
 
 const logger = new Logger("RabbitMQ-Publisher")
 
 // Module-level state
 let connectionManager = null
 let publisherChannel = null
+let replyQueue = null
+let pendingRequests = new Map() // Store pending RPC requests
+
 
 /**
  * Initialize the publisher connection
@@ -43,7 +47,42 @@ async function initializePublisher() {
             throw new Error("Failed to get RabbitMQ channel for publisher")
         }
 
-        logger.info("RabbitMQ publisher initialized successfully")
+        // Set up reply queue for RPC pattern (used for authentication)
+        const replyQueueName = process.env.AUTH_REPLY_QUEUE || "auth.reply.queue"
+        const queueResult = await publisherChannel.assertQueue(replyQueueName, {
+            durable: false,
+            exclusive: false,
+            autoDelete: true,
+        })
+        replyQueue = queueResult.queue
+
+        // Consume from reply queue
+        await publisherChannel.consume(
+            replyQueue,
+            (msg) => {
+                if (msg) {
+                    const correlationId = msg.properties.correlationId
+                    const pendingRequest = pendingRequests.get(correlationId)
+
+                    if (pendingRequest) {
+                        try {
+                            const response = JSON.parse(msg.content.toString())
+                            pendingRequest.resolve(response)
+                        } catch (error) {
+                            pendingRequest.reject(new Error("Failed to parse auth response"))
+                        }
+                        pendingRequests.delete(correlationId)
+                    }
+
+                    publisherChannel.ack(msg)
+                }
+            },
+            { noAck: false }
+        )
+
+        logger.info("RabbitMQ publisher initialized successfully", {
+            replyQueue,
+        })
     } catch (error) {
         logger.error("Failed to initialize RabbitMQ publisher", {
             error: error.message,
@@ -129,6 +168,74 @@ async function publishTransactionReceipt(transactionData) {
 }
 
 /**
+ * Send a message and wait for a reply (RPC pattern)
+ * Used for authentication validation
+ *
+ * @param {string} pattern - Message pattern (e.g., "validate-authorization")
+ * @param {object} data - Data to send
+ * @param {number} timeout - Timeout in milliseconds (default: 5000)
+ * @returns {Promise<object>} Response from the service
+ */
+async function sendAndReceive(pattern, data, timeout = 5000) {
+    try {
+        // Ensure publisher is initialized
+        if (!publisherChannel || !replyQueue) {
+            await initializePublisher()
+        }
+
+        const correlationId = uuidv4()
+        const message = Buffer.from(JSON.stringify(data))
+
+        // Create promise that will be resolved when reply is received
+        const responsePromise = new Promise((resolve, reject) => {
+            // Set timeout
+            const timeoutId = setTimeout(() => {
+                pendingRequests.delete(correlationId)
+                reject(new Error(`Request timeout after ${timeout}ms`))
+            }, timeout)
+
+            // Store request with timeout cleanup
+            pendingRequests.set(correlationId, {
+                resolve: (response) => {
+                    clearTimeout(timeoutId)
+                    resolve(response)
+                },
+                reject: (error) => {
+                    clearTimeout(timeoutId)
+                    reject(error)
+                },
+            })
+        })
+
+        // Map pattern to actual queue name
+        // @mskits/validate-auth uses "validate-authorization" pattern but UMS expects "authorization" queue
+        const queueName = pattern === "validate-authorization" 
+            ? (process.env.AUTH_QUEUE_NAME || "authorization")
+            : pattern;
+
+        // Send message to the queue
+        publisherChannel.sendToQueue(queueName, message, {
+            correlationId,
+            replyTo: replyQueue,
+            contentType: "application/json",
+        })
+
+        logger.debug("RPC request sent", {
+            pattern,
+            correlationId,
+        })
+
+        return await responsePromise
+    } catch (error) {
+        logger.error("Error in RPC request", {
+            error: error.message,
+            pattern,
+        })
+        throw error
+    }
+}
+
+/**
  * Close the publisher connection
  * @returns {Promise<void>}
  */
@@ -136,9 +243,17 @@ async function closePublisher() {
     try {
         if (connectionManager) {
             logger.info("Closing RabbitMQ publisher connection")
+            
+            // Clear pending requests
+            pendingRequests.forEach((request, correlationId) => {
+                request.reject(new Error("Publisher is shutting down"))
+            })
+            pendingRequests.clear()
+            
             await connectionManager.disconnect()
             connectionManager = null
             publisherChannel = null
+            replyQueue = null
             logger.info("RabbitMQ publisher connection closed")
         }
     } catch (error) {
@@ -161,6 +276,7 @@ function isPublisherConnected() {
 module.exports = {
     initializePublisher,
     publishTransactionReceipt,
+    sendAndReceive,
     closePublisher,
     isPublisherConnected,
 }

@@ -4,7 +4,7 @@
  * This script verifies that the database connection module works correctly
  */
 
-const { connectDatabase, disconnectDatabase } = require("./utils/database")
+const { connectDatabase, disconnectDatabase } = require("../utils/database")
 
 async function testDatabaseConnection() {
     console.log("Testing database connection utility...\n")

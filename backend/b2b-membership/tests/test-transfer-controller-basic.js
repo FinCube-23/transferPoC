@@ -3,7 +3,7 @@
  * Tests basic instantiation and method existence
  */
 
-const TransferController = require("./controllers/transfer-controller")
+const TransferController = require("../controllers/transfer-controller")
 
 console.log("Testing Transfer Controller...")
 

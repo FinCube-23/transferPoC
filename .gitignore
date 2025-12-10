@@ -62,3 +62,5 @@ web3/test/dummy_data/public_inputs
 json-log/zkTranscriptLib_address.json
 
 backend/*/node_modules
+
+backend/*/package-lock.json

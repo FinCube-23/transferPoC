@@ -2,9 +2,9 @@
  * Test ConnectionManager functionality
  */
 
-const { ConnectionManager } = require("./utils/rabbitmq-connection-manager")
-const { Logger } = require("./utils/logger")
-const { config } = require("./config/config")
+const { ConnectionManager } = require("../utils/rabbitmq-connection-manager")
+const { Logger } = require("../utils/logger")
+const { config } = require("../config/config")
 
 async function testConnectionManager() {
     const logger = new Logger("ConnectionManager-Test")

@@ -12,6 +12,7 @@ const {
     validateProofGenerationRequest,
     validateProofVerificationRequest,
 } = require("../middleware/validation")
+const { requireAuth } = require("../middleware/auth")
 
 const proofController = new ProofController()
 
@@ -46,7 +47,7 @@ const upload = multer({
  *   artifacts: object
  * }
  */
-router.post("/generate", validateProofGenerationRequest, (req, res) =>
+router.post("/generate", requireAuth(), validateProofGenerationRequest, (req, res) =>
     proofController.generateProof(req, res)
 )
 
@@ -69,7 +70,7 @@ router.post("/generate", validateProofGenerationRequest, (req, res) =>
  *   artifacts: object
  * }
  */
-router.post("/generate-user", (req, res) =>
+router.post("/generate-user", requireAuth(), (req, res) =>
     proofController.generateUserProof(req, res)
 )
 
@@ -94,6 +95,7 @@ router.post("/generate-user", (req, res) =>
  */
 router.post(
     "/verify",
+    requireAuth(),
     upload.fields([
         { name: "proof", maxCount: 1 },
         { name: "public_inputs", maxCount: 1 },

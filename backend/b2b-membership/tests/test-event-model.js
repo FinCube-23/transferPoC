@@ -4,8 +4,8 @@
  * This script verifies that the Event model works correctly with validation
  */
 
-const { connectDatabase, disconnectDatabase } = require("./utils/database")
-const Event = require("./models/event")
+const { connectDatabase, disconnectDatabase } = require("../utils/database")
+const Event = require("../models/event")
 
 async function testEventModel() {
     console.log("Testing Event model...\n")

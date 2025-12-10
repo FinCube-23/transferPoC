@@ -5,9 +5,9 @@
  * work correctly with error handling and logging.
  */
 
-const { connectDatabase, disconnectDatabase } = require("./utils/database")
-const { storeEvent, updateEventStatus } = require("./utils/event-store")
-const Event = require("./models/event")
+const { connectDatabase, disconnectDatabase } = require("../utils/database")
+const { storeEvent, updateEventStatus } = require("../utils/event-store")
+const Event = require("../models/event")
 
 async function testEventStore() {
     console.log("Testing Event Store functions...\n")

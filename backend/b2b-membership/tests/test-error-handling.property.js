@@ -9,13 +9,13 @@
 
 const fc = require("fast-check")
 const mongoose = require("mongoose")
-const { connectDatabase, disconnectDatabase } = require("./utils/database")
-const Organization = require("./models/organization")
-const User = require("./models/user")
-const Batch = require("./models/batch")
-const userManagementService = require("./services/user-management-service")
-const BatchManager = require("./utils/batch-manager")
-const { generateUserSecret } = require("./utils/secret-generator")
+const { connectDatabase, disconnectDatabase } = require("../utils/database")
+const Organization = require("../models/organization")
+const User = require("../models/user")
+const Batch = require("../models/batch")
+const userManagementService = require("../services/user-management-service")
+const BatchManager = require("../utils/batch-manager")
+const { generateUserSecret } = require("../utils/secret-generator")
 
 // Test configuration
 const NUM_RUNS = 100

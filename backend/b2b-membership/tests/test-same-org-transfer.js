@@ -5,11 +5,11 @@
  * skip blockchain operations and only perform database updates
  */
 
-const { connectDatabase, disconnectDatabase } = require("./utils/database")
-const User = require("./models/user")
-const Batch = require("./models/batch")
-const Organization = require("./models/organization")
-const TransferController = require("./controllers/transfer-controller")
+const { connectDatabase, disconnectDatabase } = require("../utils/database")
+const User = require("../models/user")
+const Batch = require("../models/batch")
+const Organization = require("../models/organization")
+const TransferController = require("../controllers/transfer-controller")
 
 async function testSameOrgTransfer() {
     console.log("Testing Same-Organization Transfer...\n")

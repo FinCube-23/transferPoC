@@ -9,9 +9,9 @@ const {
     handleOrganizationCreated,
     handleOrganizationUserCreated,
     handleSyncAllData,
-} = require("./utils/event-handlers")
-const Event = require("./models/event")
-const { config } = require("./config/config")
+} = require("../utils/event-handlers")
+const Event = require("../models/event")
+const { config } = require("../config/config")
 
 async function testEventHandlers() {
     console.log("Starting event handlers test...")

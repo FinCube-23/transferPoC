@@ -4,10 +4,10 @@
  * This script verifies that all models work correctly with validation
  */
 
-const { connectDatabase, disconnectDatabase } = require("./utils/database")
-const User = require("./models/user")
-const Batch = require("./models/batch")
-const Organization = require("./models/organization")
+const { connectDatabase, disconnectDatabase } = require("../utils/database")
+const User = require("../models/user")
+const Batch = require("../models/batch")
+const Organization = require("../models/organization")
 
 async function testModels() {
     console.log("Testing MongoDB models...\n")

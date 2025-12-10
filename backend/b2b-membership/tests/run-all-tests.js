@@ -6,9 +6,9 @@
 const { spawn } = require("child_process")
 
 const tests = [
-    { name: "Database Connection", script: "test-database-connection.js" },
-    { name: "Models Validation", script: "test-models.js" },
-    { name: "Application Startup", script: "test-app-startup.js" },
+    { name: "Database Connection", script: "tests/test-database-connection.js" },
+    { name: "Models Validation", script: "tests/test-models.js" },
+    { name: "Application Startup", script: "tests/test-app-startup.js" },
 ]
 
 async function runTest(testName, scriptPath) {

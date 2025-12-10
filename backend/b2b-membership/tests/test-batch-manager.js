@@ -5,9 +5,9 @@
  */
 
 const mongoose = require("mongoose")
-const BatchManager = require("./utils/batch-manager")
-const Batch = require("./models/batch")
-const User = require("./models/user")
+const BatchManager = require("../utils/batch-manager")
+const Batch = require("../models/batch")
+const User = require("../models/user")
 require("dotenv").config()
 
 async function testBatchManager() {

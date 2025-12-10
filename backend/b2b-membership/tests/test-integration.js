@@ -7,16 +7,16 @@
  * Requirements: All (comprehensive integration testing)
  */
 
-const { connectDatabase, disconnectDatabase } = require("./utils/database")
-const Organization = require("./models/organization")
-const User = require("./models/user")
-const Batch = require("./models/batch")
-const userManagementService = require("./services/user-management-service")
+const { connectDatabase, disconnectDatabase } = require("../utils/database")
+const Organization = require("../models/organization")
+const User = require("../models/user")
+const Batch = require("../models/batch")
+const userManagementService = require("../services/user-management-service")
 const {
     verifyPolynomial,
     MAX_POLY_DEGREE,
-} = require("./utils/polynomial-operations")
-const { generateUserSecret } = require("./utils/secret-generator")
+} = require("../utils/polynomial-operations")
+const { generateUserSecret } = require("../utils/secret-generator")
 
 // Test counters
 let testsPassed = 0

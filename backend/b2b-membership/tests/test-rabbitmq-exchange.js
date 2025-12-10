@@ -4,9 +4,9 @@
  * and access the exchange.ums.events exchange
  */
 
-const { ConnectionManager } = require("./utils/rabbitmq-connection-manager")
-const { Logger } = require("./utils/logger")
-const { config } = require("./config/config")
+const { ConnectionManager } = require("../utils/rabbitmq-connection-manager")
+const { Logger } = require("../utils/logger")
+const { config } = require("../config/config")
 
 async function testExchangeConnectivity() {
     const logger = new Logger("Exchange-Test")

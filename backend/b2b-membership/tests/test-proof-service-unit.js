@@ -6,15 +6,15 @@
  */
 
 const mongoose = require("mongoose")
-const Organization = require("./models/organization")
-const Batch = require("./models/batch")
-const User = require("./models/user")
-const userManagementService = require("./services/user-management-service")
-const { generateUserSecret } = require("./utils/secret-generator")
+const Organization = require("../models/organization")
+const Batch = require("../models/batch")
+const User = require("../models/user")
+const userManagementService = require("../services/user-management-service")
+const { generateUserSecret } = require("../utils/secret-generator")
 const {
     stringsToBigInts,
     MAX_POLY_DEGREE,
-} = require("./utils/polynomial-operations")
+} = require("../utils/polynomial-operations")
 const { poseidon2Hash } = require("@zkpassport/poseidon2")
 const crypto = require("crypto")
 require("dotenv").config()

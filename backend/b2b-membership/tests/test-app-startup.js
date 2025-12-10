@@ -2,7 +2,7 @@
  * Test script to verify application startup with database integration
  */
 
-const { connectDatabase, disconnectDatabase } = require("./utils/database")
+const { connectDatabase, disconnectDatabase } = require("../utils/database")
 
 async function testAppStartup() {
     console.log("Testing application startup with database integration...\n")

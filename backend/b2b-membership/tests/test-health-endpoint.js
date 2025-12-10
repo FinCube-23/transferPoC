@@ -2,8 +2,8 @@
  * Test script for health check endpoint with database and RabbitMQ status
  */
 
-const { connectDatabase, disconnectDatabase } = require("./utils/database")
-const { isConsumerConnected } = require("./utils/rabbitmq-consumer")
+const { connectDatabase, disconnectDatabase } = require("../utils/database")
+const { isConsumerConnected } = require("../utils/rabbitmq-consumer")
 const mongoose = require("mongoose")
 
 async function testHealthEndpoint() {
