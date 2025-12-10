@@ -37,11 +37,10 @@ const userSchema = new mongoose.Schema(
             required: false,
         },
 
-        // Zero-knowledge proof key - required and unique
+        // Zero-knowledge proof key - required
         zkp_key: {
             type: String,
             required: true,
-            unique: true,
         },
     },
     {
