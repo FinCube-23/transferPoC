@@ -90,6 +90,7 @@ async function handleOrganizationCreated(routingKey, payload) {
  *
  * Processes creation of a single user in an organization.
  * This is called by the routing handler for non-bulk approved user sync events.
+ * Note: Event storage and status updates are handled by the calling router function.
  *
  * @param {string} routingKey - The RabbitMQ routing key
  * @param {object} payload - The parsed JSON payload containing user and organization data
@@ -98,21 +99,13 @@ async function handleOrganizationCreated(routingKey, payload) {
  */
 async function handleOrganizationUserCreated(routingKey, payload) {
     const startTime = Date.now()
-    logger.info("Processing organization.user.sync event", {
+    logger.info("Processing single user creation", {
         routingKey,
-        payload,
+        userId: payload?.data?.user_id,
+        organizationId: payload?.data?.organization_id,
     })
 
-    let eventId = null
-
     try {
-        // Store event in MongoDB for audit trail
-        const storedEvent = await storeEvent(routingKey, payload)
-        eventId = storedEvent._id.toString()
-
-        // Update status to processing
-        await updateEventStatus(eventId, "processing")
-
         const orgId = payload?.data?.organization_id
         if (!orgId) throw new Error("Organization id required")
 
@@ -136,34 +129,19 @@ async function handleOrganizationUserCreated(routingKey, payload) {
 
         logger.info("New User Created", user)
 
-        // Update status to completed
-        await updateEventStatus(eventId, "completed")
-
         const duration = Date.now() - startTime
         logger.info("Single organization user created successfully", {
-            eventId,
+            userId: payload?.data?.user_id,
             routingKey,
             duration,
         })
     } catch (error) {
         logger.error("Error creating single organization user", {
-            eventId,
+            userId: payload?.data?.user_id,
             routingKey,
             error: error.message,
             stack: error.stack,
         })
-
-        // Update event status to failed if we have an eventId
-        if (eventId) {
-            try {
-                await updateEventStatus(eventId, "failed", error.message)
-            } catch (updateError) {
-                logger.error("Failed to update event status to failed", {
-                    eventId,
-                    error: updateError.message,
-                })
-            }
-        }
 
         throw error
     }
