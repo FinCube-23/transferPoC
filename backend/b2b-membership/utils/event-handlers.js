@@ -395,7 +395,7 @@ async function handleOrganizationUserCreatedBulk(routingKey, payload) {
  * Handle single organization user removal
  *
  * Processes removal of a single user from an organization.
- * TODO: Implement user removal logic
+ * Removes the user's secret from the batch polynomial and deletes the user record.
  *
  * @param {string} routingKey - The RabbitMQ routing key
  * @param {object} payload - The parsed JSON payload containing user removal data
@@ -403,13 +403,83 @@ async function handleOrganizationUserCreatedBulk(routingKey, payload) {
  * @throws {Error} If processing fails
  */
 async function handleOrganizationUserRemove(routingKey, payload) {
-    logger.warn("handleOrganizationUserRemove called but not yet implemented", {
+    const startTime = Date.now()
+    logger.info("Processing single user removal", {
         routingKey,
-        payload,
+        userId: payload?.data?.user_id,
+        organizationId: payload?.data?.organization_id,
     })
-    throw new Error(
-        "User removal functionality not yet implemented. Coming soon."
-    )
+
+    try {
+        // Step 1: Validate payload for required fields (user_id, organization_id)
+        const userId = payload?.data?.user_id
+        const organizationId = payload?.data?.organization_id
+
+        if (!userId) {
+            throw new Error("User ID is required")
+        }
+
+        if (!organizationId) {
+            throw new Error("Organization ID is required")
+        }
+
+        // Step 2: Check if the user exists by user_id
+        const user = await User.findOne({ user_id: userId })
+
+        // Step 3: If user not found, log and exit
+        if (!user) {
+            logger.info("User not found, skipping removal", {
+                userId,
+                organizationId,
+                routingKey,
+            })
+            return
+        }
+
+        // Step 4: Get the organization to get wallet address
+        const organization = await Organization.findOne({
+            org_id: organizationId,
+        })
+
+        if (!organization) {
+            throw new Error(
+                `Organization not found with org_id: ${organizationId}`
+            )
+        }
+
+        // Step 5-8: Use UserManagementService to handle the complete removal process
+        const userData = {
+            email: user.zkp_key, // This is the email stored as zkp_key
+            user_id: userId,
+            orgWalletAddress: organization.wallet_address,
+        }
+
+        const result = await UserManagementService.removeUserWithBatch(userData)
+
+        if (!result.success) {
+            throw new Error(`Failed to remove user: ${result.error.message}`)
+        }
+
+        // Step 9: Log success message
+        const duration = Date.now() - startTime
+        logger.info("Single organization user removed successfully", {
+            userId,
+            organizationId,
+            routingKey,
+            duration,
+        })
+    } catch (error) {
+        // Step 10: Handle errors and log appropriately
+        logger.error("Error removing single organization user", {
+            userId: payload?.data?.user_id,
+            organizationId: payload?.data?.organization_id,
+            routingKey,
+            error: error.message,
+            stack: error.stack,
+        })
+
+        throw error
+    }
 }
 
 /**
@@ -417,7 +487,6 @@ async function handleOrganizationUserRemove(routingKey, payload) {
  *
  * Processes removal of multiple users from an organization.
  * Delegates to handleOrganizationUserRemove for each user.
- * TODO: Implement bulk user removal logic
  *
  * @param {string} routingKey - The RabbitMQ routing key
  * @param {object} payload - The parsed JSON payload containing bulk user removal data
@@ -425,16 +494,112 @@ async function handleOrganizationUserRemove(routingKey, payload) {
  * @throws {Error} If processing fails
  */
 async function handleOrganizationUserRemovedBulk(routingKey, payload) {
-    logger.warn(
-        "handleOrganizationUserRemovedBulk called but not yet implemented",
-        {
-            routingKey,
-            payload,
+    const startTime = Date.now()
+    logger.info("Processing bulk organization user removal", {
+        routingKey,
+        payload,
+    })
+
+    try {
+        const userIds = payload?.data?.user_ids
+        const organizationId = payload?.data?.organization_id
+        const organizationName = payload?.data?.organization_name
+        const updatedCount = payload?.data?.updated_count
+
+        // If no users to remove, log and exit
+        if (parseInt(updatedCount) <= 0) {
+            logger.info("No users to remove in bulk operation", {
+                routingKey,
+                organizationId,
+                organizationName,
+                updatedCount,
+            })
+            return
         }
-    )
-    throw new Error(
-        "Bulk user removal functionality not yet implemented. Coming soon."
-    )
+
+        // Validate required fields
+        if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
+            throw new Error("Invalid or empty user_ids array")
+        }
+
+        if (!organizationId) {
+            throw new Error("Organization ID is required")
+        }
+
+        logger.info("Starting bulk user removal", {
+            organizationId,
+            organizationName,
+            userCount: userIds.length,
+            updatedCount,
+        })
+
+        const results = {
+            total: userIds.length,
+            successful: 0,
+            failed: 0,
+            errors: [],
+        }
+
+        // Process each user
+        for (let i = 0; i < userIds.length; i++) {
+            const userId = userIds[i]
+
+            try {
+                // Create single user payload
+                const singleUserPayload = {
+                    data: {
+                        user_id: userId,
+                        organization_id: organizationId,
+                        organization_name: organizationName,
+                    },
+                }
+
+                // Delegate to single user removal handler
+                await handleOrganizationUserRemove(
+                    routingKey,
+                    singleUserPayload
+                )
+
+                results.successful++
+                logger.info("Bulk user removal: user processed successfully", {
+                    userId,
+                })
+            } catch (error) {
+                results.failed++
+                results.errors.push({
+                    userId,
+                    error: error.message,
+                })
+                logger.error("Bulk user removal: failed to process user", {
+                    userId,
+                    error: error.message,
+                })
+                // Continue processing other users instead of throwing
+            }
+        }
+
+        const duration = Date.now() - startTime
+        logger.info("Bulk organization user removal completed", {
+            routingKey,
+            organizationId,
+            results,
+            duration,
+        })
+
+        // Throw error if all users failed
+        if (results.failed === results.total) {
+            throw new Error(
+                `All ${results.total} users failed to be removed. See logs for details.`
+            )
+        }
+    } catch (error) {
+        logger.error("Error in bulk organization user removal", {
+            routingKey,
+            error: error.message,
+            stack: error.stack,
+        })
+        throw error
+    }
 }
 
 /**

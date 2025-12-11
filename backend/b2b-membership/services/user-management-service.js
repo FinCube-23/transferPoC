@@ -14,7 +14,11 @@ const BatchManager = require("../utils/batch-manager")
 const {
     generateUserSecret: generateSecret,
 } = require("../utils/secret-generator")
-const { addRoot, verifyPolynomial } = require("../utils/polynomial-operations")
+const {
+    addRoot,
+    removeRoot,
+    verifyPolynomial,
+} = require("../utils/polynomial-operations")
 
 class UserManagementService {
     constructor() {
@@ -441,6 +445,131 @@ class UserManagementService {
     }
 
     /**
+     * Remove user from batch and update polynomial
+     *
+     * Removes the user's secret from the batch's polynomial equation using synthetic division.
+     * This effectively removes the user from the batch while maintaining polynomial integrity.
+     *
+     * @param {bigint} userSecret - User secret (root to remove)
+     * @param {string} batchId - Batch ID to remove user from
+     * @returns {Promise<{success: boolean, batch?: object, error?: object}>}
+     */
+    async removeFromBatch(userSecret, batchId) {
+        try {
+            // Validate user secret
+            if (typeof userSecret !== "bigint") {
+                return {
+                    success: false,
+                    error: {
+                        type: "BATCH_REMOVAL_ERROR",
+                        message: "User secret must be a BigInt value",
+                        details: { userSecret: String(userSecret) },
+                    },
+                }
+            }
+
+            // Validate batch ID
+            if (!batchId) {
+                return {
+                    success: false,
+                    error: {
+                        type: "BATCH_REMOVAL_ERROR",
+                        message: "Batch ID is required",
+                        details: { batchId },
+                    },
+                }
+            }
+
+            // Get the batch
+            const batch = await Batch.findById(batchId)
+            if (!batch) {
+                return {
+                    success: false,
+                    error: {
+                        type: "BATCH_NOT_FOUND",
+                        message: `No batch found with ID: ${batchId}`,
+                        details: { batchId },
+                    },
+                }
+            }
+
+            // Get current polynomial equation
+            const currentEquation = batch.equation
+
+            // Remove user secret from polynomial
+            let newEquation
+            try {
+                newEquation = removeRoot(currentEquation, userSecret)
+            } catch (error) {
+                return {
+                    success: false,
+                    error: {
+                        type: "POLYNOMIAL_ERROR",
+                        message: "Failed to remove root from polynomial",
+                        details: {
+                            error: error.message,
+                            batchId: batch._id.toString(),
+                        },
+                    },
+                }
+            }
+
+            // Check if root removal was successful
+            if (newEquation === null) {
+                return {
+                    success: false,
+                    error: {
+                        type: "POLYNOMIAL_ERROR",
+                        message:
+                            "User secret is not a valid root of the batch polynomial",
+                        details: {
+                            batchId: batch._id.toString(),
+                            userSecret: String(userSecret),
+                        },
+                    },
+                }
+            }
+
+            // Update batch equation in database
+            try {
+                const updatedBatch =
+                    await this.batchManager.updateBatchEquation(
+                        batch._id,
+                        newEquation
+                    )
+
+                return {
+                    success: true,
+                    batch: updatedBatch.toObject(),
+                }
+            } catch (error) {
+                return {
+                    success: false,
+                    error: {
+                        type: "DATABASE_ERROR",
+                        message: "Failed to update batch equation",
+                        details: {
+                            error: error.message,
+                            batchId: batch._id.toString(),
+                        },
+                    },
+                }
+            }
+        } catch (error) {
+            return {
+                success: false,
+                error: {
+                    type: "BATCH_REMOVAL_ERROR",
+                    message: "Failed to remove user from batch",
+                    details: {
+                        error: error.message,
+                    },
+                },
+            }
+        }
+    }
+
+    /**
      * Create a user with automatic batch assignment
      *
      * Orchestrates the full user creation flow:
@@ -644,6 +773,129 @@ class UserManagementService {
                 error: {
                     type: "DATABASE_ERROR",
                     message: "Failed to create user with batch assignment",
+                    details: {
+                        error: error.message,
+                    },
+                },
+            }
+        }
+    }
+
+    /**
+     * Remove a user with automatic batch cleanup
+     *
+     * Orchestrates the full user removal flow:
+     * 1. Generate user secret from email and organization
+     * 2. Remove user from batch and update polynomial
+     * 3. Delete user record from database
+     *
+     * @param {Object} userData - User removal data
+     * @param {string} userData.email - User email (zkp_key)
+     * @param {number} userData.user_id - Unique user ID
+     * @param {string} userData.orgWalletAddress - Organization wallet address
+     * @returns {Promise<{success: boolean, batch?: object, error?: object}>}
+     */
+    async removeUserWithBatch(userData) {
+        try {
+            // Validate required fields
+            if (!userData || typeof userData !== "object") {
+                return {
+                    success: false,
+                    error: {
+                        type: "INVALID_PARAMETERS",
+                        message: "User data must be a valid object",
+                    },
+                }
+            }
+
+            const { email, user_id, orgWalletAddress } = userData
+
+            // Validate required fields
+            if (!email || !user_id || !orgWalletAddress) {
+                return {
+                    success: false,
+                    error: {
+                        type: "INVALID_PARAMETERS",
+                        message:
+                            "Missing required fields: email, user_id, orgWalletAddress",
+                        details: { email, user_id, orgWalletAddress },
+                    },
+                }
+            }
+
+            // Step 1: Get user with batch information
+            const user = await User.findOne({ user_id }).populate("batch_id")
+
+            if (!user) {
+                return {
+                    success: false,
+                    error: {
+                        type: "USER_NOT_FOUND",
+                        message: `No user found with user_id: ${user_id}`,
+                        details: { user_id },
+                    },
+                }
+            }
+
+            if (!user.batch_id) {
+                return {
+                    success: false,
+                    error: {
+                        type: "BATCH_NOT_FOUND",
+                        message: `User ${user_id} has no associated batch`,
+                        details: { user_id },
+                    },
+                }
+            }
+
+            // Step 2: Generate user secret
+            const secretResult = await this.generateUserSecret(
+                email,
+                orgWalletAddress
+            )
+            if (!secretResult.success) {
+                return secretResult
+            }
+
+            const userSecret = secretResult.secret
+
+            // Step 3: Remove from batch and update polynomial
+            const batchResult = await this.removeFromBatch(
+                userSecret,
+                user.batch_id._id
+            )
+            if (!batchResult.success) {
+                return batchResult
+            }
+
+            // Step 4: Delete user record
+            try {
+                await User.deleteOne({ user_id })
+            } catch (error) {
+                return {
+                    success: false,
+                    error: {
+                        type: "DATABASE_ERROR",
+                        message: "Failed to delete user record",
+                        details: {
+                            error: error.message,
+                            user_id,
+                        },
+                    },
+                }
+            }
+
+            // Return success with batch information
+            return {
+                success: true,
+                batch: batchResult.batch,
+            }
+        } catch (error) {
+            return {
+                success: false,
+                error: {
+                    type: "USER_REMOVAL_ERROR",
+                    message: "Failed to remove user with batch cleanup",
                     details: {
                         error: error.message,
                     },
