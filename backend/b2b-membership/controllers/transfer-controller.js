@@ -3,6 +3,7 @@
  *
  * Orchestrates ZKP-enabled transfers between users including:
  * - User data retrieval
+ * - Fraud detection score validation
  * - ZKP proof generation for receiver
  * - Nullifier generation
  * - Memo creation and validation
@@ -16,6 +17,7 @@ const userManagementService = require("../services/user-management-service")
 const ProofController = require("./proof-controller")
 const transferService = require("../services/transfer-service")
 const { publishTransactionReceipt } = require("../utils/rabbitmq-publisher")
+const fraudDetectionService = require("../services/fraud-detection-service")
 const User = require("../models/user")
 const Organization = require("../models/organization")
 
@@ -73,9 +75,9 @@ class TransferController {
                 })
             }
 
-            // Step 2: Retrieve user data
+            // Step 1: Retrieve user data
             const dataRetrievalStart = Date.now()
-            this.logger.info("[STEP 1/7] Retrieving user data...")
+            this.logger.info("[STEP 1/8] Retrieving user data...")
 
             const userDataResult = await this._retrieveUserData(
                 receiver_reference_number,
@@ -108,6 +110,33 @@ class TransferController {
                 duration: `${dataRetrievalDuration}ms`,
                 sender_user_id: sender.user_id,
                 receiver_user_id: receiver.user_id,
+            })
+
+            // Step 2: Check fraud scores for both sender and receiver
+            const fraudCheckStart = Date.now()
+            this.logger.info("[STEP 2/8] Checking fraud scores...")
+
+            const fraudCheckResult = await this._checkFraudScores(
+                sender.reference_number,
+                receiver.reference_number
+            )
+
+            if (!fraudCheckResult.success) {
+                const fraudCheckDuration = Date.now() - fraudCheckStart
+                this.logger.error("Fraud check failed", {
+                    duration: `${fraudCheckDuration}ms`,
+                    ...fraudCheckResult.error,
+                })
+                return res.status(403).json({
+                    success: false,
+                    error: fraudCheckResult.error,
+                })
+            }
+
+            const fraudCheckDuration = Date.now() - fraudCheckStart
+            this.logger.info("Fraud check passed", {
+                duration: `${fraudCheckDuration}ms`,
+                details: fraudCheckResult.details,
             })
 
             // Check if sender and receiver are from the same organization
@@ -167,7 +196,7 @@ class TransferController {
 
             // Step 3: Generate ZKP proof for receiver (cross-organization transfer)
             const proofGenerationStart = Date.now()
-            this.logger.info("[STEP 2/7] Generating ZKP proof for receiver...")
+            this.logger.info("[STEP 3/8] Generating ZKP proof for receiver...")
 
             const proofResult = await this._generateProof(
                 receiver.user_id,
@@ -196,7 +225,7 @@ class TransferController {
 
             // Step 4: Generate nullifier
             const nullifierGenerationStart = Date.now()
-            this.logger.info("[STEP 3/7] Generating nullifier...")
+            this.logger.info("[STEP 4/8] Generating nullifier...")
 
             const nullifier = this._generateNullifier()
             const nullifierGenerationDuration =
@@ -208,7 +237,7 @@ class TransferController {
 
             // Step 5: Create memo
             const memoCreationStart = Date.now()
-            this.logger.info("[STEP 4/7] Creating transfer memo...")
+            this.logger.info("[STEP 5/8] Creating transfer memo...")
 
             const memo = this._createMemo(
                 sender.reference_number,
@@ -241,7 +270,7 @@ class TransferController {
 
             // Step 6: Execute blockchain transfer
             const blockchainTransferStart = Date.now()
-            this.logger.info("[STEP 5/7] Executing blockchain transfer...")
+            this.logger.info("[STEP 6/8] Executing blockchain transfer...")
 
             const blockchainResult = await transferService.blockchainTransfer(
                 sender.user_id,
@@ -277,7 +306,7 @@ class TransferController {
             // Step 7: Publish transaction receipt to RabbitMQ
             const publishEventStart = Date.now()
             this.logger.info(
-                "[STEP 6/7] Publishing transaction receipt to RabbitMQ..."
+                "[STEP 7/8] Publishing transaction receipt to RabbitMQ..."
             )
 
             try {
@@ -330,7 +359,7 @@ class TransferController {
 
             // Step 8: Update database balances
             const databaseUpdateStart = Date.now()
-            this.logger.info("[STEP 7/7] Updating database balances...")
+            this.logger.info("[STEP 8/8] Updating database balances...")
 
             const dbResult = await transferService.transfer(
                 sender.user_id,
@@ -741,6 +770,67 @@ class TransferController {
         }
 
         return { valid: true }
+    }
+
+    /**
+     * Check fraud scores for sender and receiver
+     * @private
+     * @param {string} senderRefNumber - Sender's reference number
+     * @param {string} receiverRefNumber - Receiver's reference number
+     * @returns {Promise<{success: boolean, details?: object, error?: object}>}
+     */
+    async _checkFraudScores(senderRefNumber, receiverRefNumber) {
+        try {
+            // Check fraud status for both users
+            const fraudCheckResult =
+                await fraudDetectionService.checkMultipleUsers([
+                    senderRefNumber,
+                    receiverRefNumber,
+                ])
+
+            // If any user is blocked, return error
+            if (!fraudCheckResult.allClear) {
+                const blockedDetails = fraudCheckResult.blockedUsers
+                    .map(
+                        (user) =>
+                            `${user.userRefNumber} (score: ${user.score}, reason: ${user.reason})`
+                    )
+                    .join(", ")
+
+                return {
+                    success: false,
+                    error: {
+                        type: "FRAUD_SCORE_TOO_HIGH",
+                        message: "Transfer blocked due to high fraud score",
+                        details: {
+                            blockedUsers: fraudCheckResult.blockedUsers,
+                            threshold: 0.8,
+                            explanation: `The following users have fraud scores that exceed the threshold: ${blockedDetails}`,
+                        },
+                    },
+                }
+            }
+
+            return {
+                success: true,
+                details: fraudCheckResult.details,
+            }
+        } catch (error) {
+            this.logger.error("Error checking fraud scores", {
+                error: error.message,
+            })
+
+            // Fail open: allow transfer if fraud check fails due to technical error
+            // Change this to fail closed (return success: false) if you prefer
+            return {
+                success: true,
+                details: {
+                    warning:
+                        "Fraud check failed due to technical error, allowing transfer",
+                    error: error.message,
+                },
+            }
+        }
     }
 }
 
