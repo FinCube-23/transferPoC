@@ -5,6 +5,7 @@
  * Uses the UserScore model to check fraud scores before allowing transfers
  */
 
+const { ethers } = require("ethers")
 const UserScore = require("../models/user-score")
 const { Logger } = require("../utils/logger")
 
@@ -17,14 +18,27 @@ class FraudDetectionService {
     }
 
     /**
+     * Convert reference number string to bytes32 format using keccak256
+     * This is needed because the fraud detection database stores reference numbers as hashed bytes32
+     * @param {string} referenceNumber - Reference number to convert
+     * @returns {string} 32-byte hex string with 0x prefix
+     */
+    convertToBytes32(referenceNumber) {
+        // Use ethers.id() which is keccak256 hash of the string
+        return ethers.id(referenceNumber)
+    }
+
+    /**
      * Get fraud score for a user by reference number
      * @param {string} userRefNumber - User reference number
      * @returns {Promise<{score: number, last_result: string, updated_at: Date}|null>}
      */
     async getScore(userRefNumber) {
         try {
+            const hashedRefNumber = this.convertToBytes32(userRefNumber)
+            
             const userScore = await UserScore.findByReferenceNumber(
-                userRefNumber
+                hashedRefNumber
             )
 
             if (!userScore) {
@@ -56,8 +70,11 @@ class FraudDetectionService {
      */
     async checkFraudStatus(userRefNumber) {
         try {
+            // Convert reference number to bytes32 format for database lookup
+            const hashedRefNumber = this.convertToBytes32(userRefNumber)
+            
             const result = await UserScore.checkFraudStatus(
-                userRefNumber,
+                hashedRefNumber,
                 this.FRAUD_THRESHOLD
             )
 

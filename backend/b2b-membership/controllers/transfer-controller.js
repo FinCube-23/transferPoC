@@ -77,7 +77,7 @@ class TransferController {
 
             // Step 1: Retrieve user data
             const dataRetrievalStart = Date.now()
-            this.logger.info("[STEP 1/8] Retrieving user data...")
+            this.logger.info("[STEP 1/7] Retrieving user data...")
 
             const userDataResult = await this._retrieveUserData(
                 receiver_reference_number,
@@ -112,32 +112,6 @@ class TransferController {
                 receiver_user_id: receiver.user_id,
             })
 
-            // Step 2: Check fraud scores for both sender and receiver
-            const fraudCheckStart = Date.now()
-            this.logger.info("[STEP 2/8] Checking fraud scores...")
-
-            const fraudCheckResult = await this._checkFraudScores(
-                sender.reference_number,
-                receiver.reference_number
-            )
-
-            if (!fraudCheckResult.success) {
-                const fraudCheckDuration = Date.now() - fraudCheckStart
-                this.logger.error("Fraud check failed", {
-                    duration: `${fraudCheckDuration}ms`,
-                    ...fraudCheckResult.error,
-                })
-                return res.status(403).json({
-                    success: false,
-                    error: fraudCheckResult.error,
-                })
-            }
-
-            const fraudCheckDuration = Date.now() - fraudCheckStart
-            this.logger.info("Fraud check passed", {
-                duration: `${fraudCheckDuration}ms`,
-                details: fraudCheckResult.details,
-            })
 
             // Check if sender and receiver are from the same organization
             const isSameOrganization = senderOrg.org_id === receiverOrg.org_id
@@ -194,9 +168,9 @@ class TransferController {
                 })
             }
 
-            // Step 3: Generate ZKP proof for receiver (cross-organization transfer)
+            // Step 2: Generate ZKP proof for receiver (cross-organization transfer)
             const proofGenerationStart = Date.now()
-            this.logger.info("[STEP 3/8] Generating ZKP proof for receiver...")
+            this.logger.info("[STEP 2/7] Generating ZKP proof for receiver...")
 
             const proofResult = await this._generateProof(
                 receiver.user_id,
@@ -223,9 +197,9 @@ class TransferController {
                 duration: `${proofGenerationDuration}ms`,
             })
 
-            // Step 4: Generate nullifier
+            // Step 3: Generate nullifier
             const nullifierGenerationStart = Date.now()
-            this.logger.info("[STEP 4/8] Generating nullifier...")
+            this.logger.info("[STEP 3/7] Generating nullifier...")
 
             const nullifier = this._generateNullifier()
             const nullifierGenerationDuration =
@@ -235,9 +209,9 @@ class TransferController {
                 nullifier,
             })
 
-            // Step 5: Create memo
+            // Step 4: Create memo
             const memoCreationStart = Date.now()
-            this.logger.info("[STEP 5/8] Creating transfer memo...")
+            this.logger.info("[STEP 4/7] Creating transfer memo...")
 
             const memo = this._createMemo(
                 sender.reference_number,
@@ -268,9 +242,9 @@ class TransferController {
                 memoLength: Buffer.byteLength(memo, "utf8"),
             })
 
-            // Step 6: Execute blockchain transfer
+            // Step 5: Execute blockchain transfer
             const blockchainTransferStart = Date.now()
-            this.logger.info("[STEP 6/8] Executing blockchain transfer...")
+            this.logger.info("[STEP 5/7] Executing blockchain transfer...")
 
             const blockchainResult = await transferService.blockchainTransfer(
                 sender.user_id,
@@ -303,10 +277,10 @@ class TransferController {
                 transactionHash: blockchainResult.transaction.transactionHash,
             })
 
-            // Step 7: Publish transaction receipt to RabbitMQ
+            // Step 6: Publish transaction receipt to RabbitMQ
             const publishEventStart = Date.now()
             this.logger.info(
-                "[STEP 7/8] Publishing transaction receipt to RabbitMQ..."
+                "[STEP 6/7] Publishing transaction receipt to RabbitMQ..."
             )
 
             try {
@@ -357,9 +331,9 @@ class TransferController {
                 )
             }
 
-            // Step 8: Update database balances
+            // Step 7: Update database balances
             const databaseUpdateStart = Date.now()
-            this.logger.info("[STEP 8/8] Updating database balances...")
+            this.logger.info("[STEP 7/7] Updating database balances...")
 
             const dbResult = await transferService.transfer(
                 sender.user_id,

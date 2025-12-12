@@ -8,6 +8,7 @@ const express = require("express")
 const router = express.Router()
 const TransferController = require("../controllers/transfer-controller")
 const { requireAuth } = require("../middleware/auth")
+const { requireFraudCheck } = require("../middleware/fraud-guard")
 
 const transferController = new TransferController()
 
@@ -59,6 +60,6 @@ const transferController = new TransferController()
  *   }
  * }
  */
-router.post("/", requireAuth(), (req, res) => transferController.executeTransfer(req, res))
+router.post("/", requireAuth(), requireFraudCheck(), (req, res) => transferController.executeTransfer(req, res))
 
 module.exports = router
