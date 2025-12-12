@@ -739,29 +739,32 @@ async function handleSyncAllData(routingKey, payload) {
                     continue
                 }
 
-                // Check if user already exists
-                const existingUser = await User.findOne({
-                    user_id: user.id,
-                })
+                // Find all organizations where this user is a member
+                // Skip the super organization ("Brain Station 23") during search
+                const userMemberships = []
 
-                if (existingUser) {
-                    logger.info("User already exists, skipping", {
-                        userId: user.id,
-                        email: user.email,
-                    })
-                    syncReport.users.skipped++
-                    continue
-                }
-
-                // Find user's organization by checking which org has this user as member
-                let userOrg = null
                 for (const org of organizations) {
-                    if (org.members && org.members.includes(user.id)) {
-                        userOrg = org
+                    // Skip super organization
+                    if (org.name === "Brain Station 23") {
+                        continue
+                    }
+
+                    if (org.members && Array.isArray(org.members)) {
+                        // Find member object where user_id matches the sender's user.id
+                        const member = org.members.find(
+                            (m) => m.user_id === user.id
+                        )
+                        if (member && org.organization_admin?.wallet_address) {
+                            userMemberships.push({
+                                org: org,
+                                member: member,
+                            })
+                        }
                     }
                 }
 
-                if (!userOrg || !userOrg.organization_admin?.wallet_address) {
+                // If user is not a member of any valid organization, skip
+                if (userMemberships.length === 0) {
                     logger.warn("Skipping user without valid organization", {
                         userId: user.id,
                         email: user.email,
@@ -770,69 +773,121 @@ async function handleSyncAllData(routingKey, payload) {
                     continue
                 }
 
-                // Get organization from database
-                const org = await Organization.findOne({
-                    org_id: userOrg.id,
-                })
+                // Create user for each organization membership
+                for (const membership of userMemberships) {
+                    const userOrg = membership.org
+                    const memberObject = membership.member
 
-                if (!org) {
-                    logger.warn("Organization not found for user", {
-                        userId: user.id,
-                        orgId: userOrg.id,
-                    })
-                    syncReport.users.skipped++
-                    continue
-                }
+                    try {
+                        // Check if user already exists using our system's user_id (which is member.id)
+                        const existingUser = await User.findOne({
+                            user_id: memberObject.id,
+                        })
 
-                // Generate reference number
-                const reference_number =
-                    UserManagementService.generateReferenceNumber(
-                        org.wallet_address
-                    )
+                        if (existingUser) {
+                            logger.info(
+                                "User already exists in organization, skipping",
+                                {
+                                    senderUserId: user.id,
+                                    ourUserId: memberObject.id,
+                                    email: user.email,
+                                    orgId: userOrg.id,
+                                    orgName: userOrg.name,
+                                }
+                            )
+                            continue
+                        }
 
-                // Create user with batch assignment
-                const userData = {
-                    email: user.email,
-                    user_id: user.id,
-                    balance: 10, // Default balance
-                    orgWalletAddress: org.wallet_address,
-                    reference_number: reference_number,
-                }
+                        // Get organization from database
+                        const org = await Organization.findOne({
+                            org_id: userOrg.id,
+                        })
 
-                const result = await UserManagementService.createUserWithBatch(
-                    userData
-                )
+                        if (!org) {
+                            logger.warn("Organization not found for user", {
+                                userId: user.id,
+                                orgId: userOrg.id,
+                            })
+                            continue
+                        }
 
-                if (result.success) {
-                    logger.info("User created during sync", {
-                        userId: user.id,
-                        email: user.email,
-                        orgId: userOrg.id,
-                    })
-                    syncReport.users.created++
-                } else {
-                    logger.error("Failed to create user during sync", {
-                        userId: user.id,
-                        email: user.email,
-                        error: result.error,
-                    })
-                    syncReport.users.failed++
-                    syncReport.errors.push({
-                        type: "user",
-                        id: user.id,
-                        error: result.error.message,
-                    })
+                        // Generate reference number
+                        const reference_number =
+                            UserManagementService.generateReferenceNumber(
+                                org.wallet_address
+                            )
+
+                        // Create user with batch assignment
+                        const userData = {
+                            email: user.email,
+                            user_id: memberObject.id, // Use our system's user_id from member.id
+                            balance: 10, // Default balance
+                            orgWalletAddress: org.wallet_address,
+                            reference_number: reference_number,
+                        }
+
+                        const result =
+                            await UserManagementService.createUserWithBatch(
+                                userData
+                            )
+
+                        if (result.success) {
+                            logger.info("User created during sync", {
+                                senderUserId: user.id,
+                                ourUserId: memberObject.id,
+                                email: user.email,
+                                orgId: userOrg.id,
+                                orgName: userOrg.name,
+                            })
+                            syncReport.users.created++
+                        } else {
+                            logger.error("Failed to create user during sync", {
+                                senderUserId: user.id,
+                                ourUserId: memberObject.id,
+                                email: user.email,
+                                orgId: userOrg.id,
+                                error: result.error,
+                            })
+                            syncReport.users.failed++
+                            syncReport.errors.push({
+                                type: "user",
+                                senderUserId: user.id,
+                                ourUserId: memberObject.id,
+                                orgId: userOrg.id,
+                                error: result.error.message,
+                            })
+                        }
+                    } catch (membershipError) {
+                        logger.error(
+                            "Failed to create user for organization membership",
+                            {
+                                senderUserId: user.id,
+                                ourUserId: memberObject.id,
+                                email: user.email,
+                                orgId: userOrg.id,
+                                error: membershipError.message,
+                            }
+                        )
+                        syncReport.users.failed++
+                        syncReport.errors.push({
+                            type: "user",
+                            senderUserId: user.id,
+                            ourUserId: memberObject.id,
+                            orgId: userOrg.id,
+                            error: membershipError.message,
+                        })
+                    }
                 }
             } catch (error) {
                 logger.error("Failed to sync user", {
-                    userId: user.id,
+                    senderUserId: user.id,
                     email: user.email,
                     error: error.message,
                 })
                 syncReport.users.failed++
                 syncReport.errors.push({
                     type: "user",
-                    id: user.id,
+                    senderUserId: user.id,
                     error: error.message,
                 })
             }
